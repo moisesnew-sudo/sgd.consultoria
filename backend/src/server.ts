@@ -5,6 +5,7 @@ import rateLimit from 'express-rate-limit';
 import dotenv from 'dotenv';
 import { fileURLToPath } from 'url';
 import path from 'path';
+import fs from 'fs';
 
 // Load environment variables
 dotenv.config();
@@ -63,14 +64,15 @@ app.get('/api/health', (req, res) => {
   });
 });
 
-// Serve static files in production
-if (process.env.NODE_ENV === 'production') {
+// Serve static files in production (only if frontend is built alongside backend)
+if (process.env.NODE_ENV === 'production' && process.env.SERVE_FRONTEND === 'true') {
   const frontendPath = path.join(__dirname, '..', '..', 'frontend', 'dist');
-  app.use(express.static(frontendPath));
-  
-  app.get('*', (req, res) => {
-    res.sendFile(path.join(frontendPath, 'index.html'));
-  });
+  if (fs.existsSync(frontendPath)) {
+    app.use(express.static(frontendPath));
+    app.get('*', (req, res) => {
+      res.sendFile(path.join(frontendPath, 'index.html'));
+    });
+  }
 }
 
 // Error handling middleware
