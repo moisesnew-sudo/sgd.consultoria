@@ -8,7 +8,7 @@ import {
   TimelineEvent 
 } from '../types';
 
-const API_BASE = '/api';
+const API_BASE = import.meta.env.VITE_API_URL || 'https://sgd-consultoria.onrender.com/api';
 
 class ApiError extends Error {
   constructor(public status: number, message: string) {
