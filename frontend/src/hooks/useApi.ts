@@ -43,7 +43,7 @@ export function useApi<T>(
 
   const mutate = useCallback((newData: T | ((prev: T | null) => T | null)) => {
     if (typeof newData === 'function') {
-      setData(prev => newData(prev));
+      setData(prev => (newData as (prev: T | null) => T | null)(prev));
     } else {
       setData(newData);
     }

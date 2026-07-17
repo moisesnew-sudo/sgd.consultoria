@@ -152,11 +152,9 @@ export default function Sidebar({ activeTab, setActiveTab, isOpen, setIsOpen, pe
                   <span className={`inline-block px-1.5 py-0.5 text-[8px] font-bold rounded mt-0.5 uppercase tracking-wider ${
                     user.role === 'admin' 
                       ? 'bg-emerald-500/10 text-emerald-300' 
-                      : user.role === 'user' 
-                      ? 'bg-blue-500/10 text-blue-300' 
                       : 'bg-yellow-500/10 text-yellow-400'
                   }`}>
-                    {user.role === 'admin' ? 'Administrador' : user.role === 'user' ? 'Usuário' : 'Visualizador'}
+                    {user.role === 'admin' ? 'Administrador' : 'Visualizador'}
                   </span>
                 </div>
               </div>

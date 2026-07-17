@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { MapPin, Plus, Search, Edit2, Trash2, X, Save, Loader2 } from 'lucide-react';
 import { municipalitiesApi } from '../services/api';
 import { MunicipalityData } from '../types';
@@ -63,10 +63,12 @@ export default function MunicipalitiesView({ municipalities, setMunicipalities }
     setIsSaving(true);
     try {
       if (editingMunicipality) {
-        await municipalitiesApi.update(editingMunicipality.id, { name: formName.trim(), uf: formUf });
+        if (editingMunicipality.id) {
+          await municipalitiesApi.update(editingMunicipality.id, { name: formName.trim(), uf: formUf });
+        }
         setMunicipalities(prev => prev.map(m =>
           m.name === editingMunicipality.name && m.uf === editingMunicipality.uf
-            ? { name: formName.trim(), uf: formUf }
+            ? { ...m, name: formName.trim(), uf: formUf }
             : m
         ));
       } else {
@@ -77,8 +79,8 @@ export default function MunicipalitiesView({ municipalities, setMunicipalities }
           alert('Município já cadastrado para esta UF.');
           return;
         }
-        await municipalitiesApi.create({ name: formName.trim(), uf: formUf });
-        setMunicipalities(prev => [...prev, { name: formName.trim(), uf: formUf }]);
+        const created = await municipalitiesApi.create({ name: formName.trim(), uf: formUf });
+        setMunicipalities(prev => [...prev, created]);
       }
       setShowModal(false);
     } catch (err: any) {
