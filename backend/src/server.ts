@@ -17,6 +17,7 @@ import authRoutes from './routes/auth.js';
 import demandsRoutes from './routes/demands.js';
 import municipalitiesRoutes from './routes/municipalities.js';
 import settingsRoutes from './routes/settings.js';
+import { runSeed } from './seed.js';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -84,16 +85,21 @@ app.use((err: any, req: express.Request, res: express.Response, next: express.Ne
 });
 
 // Start server
-app.listen(PORT, () => {
-  console.log(`
-  🚀 SGD Backend Server Running
-  =============================
-  Port: ${PORT}
-  Environment: ${process.env.NODE_ENV || 'development'}
-  API: http://localhost:${PORT}/api
-  Health: http://localhost:${PORT}/api/health
-  =============================
-  `);
-});
+async function start() {
+  await runSeed();
+  app.listen(PORT, () => {
+    console.log(`
+    🚀 SGD Backend Server Running
+    =============================
+    Port: ${PORT}
+    Environment: ${process.env.NODE_ENV || 'development'}
+    API: http://localhost:${PORT}/api
+    Health: http://localhost:${PORT}/api/health
+    =============================
+    `);
+  });
+}
+
+start();
 
 export default app;

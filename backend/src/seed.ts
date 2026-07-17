@@ -1,8 +1,8 @@
 import bcrypt from 'bcryptjs';
 import db from './database.js';
 
-async function seed() {
-  console.log('🌱 Iniciando seed do banco de dados...');
+export async function runSeed() {
+  console.log('🌱 Verificando dados iniciais...');
 
   // Create default admin user
   const adminPassword = await bcrypt.hash('Admin2026!', 10);
@@ -71,4 +71,7 @@ async function seed() {
   console.log('   Viewer: consulta@sgd.gov.br / Visitante2026!');
 }
 
-seed().catch(console.error);
+// Allow direct execution
+if (process.argv[1] && process.argv[1].includes('seed')) {
+  runSeed().catch(console.error);
+}
