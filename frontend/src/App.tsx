@@ -70,7 +70,7 @@ function AppContent() {
   };
 
   // Pending demands count
-  const pendingTriageCount = demands.filter(d => d.status === 'triagem').length;
+  const pendingTriageCount = demands.filter(d => d.status === 'pendente').length;
 
   // Show login if not authenticated
   if (!isAuthenticated) {

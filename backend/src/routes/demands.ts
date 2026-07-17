@@ -10,7 +10,7 @@ const demandSchema = z.object({
   title: z.string().min(1, 'Título é obrigatório'),
   description: z.string().optional(),
   category: z.string().min(1, 'Categoria é obrigatória'),
-  status: z.enum(['triagem', 'analise_tecnica', 'em_andamento', 'concluido', 'cancelado']).optional(),
+  status: z.enum(['analise', 'pendente', 'concluido', 'rejeitado']).optional(),
   priority: z.enum(['baixa', 'media', 'alta', 'urgente']).optional(),
   municipality: z.string().min(1, 'Município é obrigatório'),
   uf: z.string().length(2, 'UF deve ter 2 caracteres'),
@@ -28,7 +28,7 @@ const demandSchema = z.object({
 const timelineEventSchema = z.object({
   title: z.string().min(1, 'Título é obrigatório'),
   description: z.string().optional(),
-  status_changed_to: z.enum(['triagem', 'analise_tecnica', 'em_andamento', 'concluido', 'cancelado']).optional()
+  status_changed_to: z.enum(['analise', 'pendente', 'concluido', 'rejeitado']).optional()
 });
 
 // Get all demands with filters
@@ -174,7 +174,7 @@ router.post('/', authenticateToken, (req: Request, res: Response) => {
       data.title,
       data.description || '',
       data.category,
-      data.status || 'triagem',
+      data.status || 'pendente',
       data.priority || 'media',
       data.municipality,
       data.uf,
@@ -202,7 +202,7 @@ router.post('/', authenticateToken, (req: Request, res: Response) => {
       'Demanda Cadastrada',
       `Demanda criada por ${req.user!.name}`,
       req.user!.name,
-      data.status || 'triagem',
+      data.status || 'pendente',
       now
     );
 
@@ -405,7 +405,7 @@ router.get('/stats/dashboard', optionalAuth, (req: Request, res: Response) => {
     // Calculate SLA metrics - count demands that are still open and have exceeded their SLA
     const overdue = db.prepare(`
       SELECT COUNT(*) as count FROM demands 
-      WHERE status IN ('triagem', 'analise_tecnica', 'em_andamento')
+      WHERE status IN ('pendente', 'analise')
       AND julianday('now') - julianday(created_at) > 
         CASE priority 
           WHEN 'urgente' THEN 5 

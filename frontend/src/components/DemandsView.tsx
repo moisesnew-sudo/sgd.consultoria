@@ -79,6 +79,25 @@ export default function DemandsView({
   const [adminNotes, setAdminNotes] = useState('');
   const [isEditingNotes, setIsEditingNotes] = useState(false);
 
+  // Edit demand state
+  const [isEditingDemand, setIsEditingDemand] = useState(false);
+  const [editTitle, setEditTitle] = useState('');
+  const [editDescription, setEditDescription] = useState('');
+  const [editStatus, setEditStatus] = useState<DemandStatus>('pendente');
+  const [editPriority, setEditPriority] = useState<DemandPriority>('media');
+  const [editMunicipality, setEditMunicipality] = useState('');
+  const [editUf, setEditUf] = useState('');
+  const [editRequestedValue, setEditRequestedValue] = useState('');
+  const [editOrgan, setEditOrgan] = useState('');
+  const [editPrefeitura, setEditPrefeitura] = useState('');
+  const [editProposalNumber, setEditProposalNumber] = useState('');
+  const [editProcessLink, setEditProcessLink] = useState('');
+  const [editResponsibleName, setEditResponsibleName] = useState('');
+  const [editResponsibleEmail, setEditResponsibleEmail] = useState('');
+  const [editResponsiblePhone, setEditResponsiblePhone] = useState('');
+  const [editNotes, setEditNotes] = useState('');
+  const [isSavingEdit, setIsSavingEdit] = useState(false);
+
   // Auto-open demand if selected from dashboard
   useEffect(() => {
     if (selectedDemandFromDashboard) {
@@ -96,6 +115,57 @@ export default function DemandsView({
     setNewEventDesc('');
     setNewEventStatus('no-change');
     setIsEditingNotes(false);
+    setIsEditingDemand(false);
+  };
+
+  const handleStartEdit = (demand: Demand) => {
+    setEditTitle(demand.title);
+    setEditDescription(demand.description || '');
+    setEditStatus(demand.status);
+    setEditPriority(demand.priority);
+    setEditMunicipality(demand.municipality);
+    setEditUf(demand.uf);
+    setEditRequestedValue(String(demand.requested_value || ''));
+    setEditOrgan(demand.organ || '');
+    setEditPrefeitura(demand.prefeitura || '');
+    setEditProposalNumber(demand.proposal_number || '');
+    setEditProcessLink(demand.process_link || '');
+    setEditResponsibleName(demand.responsible_name || '');
+    setEditResponsibleEmail(demand.responsible_email || '');
+    setEditResponsiblePhone(demand.responsible_phone || '');
+    setEditNotes(demand.notes || '');
+    setIsEditingDemand(true);
+  };
+
+  const handleSaveEdit = async () => {
+    if (!detailedDemand || !editTitle.trim() || !editMunicipality.trim()) return;
+    setIsSavingEdit(true);
+    try {
+      const updated = await demandsApi.update(detailedDemand.id, {
+        title: editTitle.trim(),
+        description: editDescription.trim(),
+        status: editStatus,
+        priority: editPriority,
+        municipality: editMunicipality.trim(),
+        uf: editUf,
+        requested_value: editRequestedValue ? Number(editRequestedValue) : 0,
+        organ: editOrgan.trim() || undefined,
+        prefeitura: editPrefeitura.trim() || undefined,
+        proposal_number: editProposalNumber.trim() || undefined,
+        process_link: editProcessLink.trim() || undefined,
+        responsible_name: editResponsibleName.trim() || undefined,
+        responsible_email: editResponsibleEmail.trim() || undefined,
+        responsible_phone: editResponsiblePhone.trim() || undefined,
+        notes: editNotes.trim() || undefined
+      });
+      onUpdateDemand(updated);
+      setDetailedDemand(updated);
+      setIsEditingDemand(false);
+    } catch (err: any) {
+      alert('Erro ao salvar: ' + (err.message || 'Tente novamente'));
+    } finally {
+      setIsSavingEdit(false);
+    }
   };
 
   // List of unique UFs
@@ -137,20 +207,18 @@ export default function DemandsView({
 
   // Kanban Columns
   const KANBAN_COLUMNS: { id: DemandStatus; title: string; color: string }[] = [
-    { id: 'triagem', title: 'Triagem / Abertas', color: 'border-t-amber-500 bg-amber-50/20' },
-    { id: 'analise_tecnica', title: 'Análise Técnica', color: 'border-t-indigo-500 bg-indigo-50/20' },
-    { id: 'em_andamento', title: 'Em Andamento', color: 'border-t-blue-500 bg-blue-50/20' },
+    { id: 'pendente', title: 'Pendentes', color: 'border-t-amber-500 bg-amber-50/20' },
+    { id: 'analise', title: 'Em Análise', color: 'border-t-indigo-500 bg-indigo-50/20' },
     { id: 'concluido', title: 'Concluídas', color: 'border-t-green-500 bg-green-50/20' },
-    { id: 'cancelado', title: 'Canceladas', color: 'border-t-slate-500 bg-slate-50/20' }
+    { id: 'rejeitado', title: 'Rejeitadas', color: 'border-t-red-500 bg-red-50/20' }
   ];
 
   const getStatusBadgeClass = (status: DemandStatus) => {
     switch (status) {
-      case 'triagem': return 'bg-amber-100 text-amber-800 border-amber-200';
-      case 'analise_tecnica': return 'bg-indigo-100 text-indigo-800 border-indigo-200';
-      case 'em_andamento': return 'bg-blue-100 text-blue-800 border-blue-200';
+      case 'pendente': return 'bg-amber-100 text-amber-800 border-amber-200';
+      case 'analise': return 'bg-indigo-100 text-indigo-800 border-indigo-200';
       case 'concluido': return 'bg-green-100 text-green-800 border-green-200';
-      case 'cancelado': return 'bg-slate-100 text-slate-800 border-slate-200';
+      case 'rejeitado': return 'bg-red-100 text-red-800 border-red-200';
       default: return 'bg-slate-100 text-slate-800 border-slate-200';
     }
   };
@@ -167,11 +235,10 @@ export default function DemandsView({
 
   const getStatusLabel = (status: DemandStatus) => {
     switch (status) {
-      case 'triagem': return 'Triagem';
-      case 'analise_tecnica': return 'Análise Técnica';
-      case 'em_andamento': return 'Em Execução';
+      case 'pendente': return 'Pendente';
+      case 'analise': return 'Em Análise';
       case 'concluido': return 'Concluído';
-      case 'cancelado': return 'Cancelado';
+      case 'rejeitado': return 'Rejeitado';
     }
   };
 
@@ -367,11 +434,10 @@ export default function DemandsView({
             <span className="text-[10px] font-bold text-slate-400 uppercase self-center mr-2">Filtro Rápido:</span>
             {[
               { id: 'all', label: `Todas (${demands.length})` },
-              { id: 'triagem', label: `Triagem (${demands.filter(d => d.status === 'triagem').length})` },
-              { id: 'analise_tecnica', label: `Análise (${demands.filter(d => d.status === 'analise_tecnica').length})` },
-              { id: 'em_andamento', label: `Execução (${demands.filter(d => d.status === 'em_andamento').length})` },
+              { id: 'pendente', label: `Pendentes (${demands.filter(d => d.status === 'pendente').length})` },
+              { id: 'analise', label: `Em Análise (${demands.filter(d => d.status === 'analise').length})` },
               { id: 'concluido', label: `Concluídas (${demands.filter(d => d.status === 'concluido').length})` },
-              { id: 'cancelado', label: `Canceladas (${demands.filter(d => d.status === 'cancelado').length})` }
+              { id: 'rejeitado', label: `Rejeitadas (${demands.filter(d => d.status === 'rejeitado').length})` }
             ].map(pill => (
               <button
                 key={pill.id}
@@ -548,19 +614,129 @@ export default function DemandsView({
                 </p>
               </div>
 
-              <button
-                onClick={() => setDetailedDemand(null)}
-                className="p-2 text-blue-200 hover:text-white hover:bg-white/10 rounded-xl transition-colors"
-                aria-label="Fechar detalhes"
-              >
-                <X size={20} />
-              </button>
+              <div className="flex items-center gap-2">
+                {!isEditingDemand && (
+                  <button
+                    onClick={() => handleStartEdit(detailedDemand)}
+                    className="px-3 py-1.5 bg-yellow-400 text-blue-950 text-[10px] font-bold uppercase tracking-wider rounded-lg hover:bg-yellow-300 transition-colors"
+                  >
+                    Editar
+                  </button>
+                )}
+                <button
+                  onClick={() => setDetailedDemand(null)}
+                  className="p-2 text-blue-200 hover:text-white hover:bg-white/10 rounded-xl transition-colors"
+                  aria-label="Fechar detalhes"
+                >
+                  <X size={20} />
+                </button>
+              </div>
             </div>
 
             {/* Drawer Body */}
             <div className="p-6 md:p-8 space-y-8 flex-1 overflow-y-auto">
-              
-              {/* Basic Stats */}
+
+              {isEditingDemand ? (
+                /* EDIT FORM */
+                <div className="space-y-6">
+                  <h3 className="text-sm font-extrabold text-indigo-950 uppercase tracking-widest">Editar Demanda</h3>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-1">
+                      <label className="text-xs font-bold text-slate-700 block">Título *</label>
+                      <input type="text" value={editTitle} onChange={(e) => setEditTitle(e.target.value)}
+                        className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-blue-600 focus:outline-none" />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-xs font-bold text-slate-700 block">Município *</label>
+                      <input type="text" value={editMunicipality} onChange={(e) => setEditMunicipality(e.target.value)}
+                        className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-blue-600 focus:outline-none" />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-xs font-bold text-slate-700 block">UF</label>
+                      <input type="text" value={editUf} onChange={(e) => setEditUf(e.target.value)} maxLength={2}
+                        className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-blue-600 focus:outline-none" />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-xs font-bold text-slate-700 block">Status</label>
+                      <select value={editStatus} onChange={(e) => setEditStatus(e.target.value as DemandStatus)}
+                        className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm bg-white focus:ring-2 focus:ring-blue-600 focus:outline-none">
+                        <option value="pendente">Pendente</option>
+                        <option value="analise">Em Análise</option>
+                        <option value="concluido">Concluído</option>
+                        <option value="rejeitado">Rejeitado</option>
+                      </select>
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-xs font-bold text-slate-700 block">Prioridade</label>
+                      <select value={editPriority} onChange={(e) => setEditPriority(e.target.value as DemandPriority)}
+                        className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm bg-white focus:ring-2 focus:ring-blue-600 focus:outline-none">
+                        <option value="baixa">Baixa</option>
+                        <option value="media">Média</option>
+                        <option value="alta">Alta</option>
+                        <option value="urgente">Urgente</option>
+                      </select>
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-xs font-bold text-slate-700 block">Valor Solicitado (R$)</label>
+                      <input type="number" value={editRequestedValue} onChange={(e) => setEditRequestedValue(e.target.value)}
+                        className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-blue-600 focus:outline-none" />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-xs font-bold text-slate-700 block">Órgão</label>
+                      <input type="text" value={editOrgan} onChange={(e) => setEditOrgan(e.target.value)}
+                        className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-blue-600 focus:outline-none" />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-xs font-bold text-slate-700 block">Prefeitura</label>
+                      <input type="text" value={editPrefeitura} onChange={(e) => setEditPrefeitura(e.target.value)}
+                        className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-blue-600 focus:outline-none" />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-xs font-bold text-slate-700 block">Nº Proposta</label>
+                      <input type="text" value={editProposalNumber} onChange={(e) => setEditProposalNumber(e.target.value)}
+                        className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-blue-600 focus:outline-none" />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-xs font-bold text-slate-700 block">Link do Processo</label>
+                      <input type="url" value={editProcessLink} onChange={(e) => setEditProcessLink(e.target.value)}
+                        className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-blue-600 focus:outline-none" />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-xs font-bold text-slate-700 block">Responsável</label>
+                      <input type="text" value={editResponsibleName} onChange={(e) => setEditResponsibleName(e.target.value)}
+                        className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-blue-600 focus:outline-none" />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-xs font-bold text-slate-700 block">E-mail Responsável</label>
+                      <input type="email" value={editResponsibleEmail} onChange={(e) => setEditResponsibleEmail(e.target.value)}
+                        className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-blue-600 focus:outline-none" />
+                    </div>
+                    <div className="space-y-1 md:col-span-2">
+                      <label className="text-xs font-bold text-slate-700 block">Descrição</label>
+                      <textarea rows={3} value={editDescription} onChange={(e) => setEditDescription(e.target.value)}
+                        className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-blue-600 focus:outline-none" />
+                    </div>
+                    <div className="space-y-1 md:col-span-2">
+                      <label className="text-xs font-bold text-slate-700 block">Observações</label>
+                      <textarea rows={2} value={editNotes} onChange={(e) => setEditNotes(e.target.value)}
+                        className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-blue-600 focus:outline-none" />
+                    </div>
+                  </div>
+
+                  <div className="flex gap-3 pt-4 border-t border-slate-100">
+                    <button onClick={() => setIsEditingDemand(false)}
+                      className="py-2.5 px-6 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 font-bold text-xs uppercase tracking-wider">
+                      Cancelar
+                    </button>
+                    <button onClick={handleSaveEdit} disabled={isSavingEdit}
+                      className="py-2.5 px-6 rounded-xl bg-slate-900 hover:bg-indigo-950 text-white font-bold text-xs uppercase tracking-wider disabled:opacity-50">
+                      {isSavingEdit ? 'Salvando...' : 'Salvar Alterações'}
+                    </button>
+                  </div>
+                </div>
+              ) : (
+              /* DETAIL VIEW */
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <div className="bg-slate-50 p-4 rounded-xl border border-slate-100">
                   <span className="text-[10px] text-slate-400 block uppercase font-bold">Valor Estimado</span>
@@ -685,11 +861,10 @@ export default function DemandsView({
                           className="px-3 py-1.5 rounded-lg border border-slate-200 text-xs bg-white text-slate-800 focus:outline-none"
                         >
                           <option value="no-change">Manter Status Atual</option>
-                          <option value="triagem">Mudar para Triagem</option>
-                          <option value="analise_tecnica">Mudar para Análise Técnica</option>
-                          <option value="em_andamento">Mudar para Em Execução</option>
+                          <option value="pendente">Mudar para Pendente</option>
+                          <option value="analise">Mudar para Em Análise</option>
                           <option value="concluido">Mudar para Concluído</option>
-                          <option value="cancelado">Mudar para Cancelado</option>
+                          <option value="rejeitado">Mudar para Rejeitado</option>
                         </select>
                       </div>
 
@@ -837,9 +1012,8 @@ export default function DemandsView({
                   </div>
                 </div>
               </div>
+              )}
             </div>
-
-            {/* Drawer Footer */}
             <div className="p-4 bg-slate-50 border-t border-slate-100 sticky bottom-0 z-10 flex flex-col sm:flex-row gap-2 justify-between">
               <button
                 onClick={handlePrintDemand}

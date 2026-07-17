@@ -80,9 +80,10 @@ export default function DashboardView({ onNavigateToTab, onSelectDemand }: Dashb
 
   // Calculate metrics
   const totalGeral = stats.total;
-  const abertasCount = stats.byStatus['triagem'] || 0;
+  const pendentesCount = stats.byStatus['pendente'] || 0;
+  const emAnaliseCount = stats.byStatus['analise'] || 0;
   const concluidasCount = stats.byStatus['concluido'] || 0;
-  const emAndamentoCount = (stats.byStatus['em_andamento'] || 0) + (stats.byStatus['analise_tecnica'] || 0);
+  const emAndamentoCount = emAnaliseCount;
   const overdueCount = stats.overdue;
   const completedPercent = totalGeral > 0 ? Math.round((concluidasCount / totalGeral) * 100) : 0;
 

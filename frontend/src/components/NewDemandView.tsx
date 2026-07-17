@@ -49,7 +49,7 @@ export default function NewDemandView({ municipalities, onAddDemand, onNavigateT
   const [objeto, setObjeto] = useState('');
   const [organ, setOrgan] = useState('');
   const [requestedValue, setRequestedValue] = useState('');
-  const [status, setStatus] = useState<DemandStatus>('triagem');
+  const [status, setStatus] = useState<DemandStatus>('pendente');
   const [processLink, setProcessLink] = useState('');
   const [description, setDescription] = useState('');
   const [responsibleName, setResponsibleName] = useState(user?.name || '');
@@ -179,7 +179,7 @@ export default function NewDemandView({ municipalities, onAddDemand, onNavigateT
     setObjeto('');
     setOrgan('');
     setRequestedValue('');
-    setStatus('triagem');
+    setStatus('pendente');
     setProcessLink('');
     setDescription('');
     setPriority('media');
@@ -385,9 +385,10 @@ export default function NewDemandView({ municipalities, onAddDemand, onNavigateT
                 onChange={(e) => setStatus(e.target.value as DemandStatus)}
                 className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm text-slate-800 bg-white focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-transparent"
               >
-                <option value="triagem">Triagem Inicial</option>
-                <option value="analise_tecnica">Análise Técnica</option>
-                <option value="em_andamento">Em Andamento</option>
+                <option value="pendente">Pendente</option>
+                <option value="analise">Em Análise</option>
+                <option value="concluido">Concluído</option>
+                <option value="rejeitado">Rejeitado</option>
               </select>
             </div>
 

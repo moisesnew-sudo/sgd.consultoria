@@ -1,4 +1,4 @@
-export type DemandStatus = 'triagem' | 'analise_tecnica' | 'em_andamento' | 'concluido' | 'cancelado';
+export type DemandStatus = 'analise' | 'pendente' | 'concluido' | 'rejeitado';
 export type DemandPriority = 'baixa' | 'media' | 'alta' | 'urgente';
 export type UserRole = 'admin' | 'user' | 'viewer';
 export type Region = 'Norte' | 'Nordeste' | 'Sudeste' | 'Sul' | 'Centro-Oeste';

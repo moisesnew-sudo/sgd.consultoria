@@ -52,7 +52,7 @@ db.exec(`
     title TEXT NOT NULL,
     description TEXT,
     category TEXT NOT NULL,
-    status TEXT DEFAULT 'triagem' CHECK(status IN ('triagem', 'analise_tecnica', 'em_andamento', 'concluido', 'cancelado')),
+    status TEXT DEFAULT 'pendente' CHECK(status IN ('analise', 'pendente', 'concluido', 'rejeitado')),
     priority TEXT DEFAULT 'media' CHECK(priority IN ('baixa', 'media', 'alta', 'urgente')),
     municipality TEXT NOT NULL,
     uf TEXT NOT NULL,

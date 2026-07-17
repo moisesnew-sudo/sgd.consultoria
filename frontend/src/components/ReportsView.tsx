@@ -10,11 +10,10 @@ interface ReportsViewProps {
 }
 
 const STATUS_LABELS: Record<DemandStatus, string> = {
-  triagem: 'Triagem Inicial',
-  analise_tecnica: 'Análise Técnica',
-  em_andamento: 'Em Andamento',
+  pendente: 'Pendente',
+  analise: 'Em Análise',
   concluido: 'Concluído',
-  cancelado: 'Cancelado'
+  rejeitado: 'Rejeitado'
 };
 
 const PRIORITY_LABELS: Record<string, string> = {
@@ -40,7 +39,7 @@ export default function ReportsView({ demands }: ReportsViewProps) {
 
   const totalRequested = filtered.reduce((sum, d) => sum + (d.requested_value || 0), 0);
   const totalApproved = filtered
-    .filter(d => ['em_andamento', 'concluido'].includes(d.status))
+    .filter(d => ['analise', 'concluido'].includes(d.status))
     .reduce((sum, d) => sum + (d.requested_value || 0), 0);
 
   const byStatus = useMemo(() => {
@@ -199,7 +198,7 @@ export default function ReportsView({ demands }: ReportsViewProps) {
           </div>
           <p className="text-xl font-black text-slate-900">
             {filtered.length > 0
-              ? `${Math.round(((byStatus['em_andamento']?.count || 0) + (byStatus['concluido']?.count || 0)) / filtered.length * 100)}%`
+              ? `${Math.round(((byStatus['analise']?.count || 0) + (byStatus['concluido']?.count || 0)) / filtered.length * 100)}%`
               : '0%'
             }
           </p>
@@ -214,11 +213,10 @@ export default function ReportsView({ demands }: ReportsViewProps) {
             const item = byStatus[key] || { count: 0, value: 0 };
             const pct = filtered.length > 0 ? Math.round((item.count / filtered.length) * 100) : 0;
             const colors: Record<string, string> = {
-              triagem: 'bg-slate-400',
-              analise_tecnica: 'bg-blue-500',
-              em_andamento: 'bg-amber-500',
+              pendente: 'bg-amber-500',
+              analise: 'bg-blue-500',
               concluido: 'bg-green-500',
-              cancelado: 'bg-red-400'
+              rejeitado: 'bg-red-400'
             };
             return (
               <div key={key} className="flex items-center gap-4">
