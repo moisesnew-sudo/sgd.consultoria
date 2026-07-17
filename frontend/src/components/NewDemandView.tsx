@@ -132,10 +132,6 @@ export default function NewDemandView({ municipalities, onAddDemand, onNavigateT
     if (!uf) newErrors.uf = 'Selecione a UF.';
     if (!municipality.trim()) newErrors.municipality = 'Informe o município.';
     if (!objeto.trim()) newErrors.objeto = 'Informe o objeto da demanda.';
-    if (!organ.trim()) newErrors.organ = 'Informe o órgão federal de destino.';
-    if (!requestedValue || isNaN(Number(requestedValue)) || Number(requestedValue) <= 0) {
-      newErrors.requestedValue = 'Insira um valor numérico válido.';
-    }
 
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors);
@@ -154,10 +150,10 @@ export default function NewDemandView({ municipalities, onAddDemand, onNavigateT
         priority,
         municipality,
         uf,
-        requested_value: Number(requestedValue),
+        requested_value: requestedValue ? Number(requestedValue) : 0,
         prefeitura: prefeitura || `Prefeitura Municipal de ${municipality}`,
         proposal_number: proposalNumber || undefined,
-        organ,
+        organ: organ || undefined,
         process_link: processLink.trim() || undefined,
         responsible_name: responsibleName || undefined,
         responsible_email: responsibleEmail || undefined,
@@ -343,7 +339,7 @@ export default function NewDemandView({ municipalities, onAddDemand, onNavigateT
             </div>
 
             <div className="md:col-span-6 space-y-1" id="field-organ">
-              <label htmlFor="organ-input" className="text-xs font-bold text-slate-700 block">Órgão Destinatário *</label>
+              <label htmlFor="organ-input" className="text-xs font-bold text-slate-700 block">Órgão Destinatário</label>
               <input
                 id="organ-input"
                 type="text"
@@ -358,7 +354,7 @@ export default function NewDemandView({ municipalities, onAddDemand, onNavigateT
             </div>
 
             <div className="md:col-span-6 space-y-1" id="field-requestedValue">
-              <label htmlFor="value-input" className="text-xs font-bold text-slate-700 block">Valor Solicitado (R$) *</label>
+              <label htmlFor="value-input" className="text-xs font-bold text-slate-700 block">Valor Solicitado (R$)</label>
               <div className="relative">
                 <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs font-semibold">R$</span>
                 <input

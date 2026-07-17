@@ -14,7 +14,7 @@ const demandSchema = z.object({
   priority: z.enum(['baixa', 'media', 'alta', 'urgente']).optional(),
   municipality: z.string().min(1, 'Município é obrigatório'),
   uf: z.string().length(2, 'UF deve ter 2 caracteres'),
-  requested_value: z.number().positive('Valor deve ser positivo'),
+  requested_value: z.number().optional(),
   prefeitura: z.string().optional(),
   proposal_number: z.string().optional(),
   organ: z.string().optional(),

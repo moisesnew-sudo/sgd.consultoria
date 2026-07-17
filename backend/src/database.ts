@@ -56,7 +56,7 @@ db.exec(`
     priority TEXT DEFAULT 'media' CHECK(priority IN ('baixa', 'media', 'alta', 'urgente')),
     municipality TEXT NOT NULL,
     uf TEXT NOT NULL,
-    requested_value REAL NOT NULL,
+    requested_value REAL DEFAULT 0,
     prefeitura TEXT,
     proposal_number TEXT,
     organ TEXT,
