@@ -736,7 +736,8 @@ export default function DemandsView({
                   </div>
                 </div>
               ) : (
-              /* DETAIL VIEW */
+              <>
+              {/* DETAIL VIEW */}
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <div className="bg-slate-50 p-4 rounded-xl border border-slate-100">
                   <span className="text-[10px] text-slate-400 block uppercase font-bold">Valor Estimado</span>
@@ -1012,6 +1013,7 @@ export default function DemandsView({
                   </div>
                 </div>
               </div>
+              </>
               )}
             </div>
             <div className="p-4 bg-slate-50 border-t border-slate-100 sticky bottom-0 z-10 flex flex-col sm:flex-row gap-2 justify-between">
