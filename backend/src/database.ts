@@ -113,4 +113,48 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_attachments_demand_id ON attachments(demand_id);
 `);
 
+// Migration: drop and recreate demands table if old status values exist
+const demandCheck = db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='demands'").get() as any;
+if (demandCheck && demandCheck.sql && (
+  demandCheck.sql.includes("'triagem'") || 
+  demandCheck.sql.includes("'analise_tecnica'") || 
+  demandCheck.sql.includes("'em_andamento'") ||
+  demandCheck.sql.includes("'cancelado'")
+)) {
+  console.log('🔄 Migrando banco de dados...');
+  db.exec('DELETE FROM timeline_events');
+  db.exec('DELETE FROM attachments');
+  db.exec('DROP TABLE IF EXISTS demands');
+  db.exec(`
+    CREATE TABLE demands (
+      id TEXT PRIMARY KEY,
+      title TEXT NOT NULL,
+      description TEXT,
+      category TEXT NOT NULL,
+      status TEXT DEFAULT 'pendente' CHECK(status IN ('analise', 'pendente', 'concluido', 'rejeitado')),
+      priority TEXT DEFAULT 'media' CHECK(priority IN ('baixa', 'media', 'alta', 'urgente')),
+      municipality TEXT NOT NULL,
+      uf TEXT NOT NULL,
+      requested_value REAL DEFAULT 0,
+      prefeitura TEXT,
+      proposal_number TEXT,
+      organ TEXT,
+      process_link TEXT,
+      responsible_name TEXT,
+      responsible_email TEXT,
+      responsible_phone TEXT,
+      notes TEXT,
+      created_by INTEGER,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (created_by) REFERENCES users(id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_demands_status ON demands(status);
+    CREATE INDEX IF NOT EXISTS idx_demands_municipality ON demands(municipality);
+    CREATE INDEX IF NOT EXISTS idx_demands_uf ON demands(uf);
+    CREATE INDEX IF NOT EXISTS idx_demands_created_at ON demands(created_at);
+  `);
+  console.log('✅ Migração concluída');
+}
+
 export default db;
