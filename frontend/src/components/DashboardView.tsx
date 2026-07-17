@@ -162,12 +162,12 @@ export default function DashboardView({ onNavigateToTab, onSelectDemand }: Dashb
             <div className="p-2 rounded-lg bg-amber-50 text-amber-600">
               <Hourglass size={20} />
             </div>
-            <span className="text-[10px] bg-amber-100 text-amber-800 font-bold px-2 py-0.5 rounded-full">Triagem</span>
+            <span className="text-[10px] bg-amber-100 text-amber-800 font-bold px-2 py-0.5 rounded-full">Pendente</span>
           </div>
           <div className="mt-4">
             <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Demandas Abertas</h3>
-            <p className="text-2xl font-black text-slate-900 mt-1">{abertasCount}</p>
-            <p className="text-[10px] text-slate-400 mt-1">Aguardando validação inicial</p>
+            <p className="text-2xl font-black text-slate-900 mt-1">{pendentesCount}</p>
+            <p className="text-[10px] text-slate-400 mt-1">Aguardando análise inicial</p>
           </div>
         </div>
 
