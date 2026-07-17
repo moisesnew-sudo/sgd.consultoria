@@ -1,36 +1,31 @@
 import bcrypt from 'bcryptjs';
-import db from './database.js';
+import { get, run } from './database.js';
 
 export async function runSeed() {
   console.log('🌱 Verificando dados iniciais...');
 
-  // Create default admin user
   const adminPassword = await bcrypt.hash('Admin2026!', 10);
-  
-  const existingAdmin = db.prepare('SELECT id FROM users WHERE email = ?').get('admin@sgd.gov.br');
+  const existingAdmin = await get('SELECT id FROM users WHERE email = $1', ['admin@sgd.gov.br']);
 
   if (!existingAdmin) {
-    db.prepare(`
-      INSERT INTO users (email, password_hash, name, role)
-      VALUES (?, ?, ?, ?)
-    `).run('admin@sgd.gov.br', adminPassword, 'Administrador SGD', 'admin');
+    await run(
+      'INSERT INTO users (email, password_hash, name, role) VALUES ($1, $2, $3, $4)',
+      ['admin@sgd.gov.br', adminPassword, 'Administrador SGD', 'admin']
+    );
     console.log('✅ Usuário admin criado: admin@sgd.gov.br / Admin2026!');
   }
 
-  // Create default viewer user
   const viewerPassword = await bcrypt.hash('Visitante2026!', 10);
-  
-  const existingViewer = db.prepare('SELECT id FROM users WHERE email = ?').get('consulta@sgd.gov.br');
+  const existingViewer = await get('SELECT id FROM users WHERE email = $1', ['consulta@sgd.gov.br']);
 
   if (!existingViewer) {
-    db.prepare(`
-      INSERT INTO users (email, password_hash, name, role)
-      VALUES (?, ?, ?, ?)
-    `).run('consulta@sgd.gov.br', viewerPassword, 'Consultor Público', 'viewer');
+    await run(
+      'INSERT INTO users (email, password_hash, name, role) VALUES ($1, $2, $3, $4)',
+      ['consulta@sgd.gov.br', viewerPassword, 'Consultor Público', 'viewer']
+    );
     console.log('✅ Usuário viewer criado: consulta@sgd.gov.br / Visitante2026!');
   }
 
-  // Create default municipalities
   const municipalities = [
     { name: 'Sobral', uf: 'CE', schools_count: 52, population: 210000, hdi: 0.788, region: 'Nordeste' },
     { name: 'Petrolina', uf: 'PE', schools_count: 48, population: 350000, hdi: 0.702, region: 'Nordeste' },
@@ -44,24 +39,19 @@ export async function runSeed() {
     { name: 'Goiânia', uf: 'GO', schools_count: 120, population: 1500000, hdi: 0.799, region: 'Centro-Oeste' }
   ];
 
-  const insertMunicipality = db.prepare(`
-    INSERT OR IGNORE INTO municipalities (name, uf, schools_count, population, hdi, region)
-    VALUES (?, ?, ?, ?, ?, ?)
-  `);
-
   for (const m of municipalities) {
-    insertMunicipality.run(m.name, m.uf, m.schools_count, m.population, m.hdi, m.region);
+    await run(
+      'INSERT INTO municipalities (name, uf, schools_count, population, hdi, region) VALUES ($1, $2, $3, $4, $5, $6) ON CONFLICT (name, uf) DO NOTHING',
+      [m.name, m.uf, m.schools_count, m.population, m.hdi, m.region]
+    );
   }
   console.log(`✅ ${municipalities.length} municípios inseridos`);
 
-  // Create default system settings
-  const existingSettings = db.prepare('SELECT id FROM system_settings WHERE id = 1').get();
-
+  const existingSettings = await get('SELECT id FROM system_settings WHERE id = 1');
   if (!existingSettings) {
-    db.prepare(`
-      INSERT INTO system_settings (id, sla_days_baixa, sla_days_media, sla_days_alta, sla_days_urgente, auto_triage, email_notifications, budget_cap)
-      VALUES (1, 45, 30, 15, 5, 1, 1, 15000000)
-    `).run();
+    await run(
+      'INSERT INTO system_settings (id, sla_days_baixa, sla_days_media, sla_days_alta, sla_days_urgente, auto_triage, email_notifications, budget_cap) VALUES (1, 45, 30, 15, 5, TRUE, TRUE, 15000000) ON CONFLICT (id) DO NOTHING'
+    );
     console.log('✅ Configurações padrão criadas');
   }
 
@@ -71,7 +61,6 @@ export async function runSeed() {
   console.log('   Viewer: consulta@sgd.gov.br / Visitante2026!');
 }
 
-// Allow direct execution
 if (process.argv[1] && process.argv[1].includes('seed')) {
   runSeed().catch(console.error);
 }

@@ -2,7 +2,7 @@ import { Router, Request, Response } from 'express';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { z } from 'zod';
-import db from '../database.js';
+import { get, run } from '../database.js';
 import { User, UserResponse } from '../types.js';
 import { authenticateToken } from '../middleware/auth.js';
 
@@ -17,22 +17,19 @@ const registerSchema = z.object({
   email: z.string().email('Email inválido'),
   password: z.string().min(6, 'Senha deve ter pelo menos 6 caracteres'),
   name: z.string().min(2, 'Nome deve ter pelo menos 2 caracteres'),
-  role: z.enum(['admin', 'user', 'viewer']).optional()
+  role: z.enum(['admin', 'viewer']).optional()
 });
 
-// Login
 router.post('/login', async (req: Request, res: Response) => {
   try {
     const { email, password } = loginSchema.parse(req.body);
-
-    const user = db.prepare('SELECT * FROM users WHERE email = ?').get(email) as User | undefined;
+    const user = await get<User>('SELECT * FROM users WHERE email = $1', [email]);
 
     if (!user) {
       return res.status(401).json({ error: 'Credenciais inválidas' });
     }
 
     const validPassword = await bcrypt.compare(password, user.password_hash);
-
     if (!validPassword) {
       return res.status(401).json({ error: 'Credenciais inválidas' });
     }
@@ -48,10 +45,7 @@ router.post('/login', async (req: Request, res: Response) => {
       expiresIn: process.env.JWT_EXPIRES_IN || '24h'
     });
 
-    res.json({
-      token,
-      user: userResponse
-    });
+    res.json({ token, user: userResponse });
   } catch (error) {
     if (error instanceof z.ZodError) {
       return res.status(400).json({ error: 'Dados inválidos', details: error.errors });
@@ -61,7 +55,6 @@ router.post('/login', async (req: Request, res: Response) => {
   }
 });
 
-// Register (only admins can create users)
 router.post('/register', authenticateToken, async (req: Request, res: Response) => {
   try {
     if (req.user?.role !== 'admin') {
@@ -69,29 +62,21 @@ router.post('/register', authenticateToken, async (req: Request, res: Response) 
     }
 
     const { email, password, name, role } = registerSchema.parse(req.body);
-
-    const existingUser = db.prepare('SELECT id FROM users WHERE email = ?').get(email);
+    const existingUser = await get('SELECT id FROM users WHERE email = $1', [email]);
 
     if (existingUser) {
       return res.status(409).json({ error: 'Email já cadastrado' });
     }
 
     const passwordHash = await bcrypt.hash(password, 10);
-
-    const result = db.prepare(
-      'INSERT INTO users (email, password_hash, name, role) VALUES (?, ?, ?, ?)'
-    ).run(email, passwordHash, name, role || 'user');
-
-    const userResponse: UserResponse = {
-      id: result.lastInsertRowid as number,
-      email,
-      name,
-      role: role || 'user'
-    };
+    const result = await run(
+      'INSERT INTO users (email, password_hash, name, role) VALUES ($1, $2, $3, $4) RETURNING id, email, name, role',
+      [email, passwordHash, name, role || 'viewer']
+    );
 
     res.status(201).json({
       message: 'Usuário criado com sucesso',
-      user: userResponse
+      user: result.rows[0]
     });
   } catch (error) {
     if (error instanceof z.ZodError) {
@@ -102,10 +87,11 @@ router.post('/register', authenticateToken, async (req: Request, res: Response) 
   }
 });
 
-// Get current user profile
-router.get('/me', authenticateToken, (req: Request, res: Response) => {
-  const user = db.prepare('SELECT id, email, name, role, created_at FROM users WHERE id = ?')
-    .get(req.user!.id);
+router.get('/me', authenticateToken, async (req: Request, res: Response) => {
+  const user = await get<UserResponse>(
+    'SELECT id, email, name, role, created_at FROM users WHERE id = $1',
+    [req.user!.id]
+  );
 
   if (!user) {
     return res.status(404).json({ error: 'Usuário não encontrado' });
@@ -114,7 +100,6 @@ router.get('/me', authenticateToken, (req: Request, res: Response) => {
   res.json(user);
 });
 
-// Change password
 router.put('/change-password', authenticateToken, async (req: Request, res: Response) => {
   try {
     const currentPassword = req.body.currentPassword || req.body.current_password;
@@ -128,18 +113,21 @@ router.put('/change-password', authenticateToken, async (req: Request, res: Resp
       return res.status(400).json({ error: 'Nova senha deve ter pelo menos 6 caracteres' });
     }
 
-    const user = db.prepare('SELECT * FROM users WHERE id = ?').get(req.user!.id) as User;
+    const user = await get<User>('SELECT * FROM users WHERE id = $1', [req.user!.id]);
+    if (!user) {
+      return res.status(404).json({ error: 'Usuário não encontrado' });
+    }
 
     const validPassword = await bcrypt.compare(currentPassword, user.password_hash);
-
     if (!validPassword) {
       return res.status(401).json({ error: 'Senha atual incorreta' });
     }
 
     const newPasswordHash = await bcrypt.hash(newPassword, 10);
-
-    db.prepare('UPDATE users SET password_hash = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?')
-      .run(newPasswordHash, req.user!.id);
+    await run(
+      'UPDATE users SET password_hash = $1, updated_at = NOW() WHERE id = $2',
+      [newPasswordHash, req.user!.id]
+    );
 
     res.json({ message: 'Senha alterada com sucesso' });
   } catch (error) {

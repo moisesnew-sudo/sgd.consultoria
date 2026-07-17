@@ -19,6 +19,7 @@ import demandsRoutes from './routes/demands.js';
 import municipalitiesRoutes from './routes/municipalities.js';
 import settingsRoutes from './routes/settings.js';
 import { runSeed } from './seed.js';
+import { initDatabase } from './database.js';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -88,6 +89,7 @@ app.use((err: any, req: express.Request, res: express.Response, next: express.Ne
 
 // Start server
 async function start() {
+  await initDatabase();
   await runSeed();
   app.listen(PORT, () => {
     console.log(`
