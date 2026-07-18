@@ -13,7 +13,9 @@ services:
       - key: PORT
         value: 3001
       - key: DATABASE_URL
-        sync: false
+        fromDatabase:
+          name: sgd_db_bnts
+          property: connectionString
       - key: JWT_SECRET
         sync: false
       - key: CORS_ORIGIN
