@@ -96,6 +96,15 @@ export const ROLE_PERMISSIONS: Record<UserRole, {
   consulta: { canCreate: false, canEdit: false, canDelete: false, canManageUsers: false, canViewUsers: false, canManageSettings: false },
 };
 
+// Normalize a demand so numeric fields from PostgreSQL (returned as strings)
+// are coerced to numbers, preventing "R$ NaN" in sums/formatting.
+function normalizeDemand(d: any): Demand {
+  return {
+    ...d,
+    requested_value: Number(d.requested_value) || 0,
+  } as Demand;
+}
+
 // Demands API
 export const demandsApi = {
   getAll: async (params?: {
@@ -116,10 +125,11 @@ export const demandsApi = {
         }
       });
     }
-    return request<PaginatedResponse<Demand>>(`/demands?${searchParams.toString()}`);
+    const res = await request<PaginatedResponse<Demand>>(`/demands?${searchParams.toString()}`);
+    return { ...res, data: res.data.map(normalizeDemand) };
   },
 
-  getById: (id: string) => request<Demand>(`/demands/${id}`),
+  getById: async (id: string) => normalizeDemand(await request<Demand>(`/demands/${id}`)),
 
   create: (data: Partial<Demand>) => 
     request<Demand>('/demands', {
@@ -239,12 +249,14 @@ export const settingsApi = {
 
 // Helper functions
 export const formatCurrency = (value: number): string => {
+  const n = Number(value);
+  if (!isFinite(n)) return 'R$ 0,00';
   return new Intl.NumberFormat('pt-BR', {
     style: 'currency',
     currency: 'BRL',
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
-  }).format(value);
+  }).format(n);
 };
 
 export const formatDate = (dateStr: string): string => {
