@@ -18,6 +18,9 @@ import authRoutes from './routes/auth.js';
 import demandsRoutes from './routes/demands.js';
 import municipalitiesRoutes from './routes/municipalities.js';
 import settingsRoutes from './routes/settings.js';
+import commentsRoutes from './routes/comments.js';
+import auditRoutes from './routes/audit.js';
+import integrationsRoutes from './routes/integrations.js';
 import { runSeed } from './seed.js';
 import { initDatabase } from './database.js';
 
@@ -53,8 +56,11 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 // API Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/demands', demandsRoutes);
+app.use('/api/demands', commentsRoutes);
 app.use('/api/municipalities', municipalitiesRoutes);
 app.use('/api/settings', settingsRoutes);
+app.use('/api/audit', auditRoutes);
+app.use('/api/integrations', integrationsRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {

@@ -20,17 +20,24 @@ import {
   FolderKanban,
   ShieldCheck,
   Loader2,
-  Trash2
+  Trash2,
+  MessageSquare,
+  Send
 } from 'lucide-react';
 import { Demand, DemandStatus, DemandPriority, TimelineEvent, PaginatedResponse } from '../types';
-import { demandsApi, formatCurrency, formatDate } from '../services/api';
+import { demandsApi, formatCurrency, formatDate, ROLE_PERMISSIONS } from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
+import { lazy, Suspense, useMemo } from 'react';
+import { Sparkles, BrainCircuit } from 'lucide-react';
+import { summarizeDemand, suggestPriority, findSimilar, parseNaturalLanguage } from '../lib/ai';
+const ImportExportBar = lazy(() => import('./ImportExportBar'));
 
 interface DemandsViewProps {
   demands: Demand[];
   selectedDemandFromDashboard: Demand | null;
   clearSelectedDemandFromDashboard: () => void;
   onUpdateDemand: (updated: Demand) => void;
+  onAddDemand?: (newDemand: Demand) => void;
   isLoading: boolean;
 }
 
@@ -51,9 +58,12 @@ export default function DemandsView({
   selectedDemandFromDashboard, 
   clearSelectedDemandFromDashboard, 
   onUpdateDemand,
+  onAddDemand,
   isLoading
 }: DemandsViewProps) {
   const { user, isAuthenticated } = useAuth();
+  const canEdit = isAuthenticated && user?.role !== 'consulta';
+  const canCreate = isAuthenticated && user?.role !== 'consulta';
   
   // Search & Filters State
   const [search, setSearch] = useState('');
@@ -61,7 +71,14 @@ export default function DemandsView({
   const [priorityFilter, setPriorityFilter] = useState<string>('all');
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
   const [ufFilter, setUfFilter] = useState<string>('all');
+  const [responsibleFilter, setResponsibleFilter] = useState<string>('all');
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
+  const [valueMin, setValueMin] = useState('');
+  const [valueMax, setValueMax] = useState('');
   const [sortBy, setSortBy] = useState<string>('newest');
+  const [nlQuery, setNlQuery] = useState('');
+  const [nlExplanation, setNlExplanation] = useState('');
 
   // View Mode
   const [viewMode, setViewMode] = useState<'list' | 'kanban'>('list');
@@ -77,6 +94,9 @@ export default function DemandsView({
 
   // Edit notes state
   const [adminNotes, setAdminNotes] = useState('');
+
+  const [newComment, setNewComment] = useState('');
+  const [commentLoading, setCommentLoading] = useState(false);
   const [isEditingNotes, setIsEditingNotes] = useState(false);
 
   // Edit demand state
@@ -168,24 +188,51 @@ export default function DemandsView({
     }
   };
 
-  // List of unique UFs
+  // List of unique UFs and responsibles
   const uniqueUfs = Array.from(new Set(demands.map(d => d.uf))).sort();
+  const uniqueResponsibles = Array.from(
+    new Set(demands.map(d => d.responsible_name).filter(Boolean))
+  ).sort();
+
+  const runSmartSearch = () => {
+    const q = nlQuery.trim();
+    if (!q) return;
+    const spec = parseNaturalLanguage(q);
+    setSearch(spec.search);
+    if (spec.status) setStatusFilter(spec.status);
+    if (spec.priority) setPriorityFilter(spec.priority);
+    if (spec.uf) setUfFilter(spec.uf);
+    if (spec.minValue !== undefined) setValueMin(String(spec.minValue));
+    if (spec.maxValue !== undefined) setValueMax(String(spec.maxValue));
+    setNlExplanation(spec.explanation);
+  };
 
   // Filter demands
   const filteredDemands = demands.filter(d => {
-    const matchesSearch = 
-      d.id.toLowerCase().includes(search.toLowerCase()) ||
-      d.title.toLowerCase().includes(search.toLowerCase()) ||
-      d.municipality.toLowerCase().includes(search.toLowerCase()) ||
-      d.description.toLowerCase().includes(search.toLowerCase()) ||
-      (d.responsible_name && d.responsible_name.toLowerCase().includes(search.toLowerCase()));
+    const q = search.trim().toLowerCase();
+    const matchesSearch = !q || [
+      d.id, d.title, d.municipality, d.description, d.category,
+      d.organ, d.proposal_number, d.prefeitura,
+      d.responsible_name, d.responsible_email, d.responsible_phone
+    ].some(f => (f || '').toLowerCase().includes(q));
 
     const matchesStatus = statusFilter === 'all' || d.status === statusFilter;
     const matchesPriority = priorityFilter === 'all' || d.priority === priorityFilter;
     const matchesCategory = categoryFilter === 'all' || d.category === categoryFilter;
     const matchesUf = ufFilter === 'all' || d.uf === ufFilter;
+    const matchesResponsible = responsibleFilter === 'all' || d.responsible_name === responsibleFilter;
 
-    return matchesSearch && matchesStatus && matchesPriority && matchesCategory && matchesUf;
+    const created = new Date(d.created_at).getTime();
+    const matchesDateFrom = !dateFrom || created >= new Date(dateFrom).getTime();
+    const matchesDateTo = !dateTo || created <= (new Date(dateTo).getTime() + 86399999);
+
+    const value = d.requested_value || 0;
+    const matchesValueMin = !valueMin || value >= Number(valueMin);
+    const matchesValueMax = !valueMax || value <= Number(valueMax);
+
+    return matchesSearch && matchesStatus && matchesPriority && matchesCategory &&
+      matchesUf && matchesResponsible && matchesDateFrom && matchesDateTo &&
+      matchesValueMin && matchesValueMax;
   });
 
   // Sort demands
@@ -292,6 +339,25 @@ export default function DemandsView({
     }
   };
 
+  const handleAddComment = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!detailedDemand || !newComment.trim()) return;
+    setCommentLoading(true);
+    try {
+      const comment = await demandsApi.addComment(detailedDemand.id, newComment.trim());
+      setDetailedDemand({
+        ...detailedDemand,
+        comments: [...(detailedDemand.comments || []), comment],
+      });
+      setNewComment('');
+    } catch (error) {
+      console.error('Error adding comment:', error);
+      alert('Erro ao adicionar comentário. Tente novamente.');
+    } finally {
+      setCommentLoading(false);
+    }
+  };
+
   const handlePrintDemand = () => {
     window.print();
   };
@@ -339,46 +405,80 @@ export default function DemandsView({
           </p>
         </div>
 
-        <div className="flex bg-slate-100 p-1 rounded-xl self-start md:self-center">
-          <button
-            onClick={() => setViewMode('list')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all ${
-              viewMode === 'list' ? 'bg-white text-slate-800 shadow-xs' : 'text-slate-500 hover:text-slate-800'
-            }`}
-          >
-            <ListIcon size={16} /> Lista
-          </button>
-          <button
-            onClick={() => setViewMode('kanban')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all ${
-              viewMode === 'kanban' ? 'bg-white text-slate-800 shadow-xs' : 'text-slate-500 hover:text-slate-800'
-            }`}
-          >
-            <Grid size={16} /> Kanban
-          </button>
+        <div className="flex items-center gap-2 self-start md:self-center">
+          {canCreate && (
+            <Suspense fallback={<div className="h-9 w-24 rounded-xl bg-slate-100 dark:bg-slate-800 animate-pulse" />}>
+              <ImportExportBar rows={filteredDemands} onImported={(created) => created.forEach(d => onAddDemand?.(d))} />
+            </Suspense>
+          )}
+          <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-xl">
+            <button
+              onClick={() => setViewMode('list')}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all ${
+                viewMode === 'list' ? 'bg-white dark:bg-slate-600 text-slate-800 dark:text-white shadow-xs' : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
+              }`}
+            >
+              <ListIcon size={16} /> Lista
+            </button>
+            <button
+              onClick={() => setViewMode('kanban')}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all ${
+                viewMode === 'kanban' ? 'bg-white dark:bg-slate-600 text-slate-800 dark:text-white shadow-xs' : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
+              }`}
+            >
+              <Grid size={16} /> Kanban
+            </button>
+          </div>
         </div>
       </div>
 
       {/* FILTER & SEARCH BAR */}
-      <section className="bg-white border border-slate-100 rounded-2xl p-5 shadow-sm space-y-4" id="filters-section">
-        <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
+      <section className="bg-white dark:bg-[#111a2e] border border-slate-100 dark:border-slate-700/50 rounded-2xl p-5 shadow-sm space-y-4" id="filters-section">
+        {/* Smart Natural Language Search */}
+        <div className="flex flex-col sm:flex-row gap-2">
+          <div className="relative flex-1">
+            <Sparkles className="absolute left-3.5 top-1/2 -translate-y-1/2 text-violet-500" size={18} />
+            <input
+              type="text"
+              value={nlQuery}
+              onChange={(e) => setNlQuery(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') runSmartSearch(); }}
+              placeholder='Busca inteligente: "demandas atrasadas de SP acima de 1 milhão urgentes"'
+              className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-violet-200 dark:border-violet-800/60 bg-violet-50/40 dark:bg-violet-950/10 text-sm text-slate-800 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-violet-500"
+            />
+          </div>
+          <button
+            onClick={runSmartSearch}
+            className="px-4 py-2.5 rounded-xl bg-violet-600 hover:bg-violet-700 text-white font-bold text-xs uppercase tracking-wider shadow-sm transition-all flex items-center gap-2"
+          >
+            <Sparkles size={15} /> Buscar
+          </button>
+        </div>
+        {nlExplanation && (
+          <div className="flex items-start gap-2 text-[11px] text-violet-700 dark:text-violet-300 bg-violet-50 dark:bg-violet-950/20 border border-violet-100 dark:border-violet-800/40 rounded-lg px-3 py-2">
+            <BrainCircuit size={14} className="mt-0.5 shrink-0" />
+            <span>{nlExplanation}</span>
+          </div>
+        )}
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-3">
           
-          <div className="md:col-span-4 relative">
+          <div className="lg:col-span-4 relative">
             <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
             <input
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Pesquisar ID, título, município..."
-              className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-transparent"
+              placeholder="Pesquisa instantânea: ID, título, município, órgão, responsável..."
+              className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-900/60 text-sm text-slate-800 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-600 focus:border-transparent"
             />
           </div>
 
-          <div className="md:col-span-2">
+          <div className="lg:col-span-2">
             <select
               value={priorityFilter}
               onChange={(e) => setPriorityFilter(e.target.value)}
-              className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-xs text-slate-700 bg-white focus:outline-none"
+              className="w-full px-3 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-900/60 text-xs text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-900 focus:outline-none"
             >
               <option value="all">Todas Prioridades</option>
               <option value="baixa">Prioridade Baixa</option>
@@ -388,11 +488,11 @@ export default function DemandsView({
             </select>
           </div>
 
-          <div className="md:col-span-2">
+          <div className="lg:col-span-2">
             <select
               value={categoryFilter}
               onChange={(e) => setCategoryFilter(e.target.value)}
-              className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-xs text-slate-700 bg-white focus:outline-none"
+              className="w-full px-3 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-900/60 text-xs text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-900 focus:outline-none"
             >
               <option value="all">Categorias (Todas)</option>
               {CATEGORIES.map(cat => (
@@ -401,11 +501,11 @@ export default function DemandsView({
             </select>
           </div>
 
-          <div className="md:col-span-2">
+          <div className="lg:col-span-2">
             <select
               value={ufFilter}
               onChange={(e) => setUfFilter(e.target.value)}
-              className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-xs text-slate-700 bg-white focus:outline-none"
+              className="w-full px-3 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-900/60 text-xs text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-900 focus:outline-none"
             >
               <option value="all">Estados (Todos)</option>
               {uniqueUfs.map(uf => (
@@ -414,11 +514,24 @@ export default function DemandsView({
             </select>
           </div>
 
-          <div className="md:col-span-2">
+          <div className="lg:col-span-2">
+            <select
+              value={responsibleFilter}
+              onChange={(e) => setResponsibleFilter(e.target.value)}
+              className="w-full px-3 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-900/60 text-xs text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-900 focus:outline-none"
+            >
+              <option value="all">Responsáveis (Todos)</option>
+              {uniqueResponsibles.map(r => (
+                <option key={r} value={r}>{r}</option>
+              ))}
+            </select>
+          </div>
+
+          <div className="lg:col-span-2 sm:col-span-2">
             <select
               value={sortBy}
               onChange={(e) => setSortBy(e.target.value)}
-              className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-xs text-slate-700 bg-white focus:outline-none"
+              className="w-full px-3 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-900/60 text-xs text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-900 focus:outline-none"
             >
               <option value="newest">Mais recentes</option>
               <option value="oldest">Mais antigos</option>
@@ -426,11 +539,66 @@ export default function DemandsView({
               <option value="lowest-value">Menor Valor (R$)</option>
             </select>
           </div>
+
+          <div className="lg:col-span-3 sm:col-span-1">
+            <label className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase block mb-1">Data de criação (de)</label>
+            <input
+              type="date"
+              value={dateFrom}
+              onChange={(e) => setDateFrom(e.target.value)}
+              className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-900/60 text-xs text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-600"
+            />
+          </div>
+
+          <div className="lg:col-span-3 sm:col-span-1">
+            <label className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase block mb-1">Data de criação (até)</label>
+            <input
+              type="date"
+              value={dateTo}
+              onChange={(e) => setDateTo(e.target.value)}
+              className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-900/60 text-xs text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-600"
+            />
+          </div>
+
+          <div className="lg:col-span-2 sm:col-span-1">
+            <label className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase block mb-1">Valor mín. (R$)</label>
+            <input
+              type="number"
+              value={valueMin}
+              onChange={(e) => setValueMin(e.target.value)}
+              placeholder="0"
+              className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-900/60 text-xs text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-600"
+            />
+          </div>
+
+          <div className="lg:col-span-2 sm:col-span-1">
+            <label className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase block mb-1">Valor máx. (R$)</label>
+            <input
+              type="number"
+              value={valueMax}
+              onChange={(e) => setValueMax(e.target.value)}
+              placeholder="999999"
+              className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-900/60 text-xs text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-600"
+            />
+          </div>
+
+          <div className="lg:col-span-2 sm:col-span-2 flex items-end">
+            <button
+              onClick={() => {
+                setSearch(''); setStatusFilter('all'); setPriorityFilter('all');
+                setCategoryFilter('all'); setUfFilter('all'); setResponsibleFilter('all');
+                setDateFrom(''); setDateTo(''); setValueMin(''); setValueMax('');
+              }}
+              className="w-full px-3 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 text-xs font-bold hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+            >
+              Limpar Filtros
+            </button>
+          </div>
         </div>
 
         {/* Quick Status Filters */}
         {viewMode === 'list' && (
-          <div className="flex flex-wrap gap-1.5 pt-2 border-t border-slate-100">
+          <div className="flex flex-wrap gap-1.5 pt-2 border-t border-slate-100 dark:border-slate-700/50">
             <span className="text-[10px] font-bold text-slate-400 uppercase self-center mr-2">Filtro Rápido:</span>
             {[
               { id: 'all', label: `Todas (${demands.length})` },
@@ -444,13 +612,16 @@ export default function DemandsView({
                 onClick={() => setStatusFilter(pill.id)}
                 className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${
                   statusFilter === pill.id
-                    ? 'bg-slate-900 text-white border-slate-950 shadow-sm font-semibold'
-                    : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
+                    ? 'bg-slate-900 text-white border-slate-950 shadow-sm font-semibold dark:bg-brand-600 dark:border-brand-600'
+                    : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700'
                 }`}
               >
                 {pill.label}
               </button>
             ))}
+            <span className="ml-auto text-[10px] text-slate-400 self-center">
+              {filteredDemands.length} de {demands.length} demandas
+            </span>
           </div>
         )}
       </section>
@@ -615,7 +786,7 @@ export default function DemandsView({
               </div>
 
               <div className="flex items-center gap-2">
-                {!isEditingDemand && (
+                {!isEditingDemand && canEdit && (
                   <button
                     onClick={() => handleStartEdit(detailedDemand)}
                     className="px-3 py-1.5 bg-yellow-400 text-blue-950 text-[10px] font-bold uppercase tracking-wider rounded-lg hover:bg-yellow-300 transition-colors"
@@ -831,6 +1002,39 @@ export default function DemandsView({
                 </div>
               </div>
 
+              {/* AI Panel */}
+              <div className="rounded-2xl border border-violet-200/60 dark:border-violet-800/40 bg-gradient-to-br from-violet-50/60 to-indigo-50/40 dark:from-violet-950/20 dark:to-indigo-950/10 p-5 space-y-4">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-lg bg-violet-600 text-white flex items-center justify-center">
+                    <Sparkles size={16} />
+                  </div>
+                  <div>
+                    <h4 className="text-xs font-black text-violet-900 dark:text-violet-200 uppercase tracking-wider">Assistente IA</h4>
+                    <p className="text-[10px] text-slate-500 dark:text-slate-400">Análise automática da demanda</p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="bg-white dark:bg-slate-900/50 rounded-xl p-4 border border-slate-100 dark:border-slate-700/50">
+                    <div className="flex items-center gap-1.5 text-[10px] font-bold text-violet-700 dark:text-violet-300 uppercase mb-2">
+                      <BrainCircuit size={13} /> Resumo Automático
+                    </div>
+                    <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
+                      {summarizeDemand(detailedDemand)}
+                    </p>
+                  </div>
+
+                  <div className="bg-white dark:bg-slate-900/50 rounded-xl p-4 border border-slate-100 dark:border-slate-700/50">
+                    <div className="flex items-center gap-1.5 text-[10px] font-bold text-violet-700 dark:text-violet-300 uppercase mb-2">
+                      <BrainCircuit size={13} /> Sugestão de Prioridade
+                    </div>
+                    <AISuggestion demand={detailedDemand} />
+                  </div>
+                </div>
+
+                <AISimilar demand={detailedDemand} all={demands} onSelect={(d) => handleOpenDetail(d)} />
+              </div>
+
               {/* Timeline & Notes */}
               <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
                 
@@ -840,7 +1044,7 @@ export default function DemandsView({
                     <p className="text-[10px] text-slate-400">Linha do tempo oficial auditável</p>
                   </div>
 
-                  {isAuthenticated && user?.role !== 'viewer' ? (
+                  {canEdit ? (
                     <form onSubmit={handleAddTimelineEvent} className="bg-slate-50 border border-slate-100 p-4 rounded-2xl space-y-3">
                       <span className="text-[10px] font-bold text-indigo-950 uppercase tracking-wider flex items-center gap-1">
                         <CornerDownRight size={12} />
@@ -1011,6 +1215,53 @@ export default function DemandsView({
                       </p>
                     )}
                   </div>
+
+                  {/* Internal Comments */}
+                  <div className="bg-blue-50/40 border border-blue-100 rounded-2xl p-4 space-y-3">
+                    <h4 className="text-[10px] font-extrabold text-blue-900 uppercase tracking-widest flex items-center gap-1">
+                      <MessageSquare size={12} />
+                      Comentários Internos
+                    </h4>
+
+                    <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
+                      {(detailedDemand.comments || []).length === 0 ? (
+                        <p className="text-[10px] text-slate-400 italic">
+                          Nenhum comentário. Use para alinhar com a equipe.
+                        </p>
+                      ) : (
+                        (detailedDemand.comments || []).map((c) => (
+                          <div key={c.id} className="bg-white border border-blue-100 rounded-xl p-2.5 space-y-1">
+                            <div className="flex items-center justify-between">
+                              <span className="text-[10px] font-bold text-slate-700">{c.user_name}</span>
+                              <span className="text-[9px] text-slate-400">{formatDate(c.created_at)}</span>
+                            </div>
+                            <p className="text-[11px] text-slate-600 leading-relaxed whitespace-pre-wrap">{c.body}</p>
+                          </div>
+                        ))
+                      )}
+                    </div>
+
+                    {ROLE_PERMISSIONS[user?.role || 'consulta'].canEdit && (
+                      <form onSubmit={handleAddComment} className="space-y-2">
+                        <textarea
+                          rows={2}
+                          value={newComment}
+                          onChange={(e) => setNewComment(e.target.value)}
+                          placeholder="Escreva um comentário..."
+                          className="w-full p-2 bg-white border border-blue-200 text-xs text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500 rounded-lg font-sans"
+                        />
+                        <div className="flex justify-end">
+                          <button
+                            type="submit"
+                            disabled={commentLoading || !newComment.trim()}
+                            className="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white font-bold text-[10px] uppercase rounded disabled:opacity-50 flex items-center gap-1"
+                          >
+                            {commentLoading ? 'Enviando...' : (<><Send size={11} /> Comentar</>)}
+                          </button>
+                        </div>
+                      </form>
+                    )}
+                  </div>
                 </div>
               </div>
               </>
@@ -1033,6 +1284,64 @@ export default function DemandsView({
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+const SUGGEST_BADGE: Record<string, string> = {
+  urgente: 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300',
+  alta: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300',
+  media: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300',
+  baixa: 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300',
+};
+
+function AISuggestion({ demand }: { demand: Demand }) {
+  const { priority, reason } = useMemo(() => suggestPriority(demand), [demand]);
+  const isDifferent = priority !== demand.priority;
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center gap-2">
+        <span className={`inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${SUGGEST_BADGE[priority]}`}>
+          {priority}
+        </span>
+        {isDifferent && (
+          <span className="text-[9px] text-slate-400 font-semibold">atual: {demand.priority}</span>
+        )}
+      </div>
+      <p className="text-[10px] text-slate-500 dark:text-slate-400 leading-relaxed">{reason}</p>
+    </div>
+  );
+}
+
+function AISimilar({ demand, all, onSelect }: { demand: Demand; all: Demand[]; onSelect: (d: Demand) => void }) {
+  const similar = useMemo(() => findSimilar(demand, all, 4), [demand, all]);
+  if (similar.length === 0) {
+    return (
+      <div className="bg-white dark:bg-slate-900/50 rounded-xl p-4 border border-slate-100 dark:border-slate-700/50">
+        <div className="flex items-center gap-1.5 text-[10px] font-bold text-violet-700 dark:text-violet-300 uppercase mb-2">
+          <Sparkles size={13} /> Demandas Similares
+        </div>
+        <p className="text-[11px] text-slate-400">Nenhuma demanda similar encontrada.</p>
+      </div>
+    );
+  }
+  return (
+    <div className="bg-white dark:bg-slate-900/50 rounded-xl p-4 border border-slate-100 dark:border-slate-700/50 md:col-span-2">
+      <div className="flex items-center gap-1.5 text-[10px] font-bold text-violet-700 dark:text-violet-300 uppercase mb-2">
+        <Sparkles size={13} /> Demandas Similares
+      </div>
+      <div className="flex flex-wrap gap-2">
+        {similar.map(d => (
+          <button
+            key={d.id}
+            onClick={() => onSelect(d)}
+            className="text-left px-3 py-2 rounded-lg bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 hover:border-violet-300 dark:hover:border-violet-600 transition-colors flex-1 min-w-[200px]"
+          >
+            <p className="text-[11px] font-bold text-slate-700 dark:text-slate-200 truncate">{d.title}</p>
+            <p className="text-[9px] text-slate-400 font-mono mt-0.5">{d.id} • {d.municipality}/{d.uf}</p>
+          </button>
+        ))}
+      </div>
     </div>
   );
 }

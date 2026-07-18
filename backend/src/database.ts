@@ -39,7 +39,8 @@ export async function initDatabase() {
       email TEXT UNIQUE NOT NULL,
       password_hash TEXT NOT NULL,
       name TEXT NOT NULL,
-      role TEXT DEFAULT 'user' CHECK(role IN ('admin', 'viewer')),
+      role TEXT DEFAULT 'consulta' CHECK(role IN ('admin', 'gestor', 'analista', 'consulta')),
+      active BOOLEAN DEFAULT TRUE,
       created_at TIMESTAMPTZ DEFAULT NOW(),
       updated_at TIMESTAMPTZ DEFAULT NOW()
     );
@@ -102,6 +103,30 @@ export async function initDatabase() {
       created_at TIMESTAMPTZ DEFAULT NOW()
     );
 
+    CREATE TABLE IF NOT EXISTS comments (
+      id SERIAL PRIMARY KEY,
+      demand_id TEXT NOT NULL REFERENCES demands(id) ON DELETE CASCADE,
+      user_id INTEGER REFERENCES users(id),
+      user_name TEXT NOT NULL,
+      body TEXT NOT NULL,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    );
+
+    CREATE TABLE IF NOT EXISTS audit_logs (
+      id SERIAL PRIMARY KEY,
+      entity_type TEXT NOT NULL,
+      entity_id TEXT NOT NULL,
+      action TEXT NOT NULL,
+      user_id INTEGER REFERENCES users(id),
+      user_name TEXT,
+      details JSONB,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_comments_demand_id ON comments(demand_id);
+    CREATE INDEX IF NOT EXISTS idx_audit_entity ON audit_logs(entity_type, entity_id);
+    CREATE INDEX IF NOT EXISTS idx_audit_created ON audit_logs(created_at);
+
     CREATE TABLE IF NOT EXISTS system_settings (
       id INTEGER PRIMARY KEY DEFAULT 1,
       sla_days_baixa INTEGER DEFAULT 45,
@@ -120,6 +145,13 @@ export async function initDatabase() {
     CREATE INDEX IF NOT EXISTS idx_demands_created_at ON demands(created_at);
     CREATE INDEX IF NOT EXISTS idx_timeline_demand_id ON timeline_events(demand_id);
     CREATE INDEX IF NOT EXISTS idx_attachments_demand_id ON attachments(demand_id);
+
+    -- Migrate role constraint for existing databases (idempotent)
+    ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_check;
+    ALTER TABLE users ADD CONSTRAINT users_role_check
+      CHECK(role IN ('admin', 'gestor', 'analista', 'consulta'));
+    ALTER TABLE users ALTER COLUMN role SET DEFAULT 'consulta';
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS active BOOLEAN DEFAULT TRUE;
   `);
 
   console.log('✅ Tabelas criadas/verificadas');

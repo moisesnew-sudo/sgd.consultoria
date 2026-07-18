@@ -3,6 +3,7 @@ import {
   MunicipalityData, 
   SystemSettings, 
   User, 
+  UserRole,
   PaginatedResponse, 
   DashboardStats,
   TimelineEvent 
@@ -64,6 +65,35 @@ export const authApi = {
       body: JSON.stringify({ currentPassword, newPassword }),
     });
   },
+
+  listUsers: () => request<User[]>('/auth/users'),
+
+  createUser: (data: { email: string; password: string; name: string; role: UserRole }) =>
+    request<User>('/auth/users', { method: 'POST', body: JSON.stringify(data) }),
+
+  updateUser: (id: number, data: { role?: UserRole; active?: boolean; name?: string }) =>
+    request<User>('/auth/users/' + id, { method: 'PUT', body: JSON.stringify(data) }),
+};
+
+export const ROLE_LABELS: Record<UserRole, string> = {
+  admin: 'Administrador',
+  gestor: 'Gestor',
+  analista: 'Analista',
+  consulta: 'Consulta',
+};
+
+export const ROLE_PERMISSIONS: Record<UserRole, {
+  canCreate: boolean;
+  canEdit: boolean;
+  canDelete: boolean;
+  canManageUsers: boolean;
+  canViewUsers: boolean;
+  canManageSettings: boolean;
+}> = {
+  admin:    { canCreate: true, canEdit: true, canDelete: true,  canManageUsers: true,  canViewUsers: true,  canManageSettings: true },
+  gestor:   { canCreate: true, canEdit: true, canDelete: true,  canManageUsers: false, canViewUsers: true,  canManageSettings: false },
+  analista: { canCreate: true, canEdit: true, canDelete: false, canManageUsers: false, canViewUsers: false, canManageSettings: false },
+  consulta: { canCreate: false, canEdit: false, canDelete: false, canManageUsers: false, canViewUsers: false, canManageSettings: false },
 };
 
 // Demands API
@@ -115,6 +145,35 @@ export const demandsApi = {
     }),
 
   getDashboardStats: () => request<DashboardStats>('/demands/stats/dashboard'),
+
+  getCalendarEvents: () => request<any[]>('/demands/calendar/events'),
+
+  listComments: (demandId: string) => request<any[]>(`/demands/${demandId}/comments`),
+
+  addComment: (demandId: string, body: string) =>
+    request<any>(`/demands/${demandId}/comments`, {
+      method: 'POST',
+      body: JSON.stringify({ body }),
+    }),
+};
+
+// Audit API
+export const auditApi = {
+  list: (params?: { entity_type?: string; entity_id?: string; limit?: number }) => {
+    const searchParams = new URLSearchParams();
+    if (params) {
+      Object.entries(params).forEach(([key, value]) => {
+        if (value !== undefined && value !== 'all') searchParams.append(key, String(value));
+      });
+    }
+    const qs = searchParams.toString();
+    return request<any[]>(`/audit${qs ? '?' + qs : ''}`);
+  },
+};
+
+// Integration API
+export const integrationsApi = {
+  getInfo: () => request<any>('/integrations'),
 };
 
 // Municipalities API

@@ -1,6 +1,6 @@
 export type DemandStatus = 'analise' | 'pendente' | 'concluido' | 'rejeitado';
 export type DemandPriority = 'baixa' | 'media' | 'alta' | 'urgente';
-export type UserRole = 'admin' | 'viewer';
+export type UserRole = 'admin' | 'gestor' | 'analista' | 'consulta';
 export type Region = 'Norte' | 'Nordeste' | 'Sudeste' | 'Sul' | 'Centro-Oeste';
 
 export interface User {
@@ -8,6 +8,8 @@ export interface User {
   email: string;
   name: string;
   role: UserRole;
+  active?: boolean;
+  created_at?: string;
 }
 
 export interface MunicipalityData {
@@ -62,6 +64,16 @@ export interface Demand {
   updated_at: string;
   timeline?: TimelineEvent[];
   attachments?: Attachment[];
+  comments?: Comment[];
+}
+
+export interface Comment {
+  id: number;
+  demand_id: string;
+  user_id: number;
+  user_name: string;
+  body: string;
+  created_at: string;
 }
 
 export interface SystemSettings {

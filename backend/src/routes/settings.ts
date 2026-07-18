@@ -70,9 +70,17 @@ router.get('/export', authenticateToken, requireRole('admin'), async (req: Reque
     const demands = await all('SELECT * FROM demands');
     const municipalities = await all('SELECT * FROM municipalities');
     const settings = await get('SELECT * FROM system_settings WHERE id = 1');
-    const users = await all('SELECT id, email, name, role, created_at FROM users');
+    const users = await all('SELECT id, email, name, role, active, created_at FROM users');
+    const timeline = await all('SELECT * FROM timeline_events');
+    const attachments = await all('SELECT * FROM attachments');
+    const comments = await all('SELECT * FROM comments');
+    const audit = await all('SELECT * FROM audit_logs');
 
-    const exportData = { version: 'sgd-v2', timestamp: new Date().toISOString(), data: { demands, municipalities, settings, users } };
+    const exportData = {
+      version: 'sgd-v2',
+      timestamp: new Date().toISOString(),
+      data: { demands, municipalities, settings, users, timeline, attachments, comments, audit }
+    };
     res.setHeader('Content-Type', 'application/json');
     res.setHeader('Content-Disposition', `attachment; filename=SGD_Backup_${new Date().toISOString().split('T')[0]}.json`);
     res.json(exportData);
@@ -89,10 +97,13 @@ router.post('/import', authenticateToken, requireRole('admin'), async (req: Requ
       return res.status(400).json({ error: 'Formato de backup inválido' });
     }
 
+    await run('DELETE FROM comments');
+    await run('DELETE FROM audit_logs');
     await run('DELETE FROM attachments');
     await run('DELETE FROM timeline_events');
     await run('DELETE FROM demands');
     await run('DELETE FROM municipalities');
+    await run('DELETE FROM users');
     await run('DELETE FROM system_settings');
 
     for (const m of data.municipalities) {
@@ -115,11 +126,52 @@ router.post('/import', authenticateToken, requireRole('admin'), async (req: Requ
 
     const s = data.settings;
     await run(
-      `INSERT INTO system_settings (id, sla_days_baixa, sla_days_media, sla_days_alta, sla_days_urgente, auto_triage, email_notifications, budget_cap)
-       VALUES (1, $1, $2, $3, $4, $5, $6, $7) ON CONFLICT (id) DO UPDATE SET sla_days_baixa = EXCLUDED.sla_days_baixa`,
+      `INSERT INTO system_settings (id, sla_days_baixa, sla_days_media, sla_days_alta, sla_days_urgente, auto_triage, email_notifications, budget_cap, organization_name, primary_color, accent_color, logo_url)
+       VALUES (1, $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) ON CONFLICT (id) DO UPDATE SET sla_days_baixa = EXCLUDED.sla_days_baixa`,
       [s.sla_days_baixa, s.sla_days_media, s.sla_days_alta, s.sla_days_urgente,
-       s.auto_triage, s.email_notifications, s.budget_cap]
+       s.auto_triage, s.email_notifications, s.budget_cap, s.organization_name || null,
+       s.primary_color || null, s.accent_color || null, s.logo_url || null]
     );
+
+    for (const u of (data.users || [])) {
+      await run(
+        `INSERT INTO users (id, email, password, name, role, active, created_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7) ON CONFLICT (id) DO UPDATE SET email = EXCLUDED.email`,
+        [u.id, u.email, u.password || 'senha-reset-123', u.name, u.role, u.active ?? true, u.created_at]
+      );
+    }
+
+    for (const t of (data.timeline || [])) {
+      await run(
+        `INSERT INTO timeline_events (id, demand_id, title, description, user_name, status_changed_to, created_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7) ON CONFLICT (id) DO UPDATE SET title = EXCLUDED.title`,
+        [t.id, t.demand_id, t.title, t.description, t.user_name, t.status_changed_to, t.created_at]
+      );
+    }
+
+    for (const a of (data.attachments || [])) {
+      await run(
+        `INSERT INTO attachments (id, demand_id, name, size, type, uploaded_by, created_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7) ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name`,
+        [a.id, a.demand_id, a.name, a.size, a.type, a.uploaded_by, a.created_at]
+      );
+    }
+
+    for (const c of (data.comments || [])) {
+      await run(
+        `INSERT INTO comments (id, demand_id, user_id, user_name, body, created_at)
+         VALUES ($1, $2, $3, $4, $5, $6) ON CONFLICT (id) DO UPDATE SET body = EXCLUDED.body`,
+        [c.id, c.demand_id, c.user_id, c.user_name, c.body, c.created_at]
+      );
+    }
+
+    for (const al of (data.audit || [])) {
+      await run(
+        `INSERT INTO audit_logs (id, entity_type, entity_id, action, user_id, user_name, details, created_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8) ON CONFLICT (id) DO UPDATE SET action = EXCLUDED.action`,
+        [al.id, al.entity_type, al.entity_id, al.action, al.user_id, al.user_name, al.details, al.created_at]
+      );
+    }
 
     res.json({ message: 'Dados importados com sucesso' });
   } catch (error) {

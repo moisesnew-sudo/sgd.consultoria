@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { get, all, run } from '../database.js';
 import { Demand, TimelineEvent, Attachment } from '../types.js';
 import { authenticateToken, requireRole, optionalAuth } from '../middleware/auth.js';
+import { logAudit } from '../lib/audit.js';
 
 const router = Router();
 
@@ -76,9 +77,53 @@ router.get('/', optionalAuth, async (req: Request, res: Response) => {
   }
 });
 
+// Calendar events: demands (created/updated) + timeline events
+router.get('/calendar/events', optionalAuth, async (req: Request, res: Response) => {
+  try {
+    const demands = await all<Demand>(
+      "SELECT id, title, status, priority, municipality, uf, created_at, updated_at FROM demands"
+    );
+    const events = await all(
+      "SELECT demand_id, title, status_changed_to, created_at FROM timeline_events ORDER BY created_at DESC LIMIT 200"
+    );
+    const result = [
+      ...demands.map(d => ({
+        id: `d-${d.id}`,
+        title: d.title,
+        date: d.created_at,
+        type: 'demand_created',
+        status: d.status,
+        priority: d.priority,
+        demandId: d.id
+      })),
+      ...demands.map(d => ({
+        id: `u-${d.id}`,
+        title: `Atualização: ${d.title}`,
+        date: d.updated_at,
+        type: 'demand_updated',
+        status: d.status,
+        priority: d.priority,
+        demandId: d.id
+      })),
+      ...events.map((e: any) => ({
+        id: `t-${e.demand_id}-${e.created_at}`,
+        title: e.title,
+        date: e.created_at,
+        type: 'timeline',
+        status: e.status_changed_to || null,
+        demandId: e.demand_id
+      }))
+    ];
+    res.json(result);
+  } catch (error) {
+    console.error('Calendar events error:', error);
+    res.status(500).json({ error: 'Erro ao buscar eventos' });
+  }
+});
+
 router.get('/:id', optionalAuth, async (req: Request, res: Response) => {
   try {
-    const demand = await get<Demand>('SELECT * FROM demands WHERE id = $1', [req.params.id]);
+    const demand = await get<Demand>('SELECT * FROM demands WHERE id = $1', [req.params.id as string]);
     if (!demand) return res.status(404).json({ error: 'Demanda não encontrada' });
 
     const timeline = await all<TimelineEvent>(
@@ -87,8 +132,11 @@ router.get('/:id', optionalAuth, async (req: Request, res: Response) => {
     const attachments = await all<Attachment>(
       'SELECT * FROM attachments WHERE demand_id = $1', [demand.id]
     );
+    const comments = await all(
+      'SELECT * FROM comments WHERE demand_id = $1 ORDER BY created_at ASC', [demand.id]
+    );
 
-    res.json({ ...demand, timeline, attachments });
+    res.json({ ...demand, timeline, attachments, comments });
   } catch (error) {
     console.error('Get demand error:', error);
     res.status(500).json({ error: 'Erro ao buscar demanda' });
@@ -97,6 +145,9 @@ router.get('/:id', optionalAuth, async (req: Request, res: Response) => {
 
 router.post('/', authenticateToken, async (req: Request, res: Response) => {
   try {
+    if (req.user!.role === 'consulta') {
+      return res.status(403).json({ error: 'Seu perfil (Consulta) é somente leitura' });
+    }
     const data = demandSchema.parse(req.body);
     const year = new Date().getFullYear();
     const countResult = await get<{ count: string }>('SELECT COUNT(*) as count FROM demands');
@@ -126,6 +177,11 @@ router.post('/', authenticateToken, async (req: Request, res: Response) => {
     );
 
     const newDemand = await get<Demand>('SELECT * FROM demands WHERE id = $1', [id]);
+    await logAudit({
+      entity_type: 'demand', entity_id: id, action: 'create',
+      user_id: req.user!.id, user_name: req.user!.name,
+      details: { municipality: data.municipality, uf: data.uf, value: data.requested_value || 0 }
+    });
     res.status(201).json(newDemand);
   } catch (error) {
     if (error instanceof z.ZodError) return res.status(400).json({ error: 'Dados inválidos', details: error.errors });
@@ -136,7 +192,10 @@ router.post('/', authenticateToken, async (req: Request, res: Response) => {
 
 router.put('/:id', authenticateToken, async (req: Request, res: Response) => {
   try {
-    const existing = await get<Demand>('SELECT * FROM demands WHERE id = $1', [req.params.id]);
+    if (req.user!.role === 'consulta') {
+      return res.status(403).json({ error: 'Seu perfil (Consulta) é somente leitura' });
+    }
+    const existing = await get<Demand>('SELECT * FROM demands WHERE id = $1', [req.params.id as string]);
     if (!existing) return res.status(404).json({ error: 'Demanda não encontrada' });
 
     const data = demandSchema.partial().parse(req.body);
@@ -154,7 +213,7 @@ router.put('/:id', authenticateToken, async (req: Request, res: Response) => {
 
     if (updates.length > 0) {
       updates.push(`updated_at = NOW()`);
-      values.push(req.params.id);
+      values.push(req.params.id as string);
       await run(`UPDATE demands SET ${updates.join(', ')} WHERE id = $${idx}`, values);
 
       if (data.status && data.status !== existing.status) {
@@ -162,14 +221,19 @@ router.put('/:id', authenticateToken, async (req: Request, res: Response) => {
         await run(
           `INSERT INTO timeline_events (id, demand_id, title, description, user_name, status_changed_to, created_at)
            VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-          [`ev-${Date.now()}`, req.params.id, 'Status Alterado',
+          [`ev-${Date.now()}`, req.params.id as string, 'Status Alterado',
            `Status alterado de "${existing.status}" para "${data.status}" por ${user?.name || req.user!.name}`,
            user?.name || req.user!.name, data.status, new Date().toISOString()]
         );
       }
     }
 
-    const updated = await get<Demand>('SELECT * FROM demands WHERE id = $1', [req.params.id]);
+    const updated = await get<Demand>('SELECT * FROM demands WHERE id = $1', [req.params.id as string]);
+    await logAudit({
+      entity_type: 'demand', entity_id: req.params.id as string, action: 'update',
+      user_id: req.user!.id, user_name: req.user!.name,
+      details: { changed: Object.keys(data), status: data.status }
+    });
     res.json(updated);
   } catch (error) {
     if (error instanceof z.ZodError) return res.status(400).json({ error: 'Dados inválidos', details: error.errors });
@@ -178,20 +242,29 @@ router.put('/:id', authenticateToken, async (req: Request, res: Response) => {
   }
 });
 
-router.delete('/:id', authenticateToken, requireRole('admin'), async (req: Request, res: Response) => {
+router.delete('/:id', authenticateToken, async (req: Request, res: Response) => {
   try {
-    const demand = await get<Demand>('SELECT * FROM demands WHERE id = $1', [req.params.id]);
+    if (req.user!.role !== 'admin' && req.user!.role !== 'gestor') {
+      return res.status(403).json({ error: 'Apenas administradores e gestores podem remover demandas' });
+    }
+
+    const demand = await get<Demand>('SELECT * FROM demands WHERE id = $1', [req.params.id as string]);
     if (!demand) return res.status(404).json({ error: 'Demanda não encontrada' });
 
-    await run('DELETE FROM timeline_events WHERE demand_id = $1', [req.params.id]);
-    await run('DELETE FROM attachments WHERE demand_id = $1', [req.params.id]);
-    await run('DELETE FROM demands WHERE id = $1', [req.params.id]);
+    await run('DELETE FROM timeline_events WHERE demand_id = $1', [req.params.id as string]);
+    await run('DELETE FROM attachments WHERE demand_id = $1', [req.params.id as string]);
+    await run('DELETE FROM demands WHERE id = $1', [req.params.id as string]);
 
     await run(
       'UPDATE municipalities SET demands_count = GREATEST(demands_count - 1, 0), total_value = GREATEST(total_value - $1, 0), updated_at = NOW() WHERE name = $2 AND uf = $3',
       [demand.requested_value, demand.municipality, demand.uf]
     );
 
+    await logAudit({
+      entity_type: 'demand', entity_id: req.params.id as string, action: 'delete',
+      user_id: req.user!.id, user_name: req.user!.name,
+      details: { municipality: demand.municipality, uf: demand.uf }
+    });
     res.json({ message: 'Demanda removida com sucesso' });
   } catch (error) {
     console.error('Delete demand error:', error);
@@ -201,7 +274,10 @@ router.delete('/:id', authenticateToken, requireRole('admin'), async (req: Reque
 
 router.post('/:id/timeline', authenticateToken, async (req: Request, res: Response) => {
   try {
-    const demand = await get<Demand>('SELECT * FROM demands WHERE id = $1', [req.params.id]);
+    if (req.user!.role === 'consulta') {
+      return res.status(403).json({ error: 'Seu perfil (Consulta) é somente leitura' });
+    }
+    const demand = await get<Demand>('SELECT * FROM demands WHERE id = $1', [req.params.id as string]);
     if (!demand) return res.status(404).json({ error: 'Demanda não encontrada' });
 
     const data = timelineEventSchema.parse(req.body);
@@ -211,11 +287,11 @@ router.post('/:id/timeline', authenticateToken, async (req: Request, res: Respon
     await run(
       `INSERT INTO timeline_events (id, demand_id, title, description, user_name, status_changed_to, created_at)
        VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-      [eventId, req.params.id, data.title, data.description || 'Nenhuma descrição informada.', req.user!.name, data.status_changed_to || null, now]
+      [eventId, req.params.id as string, data.title, data.description || 'Nenhuma descrição informada.', req.user!.name, data.status_changed_to || null, now]
     );
 
     if (data.status_changed_to) {
-      await run('UPDATE demands SET status = $1, updated_at = NOW() WHERE id = $2', [data.status_changed_to, req.params.id]);
+      await run('UPDATE demands SET status = $1, updated_at = NOW() WHERE id = $2', [data.status_changed_to, req.params.id as string]);
     }
 
     const event = await get<TimelineEvent>('SELECT * FROM timeline_events WHERE id = $1', [eventId]);

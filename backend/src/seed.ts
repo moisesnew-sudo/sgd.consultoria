@@ -21,9 +21,31 @@ export async function runSeed() {
   if (!existingViewer) {
     await run(
       'INSERT INTO users (email, password_hash, name, role) VALUES ($1, $2, $3, $4)',
-      ['consulta@sgd.gov.br', viewerPassword, 'Consultor Público', 'viewer']
+      ['consulta@sgd.gov.br', viewerPassword, 'Consultor Público', 'consulta']
     );
-    console.log('✅ Usuário viewer criado: consulta@sgd.gov.br / Visitante2026!');
+    console.log('✅ Usuário consulta criado: consulta@sgd.gov.br / Visitante2026!');
+  }
+
+  const gestorPassword = await bcrypt.hash('Gestor2026!', 10);
+  const existingGestor = await get('SELECT id FROM users WHERE email = $1', ['gestor@sgd.gov.br']);
+
+  if (!existingGestor) {
+    await run(
+      'INSERT INTO users (email, password_hash, name, role) VALUES ($1, $2, $3, $4)',
+      ['gestor@sgd.gov.br', gestorPassword, 'Gestor SGD', 'gestor']
+    );
+    console.log('✅ Usuário gestor criado: gestor@sgd.gov.br / Gestor2026!');
+  }
+
+  const analistaPassword = await bcrypt.hash('Analista2026!', 10);
+  const existingAnalista = await get('SELECT id FROM users WHERE email = $1', ['analista@sgd.gov.br']);
+
+  if (!existingAnalista) {
+    await run(
+      'INSERT INTO users (email, password_hash, name, role) VALUES ($1, $2, $3, $4)',
+      ['analista@sgd.gov.br', analistaPassword, 'Analista SGD', 'analista']
+    );
+    console.log('✅ Usuário analista criado: analista@sgd.gov.br / Analista2026!');
   }
 
   const municipalities = [
@@ -57,8 +79,10 @@ export async function runSeed() {
 
   console.log('\n🎉 Seed concluído com sucesso!');
   console.log('\n📋 Credenciais de acesso:');
-  console.log('   Admin: admin@sgd.gov.br / Admin2026!');
-  console.log('   Viewer: consulta@sgd.gov.br / Visitante2026!');
+  console.log('   Admin:    admin@sgd.gov.br / Admin2026!');
+  console.log('   Gestor:   gestor@sgd.gov.br / Gestor2026!');
+  console.log('   Analista: analista@sgd.gov.br / Analista2026!');
+  console.log('   Consulta: consulta@sgd.gov.br / Visitante2026!');
 }
 
 if (process.argv[1] && process.argv[1].includes('seed')) {

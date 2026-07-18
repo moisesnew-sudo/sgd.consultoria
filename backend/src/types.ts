@@ -1,6 +1,6 @@
 export type DemandStatus = 'analise' | 'pendente' | 'concluido' | 'rejeitado';
 export type DemandPriority = 'baixa' | 'media' | 'alta' | 'urgente';
-export type UserRole = 'admin' | 'user' | 'viewer';
+export type UserRole = 'admin' | 'gestor' | 'analista' | 'consulta';
 export type Region = 'Norte' | 'Nordeste' | 'Sudeste' | 'Sul' | 'Centro-Oeste';
 
 export interface User {
@@ -9,6 +9,7 @@ export interface User {
   password_hash: string;
   name: string;
   role: UserRole;
+  active?: boolean;
   created_at: string;
   updated_at: string;
 }

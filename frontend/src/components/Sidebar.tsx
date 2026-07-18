@@ -4,16 +4,26 @@ import {
   FilePlus2, 
   FolderKanban, 
   MapPin, 
-  FileBarChart, 
-  Settings, 
+  FileBarChart,
+  Calendar,
+  Settings,
   Menu, 
   X,
+  Users,
+  ScrollText,
+  Plug,
+  Database,
   Briefcase,
   ShieldCheck,
   LogOut,
-  User
+  User,
+  Sun,
+  Moon,
+  MonitorSmartphone
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
+import { useTheme, ThemeMode } from '../contexts/ThemeContext';
+import { ROLE_LABELS } from '../services/api';
 
 interface SidebarProps {
   activeTab: string;
@@ -25,16 +35,34 @@ interface SidebarProps {
 
 export default function Sidebar({ activeTab, setActiveTab, isOpen, setIsOpen, pendingCount }: SidebarProps) {
   const { user, isAuthenticated, logout } = useAuth();
+  const { theme, setTheme } = useTheme();
+
+  const themeOptions: { mode: ThemeMode; icon: React.ReactNode; label: string }[] = [
+    { mode: 'light', icon: <Sun size={14} />, label: 'Claro' },
+    { mode: 'dark', icon: <Moon size={14} />, label: 'Escuro' },
+    { mode: 'system', icon: <MonitorSmartphone size={14} />, label: 'Auto' },
+  ];
+
+  const canCreate = user?.role === 'admin' || user?.role === 'gestor' || user?.role === 'analista';
+  const canManageUsers = user?.role === 'admin';
+  const canSettings = user?.role === 'admin';
 
   const menuItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, badge: null },
-    ...(isAuthenticated && user?.role !== 'viewer' ? [
+    ...(isAuthenticated && canCreate ? [
       { id: 'new-demand', label: 'Nova Demanda', icon: FilePlus2, badge: null }
     ] : []),
     { id: 'demands', label: 'Demandas', icon: FolderKanban, badge: pendingCount > 0 ? pendingCount : null },
     { id: 'municipalities', label: 'Municípios', icon: MapPin, badge: null },
+    { id: 'calendar', label: 'Calendário', icon: Calendar, badge: null },
     { id: 'reports', label: 'Relatórios', icon: FileBarChart, badge: null },
-    ...(isAuthenticated && user?.role === 'admin' ? [
+    ...(isAuthenticated && canManageUsers ? [
+      { id: 'users', label: 'Usuários', icon: Users, badge: null },
+      { id: 'audit', label: 'Auditoria', icon: ScrollText, badge: null },
+      { id: 'integrations', label: 'API & Integrações', icon: Plug, badge: null },
+      { id: 'backup', label: 'Backup', icon: Database, badge: null }
+    ] : []),
+    ...(isAuthenticated && canSettings ? [
       { id: 'settings', label: 'Configurações', icon: Settings, badge: null }
     ] : [])
   ];
@@ -134,6 +162,28 @@ export default function Sidebar({ activeTab, setActiveTab, isOpen, setIsOpen, pe
           </nav>
         </div>
 
+        {/* Theme Toggle */}
+        <div className="px-4 pt-4">
+          <div className="flex items-center justify-between gap-1 bg-slate-800/60 border border-slate-700/60 rounded-xl p-1">
+            {themeOptions.map((opt) => (
+              <button
+                key={opt.mode}
+                onClick={() => setTheme(opt.mode)}
+                title={`Tema ${opt.label}`}
+                aria-label={`Tema ${opt.label}`}
+                className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-[10px] font-bold transition-all ${
+                  theme === opt.mode
+                    ? 'bg-yellow-400 text-blue-950 shadow-sm'
+                    : 'text-slate-300 hover:bg-slate-700/60 hover:text-white'
+                }`}
+              >
+                {opt.icon}
+                <span className="hidden sm:inline">{opt.label}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+
         {/* User Profile Section */}
         <div className="p-4 border-t border-slate-800/80 bg-slate-950/40">
           {isAuthenticated && user ? (
@@ -151,10 +201,14 @@ export default function Sidebar({ activeTab, setActiveTab, isOpen, setIsOpen, pe
                   </p>
                   <span className={`inline-block px-1.5 py-0.5 text-[8px] font-bold rounded mt-0.5 uppercase tracking-wider ${
                     user.role === 'admin' 
-                      ? 'bg-emerald-500/10 text-emerald-300' 
-                      : 'bg-yellow-500/10 text-yellow-400'
+                      ? 'bg-violet-500/15 text-violet-300'
+                      : user.role === 'gestor'
+                      ? 'bg-blue-500/15 text-blue-300'
+                      : user.role === 'analista'
+                      ? 'bg-emerald-500/15 text-emerald-300'
+                      : 'bg-yellow-500/15 text-yellow-400'
                   }`}>
-                    {user.role === 'admin' ? 'Administrador' : 'Visualizador'}
+                    {ROLE_LABELS[user.role]}
                   </span>
                 </div>
               </div>

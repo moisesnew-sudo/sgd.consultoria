@@ -15,7 +15,9 @@
     "lucide-react": "^0.546.0",
     "react": "^19.0.1",
     "react-dom": "^19.0.1",
-    "vite": "^6.2.3"
+    "recharts": "^3.9.2",
+    "vite": "^6.2.3",
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "@types/react": "^19.0.0",

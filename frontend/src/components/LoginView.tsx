@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { Briefcase, Lock, User, Eye, EyeOff, ShieldCheck, ArrowRight, AlertCircle } from 'lucide-react';
+import { Briefcase, Lock, User, Eye, EyeOff, ShieldCheck, ArrowRight, AlertCircle, Sun, Moon, MonitorSmartphone } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
+import { useTheme, ThemeMode } from '../contexts/ThemeContext';
 
 interface LoginViewProps {
   onNavigateToTab: (tab: string) => void;
@@ -8,6 +9,14 @@ interface LoginViewProps {
 
 export default function LoginView({ onNavigateToTab }: LoginViewProps) {
   const { login, isAuthenticated } = useAuth();
+  const { theme, setTheme } = useTheme();
+
+  const themeCycle: ThemeMode[] = ['light', 'dark', 'system'];
+  const themeMeta: Record<ThemeMode, { icon: React.ReactNode; label: string }> = {
+    light: { icon: <Sun size={16} />, label: 'Claro' },
+    dark: { icon: <Moon size={16} />, label: 'Escuro' },
+    system: { icon: <MonitorSmartphone size={16} />, label: 'Automático' },
+  };
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -49,47 +58,62 @@ export default function LoginView({ onNavigateToTab }: LoginViewProps) {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8 relative overflow-hidden font-sans">
+    <div className="min-h-screen bg-slate-50 dark:bg-[#0b1120] flex flex-col justify-center py-12 sm:px-6 lg:px-8 relative overflow-hidden font-sans transition-colors">
       {/* Top corporate accent border */}
       <div className="fixed top-0 left-0 right-0 h-1 bg-indigo-600 z-50" />
 
+      {/* Theme toggle */}
+      <button
+        type="button"
+        onClick={() => {
+          const idx = themeCycle.indexOf(theme);
+          setTheme(themeCycle[(idx + 1) % themeCycle.length]);
+        }}
+        className="fixed top-4 right-4 z-50 flex items-center gap-2 px-3 py-2 rounded-xl bg-white dark:bg-[#111a2e] border border-slate-200 dark:border-slate-700 shadow-sm text-slate-600 dark:text-slate-200 hover:text-slate-900 dark:hover:text-white transition-colors"
+        aria-label={`Tema ${themeMeta[theme].label}`}
+        title={`Tema: ${themeMeta[theme].label} (clique para alternar)`}
+      >
+        {themeMeta[theme].icon}
+        <span className="text-xs font-bold">{themeMeta[theme].label}</span>
+      </button>
+
       {/* Decorative subtle background elements */}
-      <div className="absolute top-[-10%] left-[-10%] w-[400px] h-[400px] bg-indigo-50 rounded-full blur-3xl pointer-events-none" />
-      <div className="absolute bottom-[-10%] right-[-10%] w-[500px] h-[500px] bg-slate-100 rounded-full blur-3xl pointer-events-none" />
+      <div className="absolute top-[-10%] left-[-10%] w-[400px] h-[400px] bg-indigo-50 dark:bg-indigo-950/30 rounded-full blur-3xl pointer-events-none" />
+      <div className="absolute bottom-[-10%] right-[-10%] w-[500px] h-[500px] bg-slate-100 dark:bg-slate-800/30 rounded-full blur-3xl pointer-events-none" />
 
       <div className="sm:mx-auto sm:w-full sm:max-w-md relative z-10">
         <div className="flex flex-col items-center">
           {/* Corporate Logo Badge */}
-          <div className="relative w-16 h-16 bg-gradient-to-tr from-slate-900 to-indigo-950 rounded-2xl flex items-center justify-center shadow-xl border border-slate-800/40">
+          <div className="relative w-16 h-16 bg-gradient-to-tr from-slate-900 to-indigo-950 dark:from-slate-800 dark:to-indigo-900 rounded-2xl flex items-center justify-center shadow-xl border border-slate-800/40">
             <Briefcase className="text-indigo-400" size={28} />
           </div>
 
-          <h1 className="mt-6 text-center text-2xl font-black text-slate-900 uppercase tracking-wider">
+          <h1 className="mt-6 text-center text-2xl font-black text-slate-900 dark:text-white uppercase tracking-wider">
             SGD
           </h1>
-          <p className="mt-1 text-center text-xs text-slate-500 font-bold uppercase tracking-widest">
+          <p className="mt-1 text-center text-xs text-slate-500 dark:text-slate-400 font-bold uppercase tracking-widest">
             Sistema de Gestão de Demandas
           </p>
-          <div className="mt-2 inline-flex items-center gap-1.5 px-3 py-1 bg-slate-100 border border-slate-200 rounded-full text-[10px] text-slate-600 font-bold uppercase tracking-wider">
-            <ShieldCheck size={12} className="text-slate-500" />
+          <div className="mt-2 inline-flex items-center gap-1.5 px-3 py-1 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-full text-[10px] text-slate-600 dark:text-slate-300 font-bold uppercase tracking-wider">
+            <ShieldCheck size={12} className="text-slate-500 dark:text-slate-400" />
             Portal Corporativo de Consultoria
           </div>
         </div>
       </div>
 
       <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md relative z-10 px-4 sm:px-0">
-        <div className="bg-white py-8 px-6 shadow-2xl border border-slate-100/80 rounded-3xl sm:px-10 space-y-6">
+        <div className="bg-white dark:bg-[#111a2e] py-8 px-6 shadow-2xl border border-slate-100/80 dark:border-slate-700/50 rounded-3xl sm:px-10 space-y-6">
           <div className="space-y-1">
-            <h2 className="text-lg font-black text-slate-800">
+            <h2 className="text-lg font-black text-slate-800 dark:text-white">
               Identificação do Consultor
             </h2>
-            <p className="text-xs text-slate-400">
+            <p className="text-xs text-slate-400 dark:text-slate-400">
               Entre com suas credenciais para acessar o painel de triagem e cadastros de demandas.
             </p>
           </div>
 
           {error && (
-            <div className="p-3 bg-red-50 border border-red-200 text-red-600 rounded-xl text-xs font-semibold flex items-center gap-2">
+            <div className="p-3 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800/60 text-red-600 dark:text-red-400 rounded-xl text-xs font-semibold flex items-center gap-2">
               <AlertCircle size={16} />
               {error}
             </div>
@@ -98,7 +122,7 @@ export default function LoginView({ onNavigateToTab }: LoginViewProps) {
           <form onSubmit={handleSubmit} className="space-y-4">
             {/* Email Field */}
             <div className="space-y-1">
-              <label htmlFor="email" className="text-xs font-bold text-slate-700 block">
+              <label htmlFor="email" className="text-xs font-bold text-slate-700 dark:text-slate-200 block">
                 E-mail *
               </label>
               <div className="relative">
@@ -112,7 +136,7 @@ export default function LoginView({ onNavigateToTab }: LoginViewProps) {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="seu@email.gov.br"
-                  className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-600 focus:border-transparent transition-all"
+                  className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-900/60 text-sm text-slate-800 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-600 focus:border-transparent transition-all"
                 />
               </div>
             </div>
@@ -120,7 +144,7 @@ export default function LoginView({ onNavigateToTab }: LoginViewProps) {
             {/* Password Field */}
             <div className="space-y-1">
               <div className="flex justify-between items-center">
-                <label htmlFor="password" className="text-xs font-bold text-slate-700 block">
+                <label htmlFor="password" className="text-xs font-bold text-slate-700 dark:text-slate-200 block">
                   Senha de Acesso *
                 </label>
               </div>
@@ -136,7 +160,7 @@ export default function LoginView({ onNavigateToTab }: LoginViewProps) {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="Sua senha de acesso"
-                  className="w-full pl-10 pr-10 py-2.5 rounded-xl border border-slate-200 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-600 focus:border-transparent transition-all"
+                  className="w-full pl-10 pr-10 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-900/60 text-sm text-slate-800 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-600 focus:border-transparent transition-all"
                 />
                 <button
                   type="button"
@@ -185,12 +209,6 @@ export default function LoginView({ onNavigateToTab }: LoginViewProps) {
             </div>
           </form>
 
-          {/* Demo credentials info */}
-          <div className="pt-4 border-t border-slate-100">
-            <p className="text-[10px] text-slate-400 text-center">
-              Credenciais de demonstração: <strong>admin@sgd.gov.br</strong> / <strong>Admin2026!</strong>
-            </p>
-          </div>
         </div>
         
         {/* Footer info */}
