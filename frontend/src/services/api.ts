@@ -102,6 +102,7 @@ function normalizeDemand(d: any): Demand {
   return {
     ...d,
     requested_value: Number(d.requested_value) || 0,
+    ano: d.ano != null ? Number(d.ano) : undefined,
   } as Demand;
 }
 
@@ -114,6 +115,7 @@ export const demandsApi = {
     uf?: string;
     category?: string;
     search?: string;
+    ano?: string;
     page?: number;
     limit?: number;
   }) => {

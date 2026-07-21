@@ -60,6 +60,7 @@ export interface Demand {
   responsible_email: string;
   responsible_phone: string;
   notes?: string;
+  ano?: number;
   created_at: string;
   updated_at: string;
   timeline?: TimelineEvent[];

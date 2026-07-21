@@ -161,6 +161,9 @@ export async function initDatabase() {
       CHECK(role IN ('admin', 'gestor', 'analista', 'consulta'));
     ALTER TABLE users ALTER COLUMN role SET DEFAULT 'consulta';
     ALTER TABLE users ADD COLUMN IF NOT EXISTS active BOOLEAN DEFAULT TRUE;
+
+    -- Add ano column to demands (idempotent)
+    ALTER TABLE demands ADD COLUMN IF NOT EXISTS ano INTEGER DEFAULT EXTRACT(YEAR FROM NOW());
   `);
 
   console.log('✅ Tabelas criadas/verificadas');

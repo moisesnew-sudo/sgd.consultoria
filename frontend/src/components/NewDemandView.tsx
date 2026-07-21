@@ -50,6 +50,7 @@ export default function NewDemandView({ municipalities, onAddDemand, onNavigateT
   const [organ, setOrgan] = useState('');
   const [requestedValue, setRequestedValue] = useState('');
   const [status, setStatus] = useState<DemandStatus>('pendente');
+  const [ano, setAno] = useState(new Date().getFullYear());
   const [processLink, setProcessLink] = useState('');
   const [description, setDescription] = useState('');
   const [responsibleName, setResponsibleName] = useState(user?.name || '');
@@ -132,6 +133,7 @@ export default function NewDemandView({ municipalities, onAddDemand, onNavigateT
     if (!uf) newErrors.uf = 'Selecione a UF.';
     if (!municipality.trim()) newErrors.municipality = 'Informe o município.';
     if (!objeto.trim()) newErrors.objeto = 'Informe o objeto da demanda.';
+    if (!ano) newErrors.ano = 'Informe o ano da demanda.';
 
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors);
@@ -158,7 +160,8 @@ export default function NewDemandView({ municipalities, onAddDemand, onNavigateT
         responsible_name: responsibleName || undefined,
         responsible_email: responsibleEmail || undefined,
         responsible_phone: responsiblePhone || undefined,
-        notes: notes.trim() || undefined
+        notes: notes.trim() || undefined,
+        ano: Number(ano) || undefined
       });
 
       onAddDemand(newDemand);
@@ -178,6 +181,7 @@ export default function NewDemandView({ municipalities, onAddDemand, onNavigateT
     setProposalNumber('');
     setObjeto('');
     setOrgan('');
+    setAno(new Date().getFullYear());
     setRequestedValue('');
     setStatus('pendente');
     setProcessLink('');
@@ -390,6 +394,21 @@ export default function NewDemandView({ municipalities, onAddDemand, onNavigateT
                 <option value="concluido">Concluído</option>
                 <option value="rejeitado">Rejeitado</option>
               </select>
+            </div>
+
+            <div className="md:col-span-6 space-y-1" id="field-ano">
+              <label htmlFor="ano-select" className="text-xs font-bold text-slate-700 block">Ano *</label>
+              <select
+                id="ano-select"
+                value={ano}
+                onChange={(e) => setAno(Number(e.target.value))}
+                className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm text-slate-800 bg-white focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-transparent"
+              >
+                {[2020,2021,2022,2023,2024,2025,2026,2027,2028,2029,2030].map(y => (
+                  <option key={y} value={y}>{y}</option>
+                ))}
+              </select>
+              {errors.ano && <p className="text-[10px] text-red-500 font-semibold">{errors.ano}</p>}
             </div>
 
             <div className="md:col-span-6 space-y-1" id="field-processLink">

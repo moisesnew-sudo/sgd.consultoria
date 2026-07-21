@@ -28,6 +28,7 @@ const EXPECTED_HEADERS: Record<string, keyof Demand> = {
   'email': 'responsible_email',
   'telefone': 'responsible_phone',
   'observacoes': 'notes',
+  'ano': 'ano',
 };
 
 function mapRow(row: any): Partial<Demand> | null {
@@ -43,6 +44,7 @@ function mapRow(row: any): Partial<Demand> | null {
   }
   if (!mapped.title || !mapped.municipality || !mapped.uf) return null;
   mapped.requested_value = Number(mapped.requested_value) || 0;
+  mapped.ano = mapped.ano != null ? Number(mapped.ano) : undefined;
   mapped.category = mapped.category || mapped.title.substring(0, 30);
   mapped.status = mapped.status || 'pendente';
   mapped.priority = mapped.priority || 'media';
@@ -98,6 +100,7 @@ export default function ImportExportBar({ rows, onImported }: ImportExportBarPro
       Título: d.title,
       Município: d.municipality,
       UF: d.uf,
+      'Ano': d.ano || '',
       Status: d.status,
       Prioridade: d.priority,
       Categoria: d.category,
@@ -114,10 +117,10 @@ export default function ImportExportBar({ rows, onImported }: ImportExportBarPro
   };
 
   const exportCsv = () => {
-    const headers = ['ID', 'Título', 'Município', 'UF', 'Status', 'Prioridade', 'Categoria', 'Valor', 'Órgão', 'Proposta', 'Responsável', 'Criado em'];
+    const headers = ['ID', 'Título', 'Município', 'UF', 'Ano', 'Status', 'Prioridade', 'Categoria', 'Valor', 'Órgão', 'Proposta', 'Responsável', 'Criado em'];
     const escape = (v: any) => `"${String(v ?? '').replace(/"/g, '""')}"`;
     const lines = rows.map(d => [
-      d.id, d.title, d.municipality, d.uf, d.status, d.priority, d.category,
+      d.id, d.title, d.municipality, d.uf, d.ano || '', d.status, d.priority, d.category,
       d.requested_value, d.organ || '', d.proposal_number || '', d.responsible_name || '', formatDate(d.created_at)
     ].map(escape).join(','));
     const csv = '﻿' + [headers.join(','), ...lines].join('\n');
@@ -136,7 +139,7 @@ export default function ImportExportBar({ rows, onImported }: ImportExportBarPro
     const body = rows.map(d => `
       <tr>
         <td>${d.id}</td><td>${d.title}</td><td>${d.municipality}/${d.uf}</td>
-        <td>${d.status}</td><td>${d.priority}</td><td>R$ ${(d.requested_value || 0).toFixed(2)}</td>
+        <td>${d.ano || '—'}</td><td>${d.status}</td><td>${d.priority}</td><td>R$ ${(d.requested_value || 0).toFixed(2)}</td>
       </tr>`).join('');
     win.document.write(`<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8">
       <title>SGD - Relatório de Demandas</title>
@@ -151,7 +154,7 @@ export default function ImportExportBar({ rows, onImported }: ImportExportBarPro
       <h1>SGD — Relatório de Demandas</h1>
       <p>Gerado em ${new Date().toLocaleString('pt-BR')} • ${rows.length} registro(s) filtrado(s)</p>
       <table><thead><tr>
-        <th>ID</th><th>Título</th><th>Município/UF</th><th>Status</th><th>Prioridade</th><th>Valor</th>
+        <th>ID</th><th>Título</th><th>Município/UF</th><th>Ano</th><th>Status</th><th>Prioridade</th><th>Valor</th>
       </tr></thead><tbody>${body}</tbody></table>
       <script>window.onload=()=>{window.print()}</script>
       </body></html>`);

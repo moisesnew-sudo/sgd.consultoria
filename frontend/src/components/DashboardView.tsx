@@ -62,15 +62,19 @@ export default function DashboardView({ onNavigateToTab, onSelectDemand }: Dashb
   const [demands, setDemands] = useState<Demand[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [yearFilter, setYearFilter] = useState<string>('all');
 
   useEffect(() => {
     loadAll();
-  }, []);
+  }, [yearFilter]);
 
   const loadAll = async () => {
     try {
       setIsLoading(true);
-      const data = await demandsApi.getAll({ limit: 1000 });
+      const data = await demandsApi.getAll({
+        limit: 1000,
+        ano: yearFilter !== 'all' ? yearFilter : undefined,
+      });
       setDemands(data.data);
     } catch (err: any) {
       setError(err.message || 'Erro ao carregar dados do dashboard');
@@ -222,7 +226,17 @@ export default function DashboardView({ onNavigateToTab, onSelectDemand }: Dashb
             {new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 items-center">
+          <select
+            value={yearFilter}
+            onChange={(e) => setYearFilter(e.target.value)}
+            className="px-3 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-900/60 text-xs text-slate-700 dark:text-slate-200 bg-white focus:outline-none focus:ring-2 focus:ring-blue-600"
+          >
+            <option value="all">Todos os anos</option>
+            {[2020,2021,2022,2023,2024,2025,2026,2027,2028,2029,2030].map(y => (
+              <option key={y} value={String(y)}>{y}</option>
+            ))}
+          </select>
           <button
             onClick={() => onNavigateToTab('new-demand')}
             className="px-4 py-2.5 rounded-xl bg-brand-600 hover:bg-brand-700 text-white font-bold text-xs uppercase tracking-wider shadow-sm transition-all"

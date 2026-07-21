@@ -22,7 +22,8 @@ import {
   Loader2,
   Trash2,
   MessageSquare,
-  Send
+  Send,
+  AlertTriangle
 } from 'lucide-react';
 import { Demand, DemandStatus, DemandPriority, TimelineEvent, PaginatedResponse } from '../types';
 import { demandsApi, formatCurrency, formatDate, ROLE_PERMISSIONS } from '../services/api';
@@ -38,6 +39,7 @@ interface DemandsViewProps {
   clearSelectedDemandFromDashboard: () => void;
   onUpdateDemand: (updated: Demand) => void;
   onAddDemand?: (newDemand: Demand) => void;
+  onDeleteDemand?: (id: string) => void;
   isLoading: boolean;
 }
 
@@ -59,10 +61,14 @@ export default function DemandsView({
   clearSelectedDemandFromDashboard, 
   onUpdateDemand,
   onAddDemand,
+  onDeleteDemand,
   isLoading
 }: DemandsViewProps) {
   const { user, isAuthenticated } = useAuth();
   const canEdit = isAuthenticated && user?.role !== 'consulta';
+  const canDelete = isAuthenticated && (user?.role === 'admin' || user?.role === 'gestor');
+  const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
   const canCreate = isAuthenticated && user?.role !== 'consulta';
   
   // Search & Filters State
@@ -72,6 +78,7 @@ export default function DemandsView({
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
   const [ufFilter, setUfFilter] = useState<string>('all');
   const [responsibleFilter, setResponsibleFilter] = useState<string>('all');
+  const [anoFilter, setAnoFilter] = useState<string>('all');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [valueMin, setValueMin] = useState('');
@@ -115,6 +122,7 @@ export default function DemandsView({
   const [editResponsibleName, setEditResponsibleName] = useState('');
   const [editResponsibleEmail, setEditResponsibleEmail] = useState('');
   const [editResponsiblePhone, setEditResponsiblePhone] = useState('');
+  const [editAno, setEditAno] = useState<number | undefined>(undefined);
   const [editNotes, setEditNotes] = useState('');
   const [isSavingEdit, setIsSavingEdit] = useState(false);
 
@@ -154,6 +162,7 @@ export default function DemandsView({
     setEditResponsibleEmail(demand.responsible_email || '');
     setEditResponsiblePhone(demand.responsible_phone || '');
     setEditNotes(demand.notes || '');
+    setEditAno(demand.ano ?? new Date().getFullYear());
     setIsEditingDemand(true);
   };
 
@@ -176,7 +185,8 @@ export default function DemandsView({
         responsible_name: editResponsibleName.trim() || undefined,
         responsible_email: editResponsibleEmail.trim() || undefined,
         responsible_phone: editResponsiblePhone.trim() || undefined,
-        notes: editNotes.trim() || undefined
+        notes: editNotes.trim() || undefined,
+        ano: editAno
       });
       onUpdateDemand(updated);
       setDetailedDemand(updated);
@@ -213,7 +223,8 @@ export default function DemandsView({
     const matchesSearch = !q || [
       d.id, d.title, d.municipality, d.description, d.category,
       d.organ, d.proposal_number, d.prefeitura,
-      d.responsible_name, d.responsible_email, d.responsible_phone
+      d.responsible_name, d.responsible_email, d.responsible_phone,
+      d.ano ? String(d.ano) : ''
     ].some(f => (f || '').toLowerCase().includes(q));
 
     const matchesStatus = statusFilter === 'all' || d.status === statusFilter;
@@ -221,6 +232,7 @@ export default function DemandsView({
     const matchesCategory = categoryFilter === 'all' || d.category === categoryFilter;
     const matchesUf = ufFilter === 'all' || d.uf === ufFilter;
     const matchesResponsible = responsibleFilter === 'all' || d.responsible_name === responsibleFilter;
+    const matchesAno = anoFilter === 'all' || String(d.ano) === anoFilter;
 
     const created = new Date(d.created_at).getTime();
     const matchesDateFrom = !dateFrom || created >= new Date(dateFrom).getTime();
@@ -231,7 +243,7 @@ export default function DemandsView({
     const matchesValueMax = !valueMax || value <= Number(valueMax);
 
     return matchesSearch && matchesStatus && matchesPriority && matchesCategory &&
-      matchesUf && matchesResponsible && matchesDateFrom && matchesDateTo &&
+      matchesUf && matchesResponsible && matchesAno && matchesDateFrom && matchesDateTo &&
       matchesValueMin && matchesValueMax;
   });
 
@@ -360,6 +372,22 @@ export default function DemandsView({
 
   const handlePrintDemand = () => {
     window.print();
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    try {
+      await demandsApi.delete(deleteTarget);
+      setDetailedDemand(null);
+      onDeleteDemand?.(deleteTarget);
+      setDeleteTarget(null);
+      alert('Demanda excluída com sucesso.');
+    } catch (error: any) {
+      alert('Erro ao excluir demanda.');
+    } finally {
+      setDeleting(false);
+    }
   };
 
   if (isLoading) {
@@ -527,6 +555,19 @@ export default function DemandsView({
             </select>
           </div>
 
+          <div className="lg:col-span-2">
+            <select
+              value={anoFilter}
+              onChange={(e) => setAnoFilter(e.target.value)}
+              className="w-full px-3 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-900/60 text-xs text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-900 focus:outline-none"
+            >
+              <option value="all">Ano (Todos)</option>
+              {[2020,2021,2022,2023,2024,2025,2026,2027,2028,2029,2030].map(y => (
+                <option key={y} value={String(y)}>{y}</option>
+              ))}
+            </select>
+          </div>
+
           <div className="lg:col-span-2 sm:col-span-2">
             <select
               value={sortBy}
@@ -587,7 +628,7 @@ export default function DemandsView({
               onClick={() => {
                 setSearch(''); setStatusFilter('all'); setPriorityFilter('all');
                 setCategoryFilter('all'); setUfFilter('all'); setResponsibleFilter('all');
-                setDateFrom(''); setDateTo(''); setValueMin(''); setValueMax('');
+                setAnoFilter('all'); setDateFrom(''); setDateTo(''); setValueMin(''); setValueMax('');
               }}
               className="w-full px-3 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 text-xs font-bold hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
             >
@@ -645,6 +686,7 @@ export default function DemandsView({
                     <th className="py-4 px-6">Título da Demanda</th>
                     <th className="py-4 px-6">Município / UF</th>
                     <th className="py-4 px-6">Valor Solicitado</th>
+                    <th className="py-4 px-6">Ano</th>
                     <th className="py-4 px-6">Criticidade</th>
                     <th className="py-4 px-6">Status</th>
                     <th className="py-4 px-6 text-right">Ação</th>
@@ -671,6 +713,9 @@ export default function DemandsView({
                       <td className="py-4 px-6 whitespace-nowrap font-mono font-semibold text-slate-800">
                         {formatCurrency(demand.requested_value)}
                       </td>
+                      <td className="py-4 px-6 whitespace-nowrap font-mono text-slate-500">
+                        {demand.ano || '—'}
+                      </td>
                       <td className="py-4 px-6 whitespace-nowrap">
                         <span className={`inline-block px-2.5 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider border ${getPriorityBadgeClass(demand.priority)}`}>
                           {demand.priority}
@@ -682,12 +727,23 @@ export default function DemandsView({
                         </span>
                       </td>
                       <td className="py-4 px-6 text-right whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
-                        <button
-                          onClick={() => handleOpenDetail(demand)}
-                          className="px-3 py-1.5 rounded-lg bg-blue-50 text-blue-700 hover:bg-blue-100 text-[10px] font-bold transition-all flex items-center gap-1.5 ml-auto border border-blue-100"
-                        >
-                          Detalhes <ExternalLink size={12} />
-                        </button>
+                        <div className="flex items-center justify-end gap-1.5">
+                          <button
+                            onClick={() => handleOpenDetail(demand)}
+                            className="px-3 py-1.5 rounded-lg bg-blue-50 text-blue-700 hover:bg-blue-100 text-[10px] font-bold transition-all flex items-center gap-1.5 border border-blue-100"
+                          >
+                            Detalhes <ExternalLink size={12} />
+                          </button>
+                          {canDelete && (
+                            <button
+                              onClick={() => setDeleteTarget(demand.id)}
+                              className="p-1.5 rounded-lg bg-red-50 text-red-600 hover:bg-red-100 transition-all border border-red-100"
+                              title="Excluir demanda"
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -746,7 +802,10 @@ export default function DemandsView({
 
                         <div className="flex justify-between items-center pt-2 border-t border-slate-100 text-[10px]">
                           <span className="font-semibold text-slate-600">{d.municipality} ({d.uf})</span>
-                          <span className="font-mono text-slate-800 font-bold">{formatCurrency(d.requested_value)}</span>
+                          <span className="flex items-center gap-2">
+                            {d.ano && <span className="text-slate-400 font-mono">{d.ano}</span>}
+                            <span className="font-mono text-slate-800 font-bold">{formatCurrency(d.requested_value)}</span>
+                          </span>
                         </div>
                       </div>
                     ))
@@ -846,6 +905,15 @@ export default function DemandsView({
                         <option value="media">Média</option>
                         <option value="alta">Alta</option>
                         <option value="urgente">Urgente</option>
+                      </select>
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-xs font-bold text-slate-700 block">Ano</label>
+                      <select value={editAno ?? ''} onChange={(e) => setEditAno(Number(e.target.value))}
+                        className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm bg-white focus:ring-2 focus:ring-blue-600 focus:outline-none">
+                        {[2020,2021,2022,2023,2024,2025,2026,2027,2028,2029,2030].map(y => (
+                          <option key={y} value={y}>{y}</option>
+                        ))}
                       </select>
                     </div>
                     <div className="space-y-1">
@@ -1274,11 +1342,53 @@ export default function DemandsView({
               >
                 <Printer size={14} /> Imprimir
               </button>
+              {canDelete && (
+                <button
+                  onClick={() => setDeleteTarget(detailedDemand.id)}
+                  className="py-2.5 px-4 rounded-xl border border-red-200 hover:bg-red-50 text-red-600 font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2"
+                >
+                  <Trash2 size={14} /> Excluir
+                </button>
+              )}
               <button
                 onClick={() => setDetailedDemand(null)}
                 className="py-2.5 px-6 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs uppercase tracking-wider"
               >
                 Fechar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {deleteTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => !deleting && setDeleteTarget(null)}>
+          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl max-w-sm w-full mx-4 p-6 space-y-4" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center text-red-600">
+                <AlertTriangle size={20} />
+              </div>
+              <div>
+                <h3 className="text-base font-black text-slate-900 dark:text-white">Excluir Demanda</h3>
+                <p className="text-xs text-slate-500">Tem certeza que deseja excluir esta demanda? Esta ação não poderá ser desfeita.</p>
+              </div>
+            </div>
+            <div className="flex gap-2 justify-end">
+              <button
+                onClick={() => setDeleteTarget(null)}
+                disabled={deleting}
+                className="px-4 py-2 rounded-xl border border-slate-200 text-slate-700 font-bold text-xs uppercase tracking-wider hover:bg-slate-50"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleDeleteConfirm}
+                disabled={deleting}
+                className="px-4 py-2 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold text-xs uppercase tracking-wider disabled:opacity-50 flex items-center gap-1.5"
+              >
+                {deleting ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
+                Excluir
               </button>
             </div>
           </div>

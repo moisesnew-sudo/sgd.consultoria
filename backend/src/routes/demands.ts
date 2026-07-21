@@ -23,7 +23,8 @@ const demandSchema = z.object({
   responsible_name: z.string().optional(),
   responsible_email: z.string().email('Email inválido').optional().or(z.literal('')),
   responsible_phone: z.string().optional(),
-  notes: z.string().optional()
+  notes: z.string().optional(),
+  ano: z.coerce.number().int().min(2020).max(2030).optional()
 });
 
 const timelineEventSchema = z.object({
@@ -149,20 +150,21 @@ router.post('/', authenticateToken, async (req: Request, res: Response) => {
       return res.status(403).json({ error: 'Seu perfil (Consulta) é somente leitura' });
     }
     const data = demandSchema.parse(req.body);
-    const year = new Date().getFullYear();
+    const currentYear = new Date().getFullYear();
     const countResult = await get<{ count: string }>('SELECT COUNT(*) as count FROM demands');
     const count = parseInt(countResult?.count || '0');
-    const id = `${data.organ || 'SGD'}-${year}-${String(count + 1).padStart(3, '0')}`;
+    const id = `${data.organ || 'SGD'}-${currentYear}-${String(count + 1).padStart(3, '0')}`;
     const now = new Date().toISOString();
+    const anoVal = data.ano ?? currentYear;
 
     await run(
-      `INSERT INTO demands (id, title, description, category, status, priority, municipality, uf, requested_value, prefeitura, proposal_number, organ, process_link, responsible_name, responsible_email, responsible_phone, notes, created_by, created_at, updated_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)`,
+      `INSERT INTO demands (id, title, description, category, status, priority, municipality, uf, requested_value, prefeitura, proposal_number, organ, process_link, responsible_name, responsible_email, responsible_phone, notes, created_by, created_at, updated_at, ano)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21)`,
       [id, data.title, data.description || '', data.category, data.status || 'pendente', data.priority || 'media',
        data.municipality, data.uf, data.requested_value || 0, data.prefeitura || `Prefeitura Municipal de ${data.municipality}`,
-       data.proposal_number || `PROP-${year}-${String(count + 1).padStart(4, '0')}`, data.organ || '',
+       data.proposal_number || `PROP-${currentYear}-${String(count + 1).padStart(4, '0')}`, data.organ || '',
        data.process_link || '', data.responsible_name || req.user!.name, data.responsible_email || req.user!.email,
-       data.responsible_phone || '', data.notes || '', req.user!.id, now, now]
+       data.responsible_phone || '', data.notes || '', req.user!.id, now, now, anoVal]
     );
 
     await run(

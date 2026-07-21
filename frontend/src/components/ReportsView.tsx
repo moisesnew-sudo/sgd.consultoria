@@ -78,9 +78,10 @@ export default function ReportsView({ demands }: ReportsViewProps) {
   const reportText = useMemo(() => generateExecutiveReport(filtered), [filtered]);
 
   const handleExportCsv = () => {
-    const headers = ['ID', 'Título', 'Município', 'UF', 'Status', 'Prioridade', 'Valor Solicitado', 'Órgão'];
+    const headers = ['ID', 'Título', 'Município', 'UF', 'Ano', 'Status', 'Prioridade', 'Valor Solicitado', 'Órgão'];
     const rows = filtered.map(d => [
-      d.id, `"${d.title}"`, `"${d.municipality}"`, d.uf, STATUS_LABELS[d.status],
+      d.id, `"${d.title}"`, `"${d.municipality}"`, d.uf, d.ano || '',
+      STATUS_LABELS[d.status],
       PRIORITY_LABELS[d.priority] || d.priority, d.requested_value || 0, `"${d.organ || ''}"`
     ]);
     const csv = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
@@ -309,6 +310,7 @@ export default function ReportsView({ demands }: ReportsViewProps) {
                 <th className="px-5 py-3 text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">ID</th>
                 <th className="px-5 py-3 text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">Título</th>
                 <th className="px-5 py-3 text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">Município</th>
+                <th className="px-5 py-3 text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">Ano</th>
                 <th className="px-5 py-3 text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">Status</th>
                 <th className="px-5 py-3 text-[10px] font-extrabold text-slate-500 uppercase tracking-wider text-right">Valor</th>
               </tr>
@@ -319,6 +321,7 @@ export default function ReportsView({ demands }: ReportsViewProps) {
                   <td className="px-5 py-3 text-[10px] font-mono font-bold text-slate-600">{d.id}</td>
                   <td className="px-5 py-3 text-xs font-bold text-slate-800 max-w-[200px] truncate">{d.title}</td>
                   <td className="px-5 py-3 text-xs text-slate-600">{d.municipality} - {d.uf}</td>
+                  <td className="px-5 py-3 text-xs font-mono text-slate-500">{d.ano || '—'}</td>
                   <td className="px-5 py-3">
                     <span className="inline-block px-2 py-1 rounded-md bg-slate-100 text-[9px] font-bold text-slate-600 uppercase">
                       {STATUS_LABELS[d.status]}

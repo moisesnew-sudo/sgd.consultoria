@@ -77,6 +77,10 @@ function AppContent() {
     setDemands(prev => prev.map(d => d.id === updatedDemand.id ? updatedDemand : d));
   };
 
+  const handleDeleteDemand = (id: string) => {
+    setDemands(prev => prev.filter(d => d.id !== id));
+  };
+
   const handleSelectDemandFromDashboard = (demand: Demand) => {
     setSelectedDemandFromDashboard(demand);
     setActiveTab('demands');
@@ -167,6 +171,7 @@ function AppContent() {
               clearSelectedDemandFromDashboard={() => setSelectedDemandFromDashboard(null)}
               onUpdateDemand={handleUpdateDemand}
               onAddDemand={handleAddDemand}
+              onDeleteDemand={handleDeleteDemand}
               isLoading={isLoading}
             />
           )}

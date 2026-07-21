@@ -73,6 +73,7 @@ export interface Demand {
   created_by?: number;
   created_at: string;
   updated_at: string;
+  ano?: number;
   timeline?: TimelineEvent[];
   attachments?: Attachment[];
 }
