@@ -57,7 +57,6 @@ export default function Sidebar({ activeTab, setActiveTab, isOpen, setIsOpen, pe
     { id: 'reports', label: 'Relatórios', icon: FileBarChart, badge: null },
     ...(isAuthenticated && canManageUsers ? [
       { id: 'users', label: 'Usuários', icon: Users, badge: null },
-      { id: 'integrations', label: 'API & Integrações', icon: Plug, badge: null },
       { id: 'backup', label: 'Backup', icon: Database, badge: null }
     ] : []),
     ...(isAuthenticated && canSettings ? [
