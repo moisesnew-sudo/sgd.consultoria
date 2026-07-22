@@ -28,15 +28,17 @@ export default function ReportsView({ demands }: ReportsViewProps) {
   const [filterUf, setFilterUf] = useState('');
   const [filterStatus, setFilterStatus] = useState('');
   const [filterPriority, setFilterPriority] = useState('');
+  const [filterAno, setFilterAno] = useState('');
 
   const filtered = useMemo(() => {
     return demands.filter(d => {
       if (filterUf && d.uf !== filterUf) return false;
       if (filterStatus && d.status !== filterStatus) return false;
       if (filterPriority && d.priority !== filterPriority) return false;
+      if (filterAno && String(d.ano ?? '') !== filterAno) return false;
       return true;
     });
-  }, [demands, filterUf, filterStatus, filterPriority]);
+  }, [demands, filterUf, filterStatus, filterPriority, filterAno]);
 
   const totalRequested = filtered.reduce((sum, d) => sum + (d.requested_value || 0), 0);
   const totalApproved = filtered
@@ -159,8 +161,13 @@ export default function ReportsView({ demands }: ReportsViewProps) {
             <option value="">Todas Prioridades</option>
             {Object.entries(PRIORITY_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
           </select>
-          {(filterUf || filterStatus || filterPriority) && (
-            <button onClick={() => { setFilterUf(''); setFilterStatus(''); setFilterPriority(''); }}
+          <select value={filterAno} onChange={(e) => setFilterAno(e.target.value)}
+            className="px-3 py-2 rounded-lg border border-slate-200 text-xs text-slate-700 bg-white focus:ring-2 focus:ring-blue-600 focus:outline-none">
+            <option value="">Todos Anos</option>
+            {[2020,2021,2022,2023,2024,2025,2026,2027,2028,2029,2030].map(y => <option key={y} value={String(y)}>{y}</option>)}
+          </select>
+          {(filterUf || filterStatus || filterPriority || filterAno) && (
+            <button onClick={() => { setFilterUf(''); setFilterStatus(''); setFilterPriority(''); setFilterAno(''); }}
               className="text-[10px] text-red-500 font-bold hover:underline cursor-pointer">
               Limpar Filtros
             </button>
