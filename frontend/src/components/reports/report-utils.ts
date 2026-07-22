@@ -77,9 +77,9 @@ export function computeMetrics(demands: Demand[]): RM {
 
 export function genAnalysis(m: RM): string[] {
   const p: string[] = [];
-  const pp = m.total > 0 ? ((m.byStatus.pendente || 0) / m.total * 100).toFixed(1) : '0';
   const pa = m.total > 0 ? ((m.byStatus.analise || 0) / m.total * 100).toFixed(1) : '0';
   const pc = m.total > 0 ? ((m.byStatus.concluido || 0) / m.total * 100).toFixed(1) : '0';
+  const pp = m.total > 0 ? ((m.byStatus.pendente || 0) / m.total * 100).toFixed(1) : '0';
   const pr = m.total > 0 ? ((m.byStatus.rejeitado || 0) / m.total * 100).toFixed(1) : '0';
   p.push(`Durante o período analisado, foram cadastradas ${m.total} demandas distribuídas entre ${m.municipalities} municípios em ${m.states} estados, totalizando ${fmt(m.totalValue)} em recursos pleiteados.`);
   p.push(`A distribuição por status revela que ${pa}% das demandas encontram-se em análise, ${pc}% foram concluídas, ${pp}% permanecem pendentes e ${pr}% foram rejeitadas. O status "${m.topStatus.name}" é predominante, representando ${m.topStatus.pct}% da carteira.`);
@@ -94,7 +94,7 @@ export function genAnalysis(m: RM): string[] {
 
 export function genRecommendations(m: RM): string[] {
   const r: string[] = [];
-  if (m.totalValue > 1_000_000) r.push(`Priorizar acompanhamento das demandas acima de R\$ 1 milhão, que concentram parcela significativa do valor total sob gestão (${fmt(m.totalValue)}).`);
+  if (m.totalValue > 1_000_000) r.push(`Priorizar acompanhamento das demandas acima de R$ 1 milhão, que concentram parcela significativa do valor total sob gestão (${fmt(m.totalValue)}).`);
   if (m.overdue > 0) r.push(`Intensificar contato com os municípios que possuem demandas pendentes há mais tempo, visando regularizar ${m.overdue} ocorrência(s) fora do SLA.`);
   if ((m.byStatus.rejeitado || 0) > 0) r.push(`Revisar os ${m.byStatus.rejeitado} processo(s) rejeitado(s) para identificar padrões de inconsistência e evitar novas ocorrências.`);
   if ((m.byStatus.analise || 0) > 10) r.push(`Monitorar as ${m.byStatus.analise} propostas em análise, estabelecendo metas de agilidade na tramitação para evitar acúmulo de processos.`);
