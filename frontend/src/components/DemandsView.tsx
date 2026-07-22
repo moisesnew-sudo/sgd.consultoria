@@ -670,7 +670,7 @@ export default function DemandsView({
       {/* LIST or KANBAN VIEW */}
       {viewMode === 'list' ? (
         /* LIST VIEW */
-        <div className="bg-white border border-slate-100 rounded-3xl shadow-sm overflow-hidden" id="list-view-container">
+        <div className="bg-white dark:bg-[var(--surface-card)] border border-slate-100 dark:border-slate-700/50 rounded-3xl shadow-sm overflow-hidden" id="list-view-container">
           {sortedDemands.length === 0 ? (
             <div className="p-12 text-center space-y-3">
               <AlertCircle size={40} className="text-slate-300 mx-auto" />
@@ -678,66 +678,87 @@ export default function DemandsView({
               <p className="text-xs text-slate-400">Tente ajustar seus filtros ou mude o termo pesquisado.</p>
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse" id="demands-table">
+            <div className="overflow-auto custom-scrollbar max-h-[calc(100vh-310px)]">
+              <table className="w-full text-left border-collapse min-w-[1500px]" id="demands-table">
                 <thead>
-                  <tr className="bg-slate-50 border-b border-slate-100 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                    <th className="py-4 px-6">ID</th>
-                    <th className="py-4 px-6">Título da Demanda</th>
-                    <th className="py-4 px-6">Município / UF</th>
-                    <th className="py-4 px-6">Valor Solicitado</th>
-                    <th className="py-4 px-6">Ano</th>
-                    <th className="py-4 px-6">Criticidade</th>
-                    <th className="py-4 px-6">Status</th>
-                    <th className="py-4 px-6 text-right">Ação</th>
+                  <tr className="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-100 dark:border-slate-700/50 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                    <th className="py-4 px-5 w-[60px]">ID</th>
+                    <th className="py-4 px-5 w-[340px]">Título da Demanda</th>
+                    <th className="py-4 px-5 w-[160px]">Município / UF</th>
+                    <th className="py-4 px-5 w-[140px]">Valor Solicitado</th>
+                    <th className="py-4 px-5 w-[70px] text-center">Ano</th>
+                    <th className="py-4 px-5 w-[110px]">Criticidade</th>
+                    <th className="py-4 px-5 w-[120px]">Status</th>
+                    <th className="py-4 px-5 w-[130px] text-right">Ação</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100 text-xs text-slate-600">
-                  {sortedDemands.map((demand) => (
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-700/50 text-xs text-slate-600">
+                  {sortedDemands.map((demand, index) => (
                     <tr 
                       key={demand.id} 
-                      className="hover:bg-slate-50/50 transition-colors cursor-pointer"
+                      className={`${
+                        index % 2 === 0
+                          ? 'bg-white dark:bg-transparent'
+                          : 'bg-slate-50/40 dark:bg-slate-800/10'
+                      } hover:bg-slate-100/60 dark:hover:bg-slate-700/20 transition-colors cursor-pointer`}
                       onClick={() => handleOpenDetail(demand)}
                     >
-                      <td className="py-4 px-6 font-mono font-bold text-slate-500 whitespace-nowrap">
+                      <td className="py-4 px-5 font-mono font-bold text-slate-500 dark:text-slate-400 whitespace-nowrap">
                         {demand.id}
                       </td>
-                      <td className="py-4 px-6 max-w-xs md:max-w-md">
-                        <p className="font-extrabold text-slate-800 truncate" title={demand.title}>{demand.title}</p>
-                        <p className="text-[10px] text-slate-400 truncate">{demand.category}</p>
+                      <td className="py-4 px-5 max-w-[310px]">
+                        <p
+                          className="font-extrabold text-slate-800 dark:text-slate-200 truncate"
+                          title={demand.title}
+                        >
+                          {demand.title}
+                        </p>
+                        {demand.category && (
+                          <p
+                            className="text-[10px] text-slate-400 mt-0.5 truncate"
+                            title={demand.category}
+                          >
+                            {demand.category}
+                          </p>
+                        )}
                       </td>
-                      <td className="py-4 px-6 whitespace-nowrap">
-                        <div className="font-semibold text-slate-800">{demand.municipality}</div>
-                        <div className="text-[10px] text-slate-400">Estado: {demand.uf}</div>
+                      <td className="py-4 px-5 max-w-[130px]">
+                        <div
+                          className="font-semibold text-slate-800 dark:text-slate-200 truncate"
+                          title={demand.municipality}
+                        >
+                          {demand.municipality}
+                        </div>
+                        <div className="text-[10px] text-slate-400 mt-0.5">{demand.uf}</div>
                       </td>
-                      <td className="py-4 px-6 whitespace-nowrap font-mono font-semibold text-slate-800">
+                      <td className="py-4 px-5 whitespace-nowrap font-mono font-semibold text-slate-800 dark:text-slate-200 tabular-nums">
                         {formatCurrency(demand.requested_value)}
                       </td>
-                      <td className="py-4 px-6 whitespace-nowrap font-mono text-slate-500">
+                      <td className="py-4 px-5 whitespace-nowrap font-mono text-slate-500 dark:text-slate-400 text-center">
                         {demand.ano || '—'}
                       </td>
-                      <td className="py-4 px-6 whitespace-nowrap">
-                        <span className={`inline-block px-2.5 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider border ${getPriorityBadgeClass(demand.priority)}`}>
+                      <td className="py-4 px-5 whitespace-nowrap">
+                        <span className={`inline-block px-2.5 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider border whitespace-nowrap ${getPriorityBadgeClass(demand.priority)}`}>
                           {demand.priority}
                         </span>
                       </td>
-                      <td className="py-4 px-6 whitespace-nowrap">
-                        <span className={`inline-block px-2.5 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider border ${getStatusBadgeClass(demand.status)}`}>
+                      <td className="py-4 px-5 whitespace-nowrap">
+                        <span className={`inline-block px-2.5 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider border whitespace-nowrap ${getStatusBadgeClass(demand.status)}`}>
                           {getStatusLabel(demand.status)}
                         </span>
                       </td>
-                      <td className="py-4 px-6 text-right whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
+                      <td className="py-4 px-5 text-right whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
                         <div className="flex items-center justify-end gap-1.5">
                           <button
                             onClick={() => handleOpenDetail(demand)}
-                            className="px-3 py-1.5 rounded-lg bg-blue-50 text-blue-700 hover:bg-blue-100 text-[10px] font-bold transition-all flex items-center gap-1.5 border border-blue-100"
+                            className="px-3 py-1.5 rounded-lg bg-blue-50 dark:bg-blue-500/10 text-blue-700 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-500/20 text-[10px] font-bold transition-all flex items-center gap-1.5 border border-blue-100 dark:border-blue-500/20"
                           >
                             Detalhes <ExternalLink size={12} />
                           </button>
                           {canDelete && (
                             <button
                               onClick={() => setDeleteTarget(demand.id)}
-                              className="p-1.5 rounded-lg bg-red-50 text-red-600 hover:bg-red-100 transition-all border border-red-100"
+                              className="p-1.5 rounded-lg bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-500/20 transition-all border border-red-100 dark:border-red-500/20"
                               title="Excluir demanda"
                             >
                               <Trash2 size={14} />

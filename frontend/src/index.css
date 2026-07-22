@@ -162,6 +162,47 @@ body {
   background-clip: padding-box;
 }
 
+/* ===== Table horizontal scrollbar (more prominent) ===== */
+.custom-scrollbar::-webkit-scrollbar {
+  height: 8px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+  border-radius: 9999px;
+  margin: 0 2px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: var(--surface-card-border);
+  border-radius: 9999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+  min-width: 60px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: var(--text-faint);
+  background-clip: padding-box;
+}
+
+/* Sticky header floating shadow */
+.custom-scrollbar thead {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+.custom-scrollbar thead::after {
+  content: '';
+  position: absolute;
+  bottom: -6px;
+  left: 0;
+  right: 0;
+  height: 6px;
+  background: linear-gradient(to bottom, rgba(0,0,0,0.06), transparent);
+  pointer-events: none;
+}
+.dark .custom-scrollbar thead::after {
+  background: linear-gradient(to bottom, rgba(0,0,0,0.25), transparent);
+}
+
 @keyframes fadeIn {
   from { opacity: 0; transform: translateY(8px); }
   to { opacity: 1; transform: translateY(0); }
