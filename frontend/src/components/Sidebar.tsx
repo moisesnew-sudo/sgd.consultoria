@@ -91,13 +91,12 @@ export default function Sidebar({ activeTab, setActiveTab, isOpen, setIsOpen, pe
 
       {/* Sidebar Container */}
       <aside
-        className={`fixed inset-y-0 left-0 z-40 w-64 bg-[#001f4d] text-slate-100 flex flex-col justify-between shadow-2xl transition-transform duration-300 transform lg:translate-x-0 ${
+        className={`fixed inset-y-0 left-0 z-40 w-64 bg-[#001f4d] text-slate-100 flex flex-col shadow-2xl transition-transform duration-300 transform lg:translate-x-0 ${
           isOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
-        <div>
-          {/* Logo Section */}
-          <div className="p-6 border-b border-slate-800/80 flex flex-col items-center">
+        {/* Logo Section */}
+        <div className="p-6 border-b border-slate-800/80 flex flex-col items-center shrink-0">
             <div className="flex items-center gap-3">
               <div className="relative w-12 h-12 bg-gradient-to-tr from-indigo-600 to-blue-700 rounded-xl flex items-center justify-center shadow-lg border border-white/10">
                 <Briefcase className="text-white" size={24} />
@@ -122,6 +121,7 @@ export default function Sidebar({ activeTab, setActiveTab, isOpen, setIsOpen, pe
           </div>
 
           {/* Nav Links */}
+          <div className="flex-1 overflow-y-auto custom-scrollbar">
           <nav className="p-4 space-y-1.5" aria-label="Main Navigation">
             {menuItems.map((item) => {
               const Icon = item.icon;
@@ -157,7 +157,7 @@ export default function Sidebar({ activeTab, setActiveTab, isOpen, setIsOpen, pe
               );
             })}
           </nav>
-        </div>
+          </div>
 
         {/* Theme Toggle */}
         <div className="px-4 pt-4">
