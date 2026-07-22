@@ -1,10 +1,10 @@
 import React, { useState, useMemo } from 'react';
 import {
-  BarChart3, Download, Filter, TrendingUp, AlertTriangle, CheckCircle2, Clock, FileText, Sparkles, X
+  BarChart3, Download, Filter, TrendingUp, AlertTriangle, CheckCircle2, Clock, FileText, Sparkles
 } from 'lucide-react';
 import { Demand, DemandStatus } from '../types';
 import { demandsApi, formatCurrency } from '../services/api';
-import { generateExecutiveReport } from '../lib/ai';
+import ExecutiveReport from './ExecutiveReport';
 
 interface ReportsViewProps {
   demands: Demand[];
@@ -77,7 +77,6 @@ export default function ReportsView({ demands }: ReportsViewProps) {
   const ufs = [...new Set(demands.map(d => d.uf))].sort();
 
   const [showReport, setShowReport] = useState(false);
-  const reportText = useMemo(() => generateExecutiveReport(filtered), [filtered]);
 
   const handleExportCsv = () => {
     const headers = ['ID', 'Título', 'Município', 'UF', 'Ano', 'Status', 'Prioridade', 'Valor Solicitado', 'Órgão'];
@@ -351,43 +350,11 @@ export default function ReportsView({ demands }: ReportsViewProps) {
       </div>
 
       {showReport && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 backdrop-blur-xs p-4 animate-fade-in" onClick={() => setShowReport(false)}>
-          <div className="w-full max-w-2xl bg-white dark:bg-[#111a2e] rounded-2xl shadow-2xl border border-slate-100 dark:border-slate-700/50 overflow-hidden" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center justify-between p-5 border-b border-slate-100 dark:border-slate-700/50">
-              <h3 className="text-sm font-black text-slate-800 dark:text-white flex items-center gap-2">
-                <Sparkles size={18} className="text-violet-600" /> Relatório Executivo (IA)
-              </h3>
-              <button onClick={() => setShowReport(false)} className="text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800">
-                <X size={18} />
-              </button>
-            </div>
-            <div className="p-5">
-              <pre className="whitespace-pre-wrap text-[12px] leading-relaxed text-slate-700 dark:text-slate-200 bg-slate-50 dark:bg-slate-900/60 rounded-xl p-4 border border-slate-100 dark:border-slate-700/50 max-h-[60vh] overflow-y-auto font-sans">{reportText}</pre>
-              <div className="flex gap-2 mt-4 justify-end">
-                <button
-                  onClick={() => {
-                    const blob = new Blob([reportText], { type: 'text/plain;charset=utf-8;' });
-                    const url = URL.createObjectURL(blob);
-                    const a = document.createElement('a');
-                    a.href = url;
-                    a.download = `relatorio_ia_sgd_${new Date().toISOString().slice(0, 10)}.txt`;
-                    a.click();
-                    URL.revokeObjectURL(url);
-                  }}
-                  className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-violet-600 hover:bg-violet-700 text-white text-xs font-bold uppercase tracking-wider"
-                >
-                  <Download size={14} /> Baixar .txt
-                </button>
-                <button
-                  onClick={() => { window.print(); }}
-                  className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 text-xs font-bold uppercase tracking-wider"
-                >
-                  Imprimir
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
+        <ExecutiveReport
+          demands={filtered}
+          filters={{ uf: filterUf, status: filterStatus, priority: filterPriority, ano: filterAno }}
+          onClose={() => setShowReport(false)}
+        />
       )}
     </div>
   );
