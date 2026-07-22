@@ -33,8 +33,8 @@ function donutChart(data: { name: string; value: number; color: string }[], cx: 
 
 function barChart(data: { name: string; value: number }[], width: number, height: number, formatter: (v: number) => string): string {
   const maxVal = Math.max(...data.map(d => d.value), 1);
-  const barH = Math.max(14, Math.min(22, (height - 40) / data.length));
-  const labelW = 90;
+  const barH = Math.max(18, Math.min(26, (height - 40) / data.length));
+  const labelW = 140;
   const chartW = width - labelW - 50;
   const topPad = 8;
   let svg = '';
@@ -211,8 +211,8 @@ body{font-family:'Inter','Segoe UI',system-ui,sans-serif;font-size:12px;line-hei
 .ins-g{display:grid;grid-template-columns:1fr 1fr;gap:12px}
 .ins-c{background:#f8fafc;border:1px solid #f1f5f9;border-radius:12px;padding:14px}
 .ins-l{font-size:9px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px}
-.ins-v{font-size:14px;font-weight:700;color:#0f172a;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.ins-d{font-size:10px;color:#64748b;margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ins-v{font-size:14px;font-weight:700;color:#0f172a;word-break:break-word}
+.ins-d{font-size:10px;color:#64748b;margin-top:2px;word-break:break-word}
 
 /* Charts */
 .ch{text-align:center;margin-bottom:24px;page-break-inside:avoid}
@@ -223,16 +223,16 @@ body{font-family:'Inter','Segoe UI',system-ui,sans-serif;font-size:12px;line-hei
 
 /* Table */
 .tb-w{overflow-x:auto}
-.tb{width:100%;border-collapse:collapse;font-size:9px;text-align:left}
+.tb{width:100%;border-collapse:collapse;font-size:8px;text-align:left;min-width:680px}
 .tb thead{display:table-header-group}
-.tb th{background:#6366f1;color:#fff;font-weight:700;text-transform:uppercase;letter-spacing:.05em;padding:10px}
-.tb td{padding:8px 10px;border-bottom:1px solid #f1f5f9}
+.tb th{background:#6366f1;color:#fff;font-weight:700;text-transform:uppercase;letter-spacing:.05em;padding:8px 6px;white-space:nowrap}
+.tb td{padding:6px;border-bottom:1px solid #f1f5f9;white-space:nowrap}
 .tb tr:nth-child(even){background:rgba(248,250,252,.6)}
 .tb .cid{font-family:monospace;font-weight:700;color:#475569}
-.tb .ctit{font-weight:600;color:#0f172a;max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.tb .cmun{color:#475569;white-space:nowrap}
-.tb .corg{color:#475569;max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.tb .cano{font-family:monospace;color:#64748b}
+.tb .ctit{font-weight:600;color:#0f172a;max-width:160px;overflow:hidden;text-overflow:ellipsis}
+.tb .cmun{color:#475569}
+.tb .corg{color:#475569;max-width:80px;overflow:hidden;text-overflow:ellipsis}
+.tb .cano{font-family:monospace;color:#64748b;text-align:center}
 .tb .cval{font-family:monospace;font-weight:700;color:#0f172a;text-align:right;white-space:nowrap}
 .tb .cdat{color:#64748b;font-family:monospace;white-space:nowrap}
 .tb .cst{display:inline-block;padding:2px 8px;border-radius:4px;font-size:8px;font-weight:700;text-transform:uppercase}
@@ -381,8 +381,8 @@ body{font-family:'Inter','Segoe UI',system-ui,sans-serif;font-size:12px;line-hei
     </div>
     <div class="ch-b" style="margin-top:8px">
       <p class="ch-t">Top 10 — Valor por Município</p>
-      <svg width="100%" height="${Math.max(160, topMunBar.length * 24 + 30)}" viewBox="0 0 480 ${Math.max(160, topMunBar.length * 24 + 30)}" style="max-width:480px;margin:0 auto">
-        ${barChart(topMunBar, 480, Math.max(160, topMunBar.length * 24 + 30), fc)}
+      <svg width="100%" height="${Math.max(200, topMunBar.length * 28 + 30)}" viewBox="0 0 580 ${Math.max(200, topMunBar.length * 28 + 30)}" style="max-width:580px;margin:0 auto">
+        ${barChart(topMunBar, 580, Math.max(200, topMunBar.length * 28 + 30), fc)}
       </svg>
     </div>
   </div>
