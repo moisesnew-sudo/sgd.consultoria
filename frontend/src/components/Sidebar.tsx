@@ -53,12 +53,10 @@ export default function Sidebar({ activeTab, setActiveTab, isOpen, setIsOpen, pe
       { id: 'new-demand', label: 'Nova Demanda', icon: FilePlus2, badge: null }
     ] : []),
     { id: 'demands', label: 'Demandas', icon: FolderKanban, badge: pendingCount > 0 ? pendingCount : null },
-    { id: 'municipalities', label: 'Municípios', icon: MapPin, badge: null },
     { id: 'calendar', label: 'Calendário', icon: Calendar, badge: null },
     { id: 'reports', label: 'Relatórios', icon: FileBarChart, badge: null },
     ...(isAuthenticated && canManageUsers ? [
       { id: 'users', label: 'Usuários', icon: Users, badge: null },
-      { id: 'audit', label: 'Auditoria', icon: ScrollText, badge: null },
       { id: 'integrations', label: 'API & Integrações', icon: Plug, badge: null },
       { id: 'backup', label: 'Backup', icon: Database, badge: null }
     ] : []),
