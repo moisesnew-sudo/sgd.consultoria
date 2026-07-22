@@ -58,6 +58,25 @@ const PRIORITY_COLOR: Record<string, string> = {
   baixa: '#94a3b8', media: '#3b82f6', alta: '#f59e0b', urgente: '#f43f5e',
 };
 
+const formatCompactCurrency = (value: number): string => {
+  if (value >= 1e9) return `R$ ${(value / 1e9).toFixed(2)} bi`;
+  if (value >= 1e6) return `R$ ${(value / 1e6).toFixed(2)} mi`;
+  if (value >= 1e3) return `R$ ${(value / 1e3).toFixed(1)} mil`;
+  return formatCurrency(value);
+};
+
+const CustomPieTooltip = ({ active, payload }: any) => {
+  if (!active || !payload?.length) return null;
+  const d = payload[0].payload;
+  return (
+    <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 shadow-lg text-xs space-y-1">
+      <p className="font-bold text-slate-800 dark:text-slate-100">{d.name}</p>
+      <p className="text-slate-500">{d.value} {d.value === 1 ? 'demanda' : 'demandas'}</p>
+      <p className="text-slate-500">{(d.percent * 100).toFixed(2)}% do total</p>
+    </div>
+  );
+};
+
 export default function DashboardView({ onNavigateToTab, onSelectDemand }: DashboardViewProps) {
   const [demands, setDemands] = useState<Demand[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -253,13 +272,18 @@ export default function DashboardView({ onNavigateToTab, onSelectDemand }: Dashb
       </div>
 
       {/* KPI GRID */}
-      <section className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
-        <Kpi label="Total de Demandas" value={String(metrics.total)} hint="Cadastradas no sistema" icon={<BarChart3 size={20} />} accent="brand" />
-        <Kpi label="Em Andamento" value={String(metrics.inProgress)} hint="Em análise" icon={<Hourglass size={20} />} accent="blue" />
-        <Kpi label="Concluídas" value={String(metrics.concluded)} hint={`${fmtPct(metrics.concluded)}% do total`} icon={<CheckCircle2 size={20} />} accent="green" />
-        <Kpi label="Atrasadas" value={String(metrics.overdue)} hint="Acima do SLA" icon={<AlertTriangle size={20} />} accent="rose" />
-        <Kpi label="Valor Solicitado" value={formatCurrency(metrics.totalValue)} hint="Soma das propostas" icon={<DollarSign size={20} />} accent="violet" />
-        <Kpi label="Municípios" value={String(metrics.municipalities)} hint="Atendidos" icon={<MapPin size={20} />} accent="amber" />
+      <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+        {[
+          { delay: 0, label: 'Total de Demandas', value: String(metrics.total), hint: 'Cadastradas no sistema', icon: <BarChart3 size={20} />, accent: 'brand' as const },
+          { delay: 50, label: 'Em Andamento', value: String(metrics.inProgress), hint: 'Em análise', icon: <Hourglass size={20} />, accent: 'blue' as const },
+          { delay: 100, label: 'Concluídas', value: String(metrics.concluded), hint: `${fmtPct(metrics.concluded)}% do total`, icon: <CheckCircle2 size={20} />, accent: 'green' as const },
+          { delay: 150, label: 'Valor Solicitado', value: formatCompactCurrency(metrics.totalValue), hint: `Completo: ${formatCurrency(metrics.totalValue)}`, icon: <DollarSign size={20} />, accent: 'violet' as const },
+          { delay: 250, label: 'Municípios', value: String(metrics.municipalities), hint: 'Atendidos', icon: <MapPin size={20} />, accent: 'amber' as const },
+        ].map(k => (
+          <div key={k.label} className="animate-fade-in" style={{ animationDelay: `${k.delay}ms` }}>
+            <Kpi label={k.label} value={k.value} hint={k.hint} icon={k.icon} accent={k.accent} />
+          </div>
+        ))}
       </section>
 
       {/* SECONDARY KPIs */}
@@ -287,16 +311,27 @@ export default function DashboardView({ onNavigateToTab, onSelectDemand }: Dashb
           </div>
         </Card>
         <Card title="Criticidade" subtitle="Por prioridade" icon={<TrendingUp size={18} />}>
-          <div className="space-y-2">
-            {(['urgente', 'alta', 'media', 'baixa'] as const).map((k) => (
-              <div key={k} className="flex items-center gap-2">
-                <span className="text-[11px] font-semibold text-slate-600 dark:text-slate-300 w-24">{PRIORITY_LABEL[k]}</span>
-                <div className="flex-1 h-2 rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden">
-                  <div className="h-full rounded-full" style={{ width: `${fmtPct(metrics.byPriority[k])}%`, backgroundColor: PRIORITY_COLOR[k] }} />
+          <div className="space-y-3.5">
+            {(['urgente', 'alta', 'media', 'baixa'] as const).map((k) => {
+              const count = metrics.byPriority[k];
+              const pct = metrics.total > 0 ? (count / metrics.total) * 100 : 0;
+              return (
+                <div key={k} className="space-y-1.5">
+                  <div className="flex items-center justify-between text-xs">
+                    <div className="flex items-center gap-2">
+                      <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: PRIORITY_COLOR[k] }} />
+                      <span className="font-semibold text-slate-700 dark:text-slate-200">{PRIORITY_LABEL[k]}</span>
+                    </div>
+                    <span className="font-bold text-slate-900 dark:text-white whitespace-nowrap">
+                      {count} <span className="text-slate-400 dark:text-slate-500 font-normal">({pct.toFixed(1)}%)</span>
+                    </span>
+                  </div>
+                  <div className="h-3 rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden">
+                    <div className="h-full rounded-full transition-all duration-1000" style={{ width: `${Math.min(pct, 100)}%`, backgroundColor: PRIORITY_COLOR[k] }} />
+                  </div>
                 </div>
-                <span className="text-[11px] font-bold text-slate-700 dark:text-slate-200 w-8 text-right">{metrics.byPriority[k]}</span>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </Card>
       </section>
@@ -321,14 +356,35 @@ export default function DashboardView({ onNavigateToTab, onSelectDemand }: Dashb
         </Card>
 
         <Card title="Por Prioridade" subtitle="Distribuição" icon={<PieIcon size={18} />}>
-          <ResponsiveContainer width="100%" height={260}>
-            <PieChart>
-              <Pie data={charts.priorityData} dataKey="value" nameKey="name" innerRadius={50} outerRadius={90} paddingAngle={3} label={({ name, percent }) => `${name} ${((percent || 0) * 100).toFixed(0)}%`} labelLine={false}>
-                {charts.priorityData.map((e) => <Cell key={e.key} fill={e.color} stroke="transparent" />)}
-              </Pie>
-              <Tooltip contentStyle={{ borderRadius: 12, border: '1px solid #e2e8f0', fontSize: 12 }} />
-            </PieChart>
-          </ResponsiveContainer>
+          <div className="flex items-center gap-3" style={{ minHeight: 240 }}>
+            <div className="w-[60%] shrink-0">
+              <ResponsiveContainer width="100%" height={240}>
+                <PieChart>
+                  <Pie data={charts.priorityData} dataKey="value" nameKey="name" innerRadius={50} outerRadius={90} paddingAngle={3}>
+                    {charts.priorityData.map((e) => <Cell key={e.key} fill={e.color} stroke="transparent" />)}
+                  </Pie>
+                  <Tooltip content={<CustomPieTooltip />} />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+            <div className="flex-1 space-y-3">
+              {charts.priorityData.map((item) => {
+                const pct = metrics.total > 0 ? ((item.value / metrics.total) * 100).toFixed(1) : '0';
+                return (
+                  <div key={item.key} className="flex items-center gap-2.5">
+                    <span className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: item.color }} />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between gap-1">
+                        <span className="text-xs font-semibold text-slate-700 dark:text-slate-200 truncate">{item.name}</span>
+                        <span className="text-xs font-bold text-slate-900 dark:text-white whitespace-nowrap">{item.value}</span>
+                      </div>
+                      <span className="text-[10px] text-slate-400">{pct}%</span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
         </Card>
       </section>
 
