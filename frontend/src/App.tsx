@@ -54,7 +54,7 @@ function AppContent() {
       setError(null);
       
       const [demandsData, municipalitiesData] = await Promise.all([
-        demandsApi.getAll({ limit: 100 }),
+        demandsApi.getAll({ limit: 999 }),
         municipalitiesApi.getAll()
       ]);
       
