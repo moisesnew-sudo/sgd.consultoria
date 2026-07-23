@@ -40,17 +40,17 @@ export default function ReportsView({ demands }: ReportsViewProps) {
     });
   }, [demands, filterUf, filterStatus, filterPriority, filterAno]);
 
-  const totalRequested = filtered.reduce((sum, d) => sum + (d.requested_value || 0), 0);
+  const totalRequested = filtered.reduce((sum, d) => sum + Number(d.requested_value || 0), 0);
   const totalApproved = filtered
     .filter(d => ['analise', 'concluido'].includes(d.status))
-    .reduce((sum, d) => sum + (d.requested_value || 0), 0);
+    .reduce((sum, d) => sum + Number(d.requested_value || 0), 0);
 
   const byStatus = useMemo(() => {
     const map: Record<string, { count: number; value: number }> = {};
     for (const d of filtered) {
       if (!map[d.status]) map[d.status] = { count: 0, value: 0 };
       map[d.status].count += 1;
-      map[d.status].value += d.requested_value || 0;
+      map[d.status].value += Number(d.requested_value || 0);
     }
     return map;
   }, [filtered]);
@@ -60,7 +60,7 @@ export default function ReportsView({ demands }: ReportsViewProps) {
     for (const d of filtered) {
       if (!map[d.uf]) map[d.uf] = { count: 0, value: 0 };
       map[d.uf].count += 1;
-      map[d.uf].value += d.requested_value || 0;
+      map[d.uf].value += Number(d.requested_value || 0);
     }
     return Object.entries(map)
       .sort((a, b) => b[1].value - a[1].value);
