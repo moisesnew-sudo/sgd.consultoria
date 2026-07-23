@@ -89,14 +89,14 @@ export default function LoginView({ onNavigateToTab }: LoginViewProps) {
           </div>
 
           <h1 className="mt-6 text-center text-2xl font-black text-slate-900 dark:text-white uppercase tracking-wider">
-            SGD
+            CGASI.SE
           </h1>
           <p className="mt-1 text-center text-xs text-slate-500 dark:text-slate-400 font-bold uppercase tracking-widest">
-            Sistema de Gestão de Demandas
+            COORDENAÇÃO GERAL DE ARTICULAÇÃO E SUPERVISÃO INSTITUCIONAL DA SECRETÁRIA EXECUTIVA/ MAPA
           </p>
           <div className="mt-2 inline-flex items-center gap-1.5 px-3 py-1 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-full text-[10px] text-slate-600 dark:text-slate-300 font-bold uppercase tracking-wider">
             <ShieldCheck size={12} className="text-slate-500 dark:text-slate-400" />
-            Portal Corporativo de Consultoria
+            Gestão de Demandas
           </div>
         </div>
       </div>
@@ -108,7 +108,7 @@ export default function LoginView({ onNavigateToTab }: LoginViewProps) {
               Identificação do Consultor
             </h2>
             <p className="text-xs text-slate-400 dark:text-slate-400">
-              Entre com suas credenciais para acessar o painel de triagem e cadastros de demandas.
+              Entre com suas credenciais para acessar o painel de demandas.
             </p>
           </div>
 
@@ -213,7 +213,7 @@ export default function LoginView({ onNavigateToTab }: LoginViewProps) {
         
         {/* Footer info */}
         <div className="text-center mt-6 text-[10px] text-slate-400 font-mono">
-          © SGD • Consultoria e Controle Particular • {new Date().getFullYear()}
+          © CGASI.SE • {new Date().getFullYear()}
         </div>
       </div>
     </div>

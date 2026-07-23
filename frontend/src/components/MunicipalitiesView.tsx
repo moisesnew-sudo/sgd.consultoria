@@ -163,13 +163,13 @@ export default function MunicipalitiesView({ municipalities, setMunicipalities }
               </div>
               <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                 <button
-                  onClick={() => handleEdit({ name: m.name, uf: m.uf, id: 0, demands_count: 0, total_value: 0, schools_count: 0, population: 0, hdi: 0, region: getRegionForUf(m.uf) as any })}
-                  className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-blue-600 transition-colors cursor-pointer"
-                >
-                  <Edit2 size={14} />
-                </button>
-                <button
-                  onClick={() => handleDelete({ name: m.name, uf: m.uf, id: 0, demands_count: 0, total_value: 0, schools_count: 0, population: 0, hdi: 0, region: getRegionForUf(m.uf) as any })}
+                    onClick={() => handleEdit(m)}
+                    className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-blue-600 transition-colors cursor-pointer"
+                  >
+                    <Edit2 size={14} />
+                  </button>
+                  <button
+                    onClick={() => handleDelete(m)}
                   className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-red-500 transition-colors cursor-pointer"
                 >
                   <Trash2 size={14} />

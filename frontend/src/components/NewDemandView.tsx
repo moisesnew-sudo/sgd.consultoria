@@ -133,7 +133,7 @@ export default function NewDemandView({ municipalities, onAddDemand, onNavigateT
     if (!uf) newErrors.uf = 'Selecione a UF.';
     if (!municipality.trim()) newErrors.municipality = 'Informe o município.';
     if (!objeto.trim()) newErrors.objeto = 'Informe o objeto da demanda.';
-    if (!ano) newErrors.ano = 'Informe o ano da demanda.';
+    if (!ano || String(ano).length !== 4 || ano < 1900 || ano > 2100) newErrors.ano = 'Informe um ano válido com 4 dígitos.';
 
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors);
@@ -397,17 +397,22 @@ export default function NewDemandView({ municipalities, onAddDemand, onNavigateT
             </div>
 
             <div className="md:col-span-6 space-y-1" id="field-ano">
-              <label htmlFor="ano-select" className="text-xs font-bold text-slate-700 block">Ano *</label>
-              <select
-                id="ano-select"
-                value={ano}
-                onChange={(e) => setAno(Number(e.target.value))}
-                className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm text-slate-800 bg-white focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-transparent"
-              >
-                {[2020,2021,2022,2023,2024,2025,2026,2027,2028,2029,2030].map(y => (
-                  <option key={y} value={y}>{y}</option>
-                ))}
-              </select>
+              <label htmlFor="ano-input" className="text-xs font-bold text-slate-700 block">Ano *</label>
+              <input
+                id="ano-input"
+                type="text"
+                inputMode="numeric"
+                maxLength={4}
+                value={ano || ''}
+                onChange={(e) => {
+                  const val = e.target.value.replace(/\D/g, '').slice(0, 4);
+                  setAno(val ? Number(val) : 0);
+                }}
+                placeholder="Ex.: 2026"
+                className={`w-full px-4 py-2.5 rounded-xl border text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-transparent ${
+                  errors.ano ? 'border-red-400 bg-red-50/20' : 'border-slate-200'
+                }`}
+              />
               {errors.ano && <p className="text-[10px] text-red-500 font-semibold">{errors.ano}</p>}
             </div>
 

@@ -103,20 +103,12 @@ export default function Sidebar({ activeTab, setActiveTab, isOpen, setIsOpen, pe
               </div>
               <div>
                 <h1 className="text-sm font-black tracking-widest text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 to-blue-300">
-                  SGD
+                  CGASI.SE
                 </h1>
                 <p className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold">
-                  Gestão Particular
+                  COORDENAÇÃO GERAL DE ARTICULAÇÃO E SUPERVISÃO INSTITUCIONAL DA SECRETÁRIA EXECUTIVA/ MAPA
                 </p>
               </div>
-            </div>
-            <div className="mt-4 text-center">
-              <span className="text-xs font-bold text-slate-200 block truncate max-w-[200px]">
-                Gestão de Demandas
-              </span>
-              <span className="text-[9px] px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 border border-slate-700 font-mono mt-1 inline-block">
-                v2.0-Produção
-              </span>
             </div>
           </div>
 

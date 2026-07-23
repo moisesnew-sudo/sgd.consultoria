@@ -105,7 +105,7 @@ function AppContent() {
     return (
       <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center gap-3">
         <div className="w-10 h-10 border-4 border-slate-900 border-t-indigo-500 rounded-full animate-spin"></div>
-        <p className="text-xs font-semibold text-slate-500 font-mono">SGD • Carregando sistema...</p>
+        <p className="text-xs font-semibold text-slate-500 font-mono">CGASI.SE • Carregando...</p>
       </div>
     );
   }

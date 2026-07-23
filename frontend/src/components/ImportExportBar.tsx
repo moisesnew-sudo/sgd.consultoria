@@ -142,7 +142,7 @@ export default function ImportExportBar({ rows, onImported }: ImportExportBarPro
         <td>${d.ano || '—'}</td><td>${d.status}</td><td>${d.priority}</td><td>R$ ${(d.requested_value || 0).toFixed(2)}</td>
       </tr>`).join('');
     win.document.write(`<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8">
-      <title>SGD - Relatório de Demandas</title>
+      <title>CGASI.SE - Relatório de Demandas</title>
       <style>
         body{font-family:Arial,sans-serif;margin:32px;color:#0f172a}
         h1{font-size:18px;margin:0 0 4px} p{color:#64748b;font-size:12px;margin:0 0 16px}
@@ -151,7 +151,7 @@ export default function ImportExportBar({ rows, onImported }: ImportExportBarPro
         th{background:#001f4d;color:#fff}
         tr:nth-child(even){background:#f8fafc}
       </style></head><body>
-      <h1>SGD — Relatório de Demandas</h1>
+      <h1>CGASI.SE — Relatório de Demandas</h1>
       <p>Gerado em ${new Date().toLocaleString('pt-BR')} • ${rows.length} registro(s) filtrado(s)</p>
       <table><thead><tr>
         <th>ID</th><th>Título</th><th>Município/UF</th><th>Ano</th><th>Status</th><th>Prioridade</th><th>Valor</th>

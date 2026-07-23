@@ -75,7 +75,7 @@ router.post('/register', authenticateToken, async (req: Request, res: Response) 
     const passwordHash = await bcrypt.hash(password, 10);
     const result = await run(
       'INSERT INTO users (email, password_hash, name, role) VALUES ($1, $2, $3, $4) RETURNING id, email, name, role',
-      [email, passwordHash, name, role || 'viewer']
+      [email, passwordHash, name, role || 'consulta']
     );
 
     res.status(201).json({

@@ -46,7 +46,7 @@ export default function IntegrationView() {
           <h2 className="text-2xl font-black tracking-tight text-slate-900 dark:text-white flex items-center gap-2">
             <Plug className="text-violet-600" /> API & Integrações
           </h2>
-          <p className="text-sm text-slate-500 dark:text-slate-400">Conecte o SGD a outros sistemas via REST API</p>
+          <p className="text-sm text-slate-500 dark:text-slate-400">Conecte o CGASI.SE a outros sistemas via REST API</p>
         </div>
         <button onClick={load} className="p-2 rounded-lg border border-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800" title="Atualizar">
           <RefreshCw size={16} />

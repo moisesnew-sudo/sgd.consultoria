@@ -556,16 +556,15 @@ export default function DemandsView({
           </div>
 
           <div className="lg:col-span-2">
-            <select
-              value={anoFilter}
-              onChange={(e) => setAnoFilter(e.target.value)}
-              className="w-full px-3 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-900/60 text-xs text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-900 focus:outline-none"
-            >
-              <option value="all">Ano (Todos)</option>
-              {[2020,2021,2022,2023,2024,2025,2026,2027,2028,2029,2030].map(y => (
-                <option key={y} value={String(y)}>{y}</option>
-              ))}
-            </select>
+            <input
+              type="number"
+              value={anoFilter === 'all' ? '' : anoFilter}
+              onChange={(e) => setAnoFilter(e.target.value ? e.target.value : 'all')}
+              placeholder="Ano (ex: 2026)"
+              min="1900"
+              max="2100"
+              className="w-full px-3 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-900/60 text-xs text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-600"
+            />
           </div>
 
           <div className="lg:col-span-2 sm:col-span-2">
@@ -930,12 +929,14 @@ export default function DemandsView({
                     </div>
                     <div className="space-y-1">
                       <label className="text-xs font-bold text-slate-700 block">Ano</label>
-                      <select value={editAno ?? ''} onChange={(e) => setEditAno(Number(e.target.value))}
-                        className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm bg-white focus:ring-2 focus:ring-blue-600 focus:outline-none">
-                        {[2020,2021,2022,2023,2024,2025,2026,2027,2028,2029,2030].map(y => (
-                          <option key={y} value={y}>{y}</option>
-                        ))}
-                      </select>
+                      <input type="text" inputMode="numeric" maxLength={4}
+                        value={editAno ?? ''}
+                        onChange={(e) => {
+                          const val = e.target.value.replace(/\D/g, '').slice(0, 4);
+                          setEditAno(val ? Number(val) : undefined);
+                        }}
+                        placeholder="Ex.: 2026"
+                        className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-blue-600 focus:outline-none" />
                     </div>
                     <div className="space-y-1">
                       <label className="text-xs font-bold text-slate-700 block">Valor Solicitado (R$)</label>

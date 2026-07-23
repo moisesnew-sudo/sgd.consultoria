@@ -124,7 +124,7 @@ export default function ReportsView({ demands }: ReportsViewProps) {
             onClick={() => setShowReport(true)}
             className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-700 hover:to-indigo-700 text-white text-xs font-bold uppercase tracking-wider cursor-pointer"
           >
-            <Sparkles size={14} /> Relatório IA
+            <Sparkles size={14} /> RELATÓRIO
           </button>
           <button
             onClick={handleExportCsv}

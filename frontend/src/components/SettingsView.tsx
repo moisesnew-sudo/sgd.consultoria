@@ -20,7 +20,7 @@ export default function SettingsView({ onBackToLogin }: SettingsViewProps) {
   const { user } = useAuth();
   
   const [settings, setSettings] = useState<AppSettings>({
-    organization_name: 'Sistema de Gestão de Demandas',
+    organization_name: 'CGASI.SE - Coordenação Geral de Articulação e Supervisão Institucional da Secretária Executiva/ MAPA',
     primary_color: '#001f4d',
     accent_color: '#2563eb',
     logo_url: ''
@@ -209,7 +209,7 @@ export default function SettingsView({ onBackToLogin }: SettingsViewProps) {
           <p className="text-xs text-slate-600">
             Usuário logado: <strong className="text-slate-900">{user?.name}</strong> ({user?.email})
           </p>
-          <p className="text-[10px] text-slate-400 mt-1 uppercase font-bold">Perfil: {user?.role === 'admin' ? 'Administrador' : 'Consulta'}</p>
+          <p className="text-[10px] text-slate-400 mt-1 uppercase font-bold">Perfil: {user?.role === 'admin' ? 'Administrador' : user?.role === 'gestor' ? 'Gestor' : user?.role === 'analista' ? 'Analista' : 'Consulta'}</p>
         </div>
 
         <div className="space-y-3">
