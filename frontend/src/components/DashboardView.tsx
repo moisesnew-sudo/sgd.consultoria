@@ -250,7 +250,7 @@ export default function DashboardView({ onNavigateToTab, onSelectDemand }: Dashb
             className="px-3 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-900/60 text-xs text-slate-700 dark:text-slate-200 bg-white focus:outline-none focus:ring-2 focus:ring-blue-600"
           >
             <option value="all">Todos os anos</option>
-            {Array.from({ length: 11 }, (_, i) => new Date().getFullYear() + i - 5).filter(y => y >= 2020).map(y => (
+            {Array.from({ length: 51 }, (_, i) => new Date().getFullYear() + i - 30).filter(y => y >= 1990).map(y => (
               <option key={y} value={String(y)}>{y}</option>
             ))}
           </select>

@@ -24,7 +24,7 @@ const demandSchema = z.object({
   responsible_email: z.string().email('Email inválido').optional().or(z.literal('')),
   responsible_phone: z.string().optional(),
   notes: z.string().optional(),
-  ano: z.coerce.number().int().min(2020).max(2030).optional()
+   ano: z.coerce.number().int().optional()
 });
 
 const timelineEventSchema = z.object({
@@ -186,7 +186,10 @@ router.post('/', authenticateToken, async (req: Request, res: Response) => {
     });
     res.status(201).json(newDemand);
   } catch (error) {
-    if (error instanceof z.ZodError) return res.status(400).json({ error: 'Dados inválidos', details: error.errors });
+    if (error instanceof z.ZodError) {
+      const messages = error.errors.map(e => `"${e.path.join('.')}": ${e.message}`).join('; ');
+      return res.status(400).json({ error: messages || 'Dados inválidos', details: error.errors });
+    }
     console.error('Create demand error:', error);
     res.status(500).json({ error: 'Erro ao criar demanda' });
   }
@@ -238,7 +241,10 @@ router.put('/:id', authenticateToken, async (req: Request, res: Response) => {
     });
     res.json(updated);
   } catch (error) {
-    if (error instanceof z.ZodError) return res.status(400).json({ error: 'Dados inválidos', details: error.errors });
+    if (error instanceof z.ZodError) {
+      const messages = error.errors.map(e => `"${e.path.join('.')}": ${e.message}`).join('; ');
+      return res.status(400).json({ error: messages || 'Dados inválidos', details: error.errors });
+    }
     console.error('Update demand error:', error);
     res.status(500).json({ error: 'Erro ao atualizar demanda' });
   }
