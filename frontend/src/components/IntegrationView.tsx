@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Plug, KeyRound, Copy, Check, Code2, Webhook, RefreshCw } from 'lucide-react';
 import { integrationsApi } from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
+import { Skeleton, CardSkeleton } from './ui/Skeleton';
 
 const METHOD_COLORS: Record<string, string> = {
   GET: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300',
@@ -54,8 +55,8 @@ export default function IntegrationView() {
       </div>
 
       {loading ? (
-        <div className="flex justify-center py-20">
-          <div className="w-10 h-10 border-4 border-slate-900 border-t-brand-600 rounded-full animate-spin" />
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {Array.from({ length: 4 }).map((_, i) => <CardSkeleton key={i} />)}
         </div>
       ) : info ? (
         <>

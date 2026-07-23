@@ -13,6 +13,7 @@ import {
 import { Demand, DemandPriority, DemandStatus, Attachment } from '../types';
 import { demandsApi, formatCurrency } from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
+import { useToast } from '../contexts/ToastContext';
 
 interface NewDemandViewProps {
   municipalities: { name: string; uf: string }[];
@@ -40,6 +41,7 @@ const CATEGORIES = [
 
 export default function NewDemandView({ municipalities, onAddDemand, onNavigateToTab }: NewDemandViewProps) {
   const { user } = useAuth();
+  const { toast } = useToast();
   
   // Form States
   const [uf, setUf] = useState('CE');
@@ -168,7 +170,7 @@ export default function NewDemandView({ municipalities, onAddDemand, onNavigateT
       setCreatedProtocol(newDemand);
     } catch (error: any) {
       console.error('Error creating demand:', error);
-      alert('Erro ao criar demanda: ' + (error.message || 'Tente novamente'));
+      toast('error', 'Erro ao criar demanda', error?.message || 'Tente novamente');
     } finally {
       setIsSubmitting(false);
     }

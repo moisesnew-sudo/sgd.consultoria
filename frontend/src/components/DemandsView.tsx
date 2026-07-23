@@ -28,6 +28,8 @@ import {
 import { Demand, DemandStatus, DemandPriority, TimelineEvent, PaginatedResponse } from '../types';
 import { demandsApi, formatCurrency, formatDate, ROLE_PERMISSIONS } from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
+import { useToast } from '../contexts/ToastContext';
+import { TableSkeleton } from './ui/Skeleton';
 import { lazy, Suspense, useMemo } from 'react';
 import { Sparkles, BrainCircuit } from 'lucide-react';
 import { summarizeDemand, suggestPriority, findSimilar, parseNaturalLanguage } from '../lib/ai';
@@ -65,6 +67,7 @@ export default function DemandsView({
   isLoading
 }: DemandsViewProps) {
   const { user, isAuthenticated } = useAuth();
+  const { toast } = useToast();
   const canEdit = isAuthenticated && user?.role !== 'consulta';
   const canDelete = isAuthenticated && (user?.role === 'admin' || user?.role === 'gestor');
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
@@ -191,8 +194,9 @@ export default function DemandsView({
       onUpdateDemand(updated);
       setDetailedDemand(updated);
       setIsEditingDemand(false);
+      toast('success', 'Demanda atualizada');
     } catch (err: any) {
-      alert('Erro ao salvar: ' + (err.message || 'Tente novamente'));
+      toast('error', 'Erro ao salvar', err?.message || 'Tente novamente');
     } finally {
       setIsSavingEdit(false);
     }
@@ -329,9 +333,10 @@ export default function DemandsView({
       setNewEventTitle('');
       setNewEventDesc('');
       setNewEventStatus('no-change');
+      toast('success', 'Evento adicionado à linha do tempo');
     } catch (error) {
       console.error('Error adding timeline event:', error);
-      alert('Erro ao adicionar evento. Tente novamente.');
+      toast('error', 'Erro ao adicionar evento', 'Tente novamente.');
     } finally {
       setIsSubmittingEvent(false);
     }
@@ -345,9 +350,10 @@ export default function DemandsView({
       const updated = await demandsApi.update(detailedDemand.id, { notes: adminNotes.trim() || undefined });
       setDetailedDemand({ ...detailedDemand, ...updated });
       setIsEditingNotes(false);
+      toast('success', 'Anotações salvas');
     } catch (error) {
       console.error('Error saving notes:', error);
-      alert('Erro ao salvar notas. Tente novamente.');
+      toast('error', 'Erro ao salvar notas', 'Tente novamente.');
     }
   };
 
@@ -362,9 +368,10 @@ export default function DemandsView({
         comments: [...(detailedDemand.comments || []), comment],
       });
       setNewComment('');
+      toast('success', 'Comentário adicionado');
     } catch (error) {
       console.error('Error adding comment:', error);
-      alert('Erro ao adicionar comentário. Tente novamente.');
+      toast('error', 'Erro ao adicionar comentário', 'Tente novamente.');
     } finally {
       setCommentLoading(false);
     }
@@ -382,23 +389,16 @@ export default function DemandsView({
       setDetailedDemand(null);
       onDeleteDemand?.(deleteTarget);
       setDeleteTarget(null);
-      alert('Demanda excluída com sucesso.');
+      toast('success', 'Demanda excluída com sucesso.');
     } catch (error: any) {
-      alert('Erro ao excluir demanda.');
+      toast('error', 'Erro ao excluir demanda');
     } finally {
       setDeleting(false);
     }
   };
 
   if (isLoading) {
-    return (
-      <div className="min-h-[400px] flex items-center justify-center">
-        <div className="flex flex-col items-center gap-3">
-          <Loader2 className="w-10 h-10 text-slate-900 animate-spin" />
-          <p className="text-xs font-semibold text-slate-500">Carregando demandas...</p>
-        </div>
-      </div>
-    );
+    return <TableSkeleton rows={8} />;
   }
 
   return (
@@ -680,13 +680,13 @@ export default function DemandsView({
             <div className="overflow-auto custom-scrollbar max-h-[calc(100vh-310px)]">
               <table className="w-full text-left border-collapse min-w-[1500px]" id="demands-table">
                 <thead>
-                  <tr className="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-100 dark:border-slate-700/50 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                  <tr className="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-100 dark:border-slate-700/50 text-[10px] font-bold text-slate-400 uppercase tracking-wider sticky top-0 z-10">
                     <th className="py-4 px-5 w-[60px]">ID</th>
-                    <th className="py-4 px-5 w-[340px]">Título da Demanda</th>
+                    <th className="py-4 px-5 min-w-[200px]">Título da Demanda</th>
                     <th className="py-4 px-5 w-[160px]">Município / UF</th>
-                    <th className="py-4 px-5 w-[140px]">Valor Solicitado</th>
-                    <th className="py-4 px-5 w-[70px] text-center">Ano</th>
-                    <th className="py-4 px-5 w-[110px]">Criticidade</th>
+                    <th className="py-4 px-5 w-[140px] hidden md:table-cell">Valor Solicitado</th>
+                    <th className="py-4 px-5 w-[70px] text-center hidden sm:table-cell">Ano</th>
+                    <th className="py-4 px-5 w-[110px] hidden md:table-cell">Criticidade</th>
                     <th className="py-4 px-5 w-[120px]">Status</th>
                     <th className="py-4 px-5 w-[130px] text-right">Ação</th>
                   </tr>
@@ -730,13 +730,13 @@ export default function DemandsView({
                         </div>
                         <div className="text-[10px] text-slate-400 mt-0.5">{demand.uf}</div>
                       </td>
-                      <td className="py-4 px-5 whitespace-nowrap font-mono font-semibold text-slate-800 dark:text-slate-200 tabular-nums">
+                      <td className="py-4 px-5 whitespace-nowrap font-mono font-semibold text-slate-800 dark:text-slate-200 tabular-nums hidden md:table-cell">
                         {formatCurrency(demand.requested_value)}
                       </td>
-                      <td className="py-4 px-5 whitespace-nowrap font-mono text-slate-500 dark:text-slate-400 text-center">
+                      <td className="py-4 px-5 whitespace-nowrap font-mono text-slate-500 dark:text-slate-400 text-center hidden sm:table-cell">
                         {demand.ano || '—'}
                       </td>
-                      <td className="py-4 px-5 whitespace-nowrap">
+                      <td className="py-4 px-5 whitespace-nowrap hidden md:table-cell">
                         <span className={`inline-block px-2.5 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider border whitespace-nowrap ${getPriorityBadgeClass(demand.priority)}`}>
                           {demand.priority}
                         </span>

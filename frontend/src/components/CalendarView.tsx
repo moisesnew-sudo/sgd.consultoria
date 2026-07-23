@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, FolderKanban, Clock, RefreshCw } from 'lucide-react';
 import { demandsApi, formatDateShort } from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
+import { Skeleton } from './ui/Skeleton';
 
 interface CalEvent {
   id: string;
@@ -99,8 +100,12 @@ export default function CalendarView() {
       </div>
 
       {loading ? (
-        <div className="flex justify-center py-20">
-          <div className="w-10 h-10 border-4 border-slate-900 border-t-brand-600 rounded-full animate-spin" />
+        <div className="grid grid-cols-7 gap-1 py-4">
+          {Array.from({ length: 35 }).map((_, i) => (
+            <div key={i} className="aspect-square p-1">
+              <Skeleton className="w-full h-full rounded-lg" />
+            </div>
+          ))}
         </div>
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

@@ -3,6 +3,7 @@ import * as XLSX from 'xlsx';
 import { UploadCloud, Download, FileSpreadsheet, FileText, FileJson, X, Loader2, CheckCircle2, AlertTriangle } from 'lucide-react';
 import { Demand } from '../types';
 import { demandsApi, formatDate } from '../services/api';
+import { useToast } from '../contexts/ToastContext';
 
 interface ImportExportBarProps {
   rows: Demand[];
@@ -52,6 +53,7 @@ function mapRow(row: any): Partial<Demand> | null {
 }
 
 export default function ImportExportBar({ rows, onImported }: ImportExportBarProps) {
+  const { toast } = useToast();
   const [isOpen, setIsOpen] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [importing, setImporting] = useState(false);
@@ -84,7 +86,7 @@ export default function ImportExportBar({ rows, onImported }: ImportExportBarPro
       setImportResult({ ok, fail });
       if (created.length) onImported(created);
     } catch (e: any) {
-      alert('Erro ao ler arquivo: ' + (e.message || 'formato inválido'));
+      toast('error', 'Erro ao ler arquivo', e?.message || 'formato inválido');
     } finally {
       setImporting(false);
     }

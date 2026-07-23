@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { CardSkeleton } from './ui/Skeleton';
 import {
   Calendar,
   Hourglass,
@@ -203,11 +204,8 @@ export default function DashboardView({ onNavigateToTab, onSelectDemand }: Dashb
 
   if (isLoading) {
     return (
-      <div className="min-h-[400px] flex items-center justify-center">
-        <div className="flex flex-col items-center gap-3">
-          <div className="w-10 h-10 border-4 border-slate-900 dark:border-slate-600 border-t-brand-600 rounded-full animate-spin" />
-          <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 font-mono">Carregando dashboard...</p>
-        </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        {Array.from({ length: 4 }).map((_, i) => <CardSkeleton key={i} />)}
       </div>
     );
   }
@@ -252,7 +250,7 @@ export default function DashboardView({ onNavigateToTab, onSelectDemand }: Dashb
             className="px-3 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-900/60 text-xs text-slate-700 dark:text-slate-200 bg-white focus:outline-none focus:ring-2 focus:ring-blue-600"
           >
             <option value="all">Todos os anos</option>
-            {[2020,2021,2022,2023,2024,2025,2026,2027,2028,2029,2030].map(y => (
+            {Array.from({ length: 11 }, (_, i) => new Date().getFullYear() + i - 5).filter(y => y >= 2020).map(y => (
               <option key={y} value={String(y)}>{y}</option>
             ))}
           </select>
@@ -279,12 +277,26 @@ export default function DashboardView({ onNavigateToTab, onSelectDemand }: Dashb
           { delay: 100, label: 'Concluídas', value: String(metrics.concluded), hint: `${fmtPct(metrics.concluded)}% do total`, icon: <CheckCircle2 size={20} />, accent: 'green' as const },
           { delay: 150, label: 'Valor Solicitado', value: formatCompactCurrency(metrics.totalValue), hint: `Completo: ${formatCurrency(metrics.totalValue)}`, icon: <DollarSign size={20} />, accent: 'violet' as const },
           { delay: 250, label: 'Municípios', value: String(metrics.municipalities), hint: 'Atendidos', icon: <MapPin size={20} />, accent: 'amber' as const },
+          { delay: 300, label: 'Vencidas', value: String(metrics.overdue), hint: `${fmtPct(metrics.overdue)}% do total`, icon: <AlertTriangle size={20} />, accent: 'rose' as const },
+          { delay: 350, label: 'Ticket Médio', value: metrics.total > 0 ? formatCompactCurrency(metrics.totalValue / metrics.total) : 'R$ 0', hint: `${metrics.total} demanda(s)`, icon: <DollarSign size={20} />, accent: 'blue' as const },
         ].map(k => (
           <div key={k.label} className="animate-fade-in" style={{ animationDelay: `${k.delay}ms` }}>
             <Kpi label={k.label} value={k.value} hint={k.hint} icon={k.icon} accent={k.accent} />
           </div>
         ))}
       </section>
+
+      {metrics.overdue > 0 && (
+        <div className="flex items-center gap-3 px-5 py-3 rounded-2xl bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-800/40 animate-fade-in">
+          <AlertTriangle size={20} className="text-rose-600 shrink-0" />
+          <p className="text-sm font-semibold text-rose-700 dark:text-rose-300 flex-1">
+            {metrics.overdue} {metrics.overdue === 1 ? 'demanda está' : 'demandas estão'} com prazo vencido.
+          </p>
+          <button onClick={() => onNavigateToTab('demands')} className="text-xs font-bold text-rose-700 dark:text-rose-300 hover:underline underline-offset-2 shrink-0">
+            Ver Demandas
+          </button>
+        </div>
+      )}
 
       {/* SECONDARY KPIs */}
       <section className="grid grid-cols-1 sm:grid-cols-3 gap-4">

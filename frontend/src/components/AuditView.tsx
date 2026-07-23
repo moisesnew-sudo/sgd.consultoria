@@ -3,6 +3,7 @@ import { ScrollText, RefreshCw, Filter } from 'lucide-react';
 import { auditApi } from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
 import { formatDate } from '../services/api';
+import { TableSkeleton } from './ui/Skeleton';
 
 interface AuditRow {
   id: number;
@@ -74,9 +75,7 @@ export default function AuditView() {
 
       <div className="bg-white dark:bg-slate-900/50 rounded-2xl border border-slate-100 dark:border-slate-700/50 overflow-hidden">
         {loading ? (
-          <div className="flex justify-center py-20">
-            <div className="w-10 h-10 border-4 border-slate-900 border-t-brand-600 rounded-full animate-spin" />
-          </div>
+          <TableSkeleton rows={6} />
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">

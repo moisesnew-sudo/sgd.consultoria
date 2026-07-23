@@ -20,9 +20,17 @@
   --color-gov-blue: #002f6c;
   --color-gov-blue-dark: #001f4d;
   --color-gov-yellow: #ffcd07;
+
+  --color-success: #10b981;
+  --color-success-bg: #ecfdf5;
+  --color-warning: #f59e0b;
+  --color-warning-bg: #fffbeb;
+  --color-danger: #ef4444;
+  --color-danger-bg: #fef2f2;
+  --color-info: #3b82f6;
+  --color-info-bg: #eff6ff;
 }
 
-/* Dark mode variant driven by .dark class on <html> */
 @custom-variant dark (&:where(.dark, .dark *));
 
 @layer utilities {
@@ -46,9 +54,10 @@
 
 body {
   font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
-/* ===== Semantic surface tokens (light + dark) ===== */
 :root {
   --surface-app: #f1f5f9;
   --surface-card: #ffffff;
@@ -59,6 +68,15 @@ body {
   --text-faint: #94a3b8;
   --ring-focus: #3b5bdb;
   --sidebar-bg: #001f4d;
+  --sidebar-text: #cbd5e1;
+  --sidebar-text-hover: #ffffff;
+  --sidebar-active: #2b4ac0;
+  --shadow-card: 0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
+  --shadow-elevated: 0 4px 6px rgba(0,0,0,0.07), 0 10px 15px rgba(0,0,0,0.05);
+  --radius-card: 16px;
+  --radius-input: 12px;
+  --radius-button: 12px;
+  --radius-badge: 8px;
 }
 
 .dark {
@@ -71,11 +89,13 @@ body {
   --text-faint: #64748b;
   --ring-focus: #608af7;
   --sidebar-bg: #07101f;
+  --sidebar-text: #94a3b8;
+  --sidebar-text-hover: #f1f5f9;
+  --sidebar-active: #2b4ac0;
+  --shadow-card: 0 1px 3px rgba(0,0,0,0.3);
+  --shadow-elevated: 0 4px 6px rgba(0,0,0,0.4), 0 10px 15px rgba(0,0,0,0.3);
 }
 
-/* ===== Global dark-mode surface & text overrides =====
-   Recolors the common explicit Tailwind utility classes so the entire UI
-   (including views not individually themed) adapts coherently in dark mode. */
 .dark .bg-white {
   background-color: var(--surface-card) !important;
 }
@@ -136,17 +156,15 @@ body {
   --tw-ring-color: #608af7 !important;
 }
 
-/* Base app background uses surface token for smooth theme switch */
 #sgm-shell,
 .min-h-screen.bg-slate-50 {
   background-color: var(--surface-app) !important;
   color: var(--text-strong);
 }
 
-/* Scrollbar polish */
 ::-webkit-scrollbar {
-  width: 10px;
-  height: 10px;
+  width: 8px;
+  height: 8px;
 }
 ::-webkit-scrollbar-track {
   background: transparent;
@@ -162,9 +180,8 @@ body {
   background-clip: padding-box;
 }
 
-/* ===== Table horizontal scrollbar (more prominent) ===== */
 .custom-scrollbar::-webkit-scrollbar {
-  height: 8px;
+  height: 6px;
 }
 .custom-scrollbar::-webkit-scrollbar-track {
   background: transparent;
@@ -183,7 +200,6 @@ body {
   background-clip: padding-box;
 }
 
-/* Sticky header floating shadow */
 .custom-scrollbar thead {
   position: sticky;
   top: 0;
@@ -213,6 +229,11 @@ body {
   to { transform: translateX(0); }
 }
 
+@keyframes scaleIn {
+  from { opacity: 0; transform: scale(0.95); }
+  to { opacity: 1; transform: scale(1); }
+}
+
 .animate-fade-in {
   animation: fadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
@@ -221,17 +242,33 @@ body {
   animation: slideLeft 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
-/* Print styles */
+.animate-scale-in {
+  animation: scaleIn 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
 @media print {
   .no-print {
     display: none !important;
   }
-
   body {
     background: white !important;
   }
-
   .shadow-xl, .shadow-2xl, .shadow-md, .shadow-sm {
     box-shadow: none !important;
   }
+}
+
+*:focus-visible {
+  outline: 2px solid var(--ring-focus);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid var(--ring-focus);
+  outline-offset: 2px;
 }

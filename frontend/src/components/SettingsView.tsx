@@ -4,6 +4,7 @@ import {
 } from 'lucide-react';
 import { settingsApi } from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
+import { useToast } from '../contexts/ToastContext';
 
 interface SettingsViewProps {
   onBackToLogin: () => void;
@@ -18,6 +19,7 @@ interface AppSettings {
 
 export default function SettingsView({ onBackToLogin }: SettingsViewProps) {
   const { user } = useAuth();
+  const { toast } = useToast();
   
   const [settings, setSettings] = useState<AppSettings>({
     organization_name: 'CGASI.SE - Coordenação Geral de Articulação e Supervisão Institucional da Secretária Executiva/ MAPA',
@@ -110,7 +112,7 @@ export default function SettingsView({ onBackToLogin }: SettingsViewProps) {
       a.click();
       URL.revokeObjectURL(url);
     } catch (err: any) {
-      alert('Erro ao exportar: ' + (err.message || 'Tente novamente'));
+      toast('error', 'Erro ao exportar', err?.message || 'Tente novamente');
     }
   };
 

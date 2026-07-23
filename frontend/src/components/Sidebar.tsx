@@ -1,25 +1,8 @@
-import React from 'react';
-import { 
-  LayoutDashboard, 
-  FilePlus2, 
-  FolderKanban, 
-  MapPin, 
-  FileBarChart,
-  Calendar,
-  Settings,
-  Menu, 
-  X,
-  Users,
-  ScrollText,
-  Plug,
-  Database,
-  Briefcase,
-  ShieldCheck,
-  LogOut,
-  User,
-  Sun,
-  Moon,
-  MonitorSmartphone
+import { useCallback } from 'react';
+import {
+  LayoutDashboard, FilePlus2, FolderKanban, MapPin, FileBarChart,
+  Calendar, Settings, Menu, X, Users, ScrollText, Plug, Database,
+  Briefcase, ShieldCheck, LogOut, User, Sun, Moon, MonitorSmartphone
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme, ThemeMode } from '../contexts/ThemeContext';
@@ -64,95 +47,106 @@ export default function Sidebar({ activeTab, setActiveTab, isOpen, setIsOpen, pe
     ] : [])
   ];
 
-  const handleLogout = () => {
+  const handleLogout = useCallback(() => {
     logout();
     setActiveTab('demands');
     setIsOpen(false);
-  };
+  }, [logout, setActiveTab, setIsOpen]);
+
+  const handleNav = useCallback((id: string) => {
+    setActiveTab(id);
+    setIsOpen(false);
+  }, [setActiveTab, setIsOpen]);
 
   return (
     <>
-      {/* Mobile Toggle Button */}
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="lg:hidden fixed top-4 left-4 z-50 p-2 rounded-lg bg-[#002f6c] text-white shadow-md focus:outline-none focus:ring-2 focus:ring-yellow-400"
-        aria-label="Toggle Menu"
+        className="lg:hidden fixed top-4 left-4 z-50 p-2.5 rounded-xl bg-gov-blue text-white shadow-lg focus:outline-none focus:ring-2 focus:ring-yellow-400 hover:bg-gov-blue-dark transition-colors"
+        aria-label={isOpen ? 'Fechar menu' : 'Abrir menu'}
       >
-        {isOpen ? <X size={24} /> : <Menu size={24} />}
+        {isOpen ? <X size={22} /> : <Menu size={22} />}
       </button>
 
-      {/* Backdrop for Mobile */}
       {isOpen && (
-        <div 
-          className="lg:hidden fixed inset-0 z-40 bg-black/50 backdrop-blur-xs"
-          onClick={() => setIsOpen(false)}
-        />
+        <div className="lg:hidden fixed inset-0 z-40 bg-black/60 backdrop-blur-sm" onClick={() => setIsOpen(false)} />
       )}
 
-      {/* Sidebar Container */}
       <aside
-        className={`fixed inset-y-0 left-0 z-40 w-64 bg-[#001f4d] text-slate-100 flex flex-col shadow-2xl transition-transform duration-300 transform lg:translate-x-0 ${
+        className={`fixed inset-y-0 left-0 z-40 w-64 bg-[#001f4d] text-slate-100 flex flex-col shadow-2xl transition-transform duration-300 ease-out transform lg:translate-x-0 ${
           isOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
-        {/* Logo Section */}
-        <div className="p-6 border-b border-slate-800/80 flex flex-col items-center shrink-0">
-            <div className="flex items-center gap-3">
-              <div className="relative w-12 h-12 bg-gradient-to-tr from-indigo-600 to-blue-700 rounded-xl flex items-center justify-center shadow-lg border border-white/10">
-                <Briefcase className="text-white" size={24} />
-              </div>
-              <div>
-                <h1 className="text-sm font-black tracking-widest text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 to-blue-300">
-                  CGASI.SE
-                </h1>
-                <p className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold">
-                  COORDENAÇÃO GERAL DE ARTICULAÇÃO E SUPERVISÃO INSTITUCIONAL DA SECRETÁRIA EXECUTIVA/ MAPA
-                </p>
-              </div>
+        <div className="p-5 border-b border-slate-800/80 shrink-0">
+          <div className="flex items-center gap-3">
+            <div className="w-11 h-11 bg-gradient-to-br from-indigo-500 to-blue-700 rounded-xl flex items-center justify-center shadow-lg border border-white/10 shrink-0">
+              <Briefcase className="text-white" size={22} />
+            </div>
+            <div className="min-w-0">
+              <h1 className="text-sm font-black tracking-wider text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 to-blue-300 truncate">
+                CGASI.SE
+              </h1>
+              <p
+                className="text-[8px] leading-tight uppercase tracking-wide text-slate-400 font-semibold mt-0.5 line-clamp-2"
+                title="COORDENAÇÃO GERAL DE ARTICULAÇÃO E SUPERVISÃO INSTITUCIONAL DA SECRETÁRIA EXECUTIVA/ MAPA"
+              >
+                COORDENAÇÃO GERAL DE ARTICULAÇÃO E SUPERVISÃO INSTITUCIONAL DA SECRETÁRIA EXECUTIVA/ MAPA
+              </p>
             </div>
           </div>
+          {isAuthenticated && user && (
+            <div className="mt-3 pt-3 border-t border-slate-800/60 flex items-center gap-2">
+              <div className="w-7 h-7 rounded-full bg-gradient-to-br from-indigo-500 to-indigo-800 flex items-center justify-center text-[11px] font-bold text-indigo-200 shrink-0">
+                {user.name.charAt(0).toUpperCase()}
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-[11px] font-semibold text-slate-100 truncate">{user.name}</p>
+                <span className={`inline-block px-1.5 py-0.5 text-[7px] font-bold rounded mt-0.5 uppercase tracking-wider ${
+                  user.role === 'admin' ? 'bg-violet-500/20 text-violet-300' :
+                  user.role === 'gestor' ? 'bg-blue-500/20 text-blue-300' :
+                  user.role === 'analista' ? 'bg-emerald-500/20 text-emerald-300' :
+                  'bg-yellow-500/20 text-yellow-400'
+                }`}>
+                  {ROLE_LABELS[user.role]}
+                </span>
+              </div>
+            </div>
+          )}
+        </div>
 
-          {/* Nav Links */}
-          <div className="flex-1 overflow-y-auto custom-scrollbar">
-          <nav className="p-4 space-y-1.5" aria-label="Main Navigation">
-            {menuItems.map((item) => {
-              const Icon = item.icon;
-              const isActive = activeTab === item.id;
-              return (
-                <button
-                  key={item.id}
-                  onClick={() => {
-                    setActiveTab(item.id);
-                    setIsOpen(false);
-                  }}
-                  className={`w-full flex items-center justify-between px-4 py-3 rounded-xl text-sm font-medium transition-all group focus:outline-none focus:ring-2 focus:ring-yellow-400 ${
-                    isActive
-                      ? 'bg-gradient-to-r from-blue-700 to-blue-800 text-white shadow-md border-l-4 border-yellow-400'
-                      : 'text-slate-300 hover:bg-slate-800/40 hover:text-white'
-                  }`}
-                >
-                  <div className="flex items-center gap-3">
-                    <Icon 
-                      size={20} 
-                      className={`transition-colors ${
-                        isActive ? 'text-yellow-400' : 'text-slate-400 group-hover:text-slate-200'
-                      }`} 
-                    />
-                    <span>{item.label}</span>
-                  </div>
-                  {item.badge !== null && (
-                    <span className="bg-yellow-400 text-blue-950 font-bold text-xs px-2 py-0.5 rounded-full animate-pulse shadow-sm">
-                      {item.badge}
-                    </span>
-                  )}
-                </button>
-              );
-            })}
-          </nav>
-          </div>
+        <nav className="flex-1 overflow-y-auto custom-scrollbar p-3 space-y-0.5" aria-label="Navegação principal">
+          {menuItems.map((item) => {
+            const Icon = item.icon;
+            const isActive = activeTab === item.id;
+            return (
+              <button
+                key={item.id}
+                onClick={() => handleNav(item.id)}
+                className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-sm font-medium transition-all group focus:outline-none focus:ring-2 focus:ring-yellow-400/60 ${
+                  isActive
+                    ? 'bg-gradient-to-r from-blue-700/90 to-blue-800/80 text-white shadow-sm border-l-[3px] border-yellow-400'
+                    : 'text-slate-300 hover:bg-slate-800/50 hover:text-white'
+                }`}
+                aria-current={isActive ? 'page' : undefined}
+              >
+                <span className="flex items-center gap-3 min-w-0">
+                  <Icon
+                    size={19}
+                    className={`shrink-0 ${isActive ? 'text-yellow-400' : 'text-slate-400 group-hover:text-slate-200'}`}
+                  />
+                  <span className="truncate">{item.label}</span>
+                </span>
+                {item.badge !== null && (
+                  <span className="shrink-0 bg-yellow-400 text-blue-950 font-bold text-[10px] px-2 py-0.5 rounded-full animate-pulse shadow-sm ml-2">
+                    {item.badge}
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </nav>
 
-        {/* Theme Toggle */}
-        <div className="px-4 pt-4">
+        <div className="px-3 pb-3 shrink-0">
           <div className="flex items-center justify-between gap-1 bg-slate-800/60 border border-slate-700/60 rounded-xl p-1">
             {themeOptions.map((opt) => (
               <button
@@ -160,10 +154,10 @@ export default function Sidebar({ activeTab, setActiveTab, isOpen, setIsOpen, pe
                 onClick={() => setTheme(opt.mode)}
                 title={`Tema ${opt.label}`}
                 aria-label={`Tema ${opt.label}`}
-                className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-[10px] font-bold transition-all ${
+                className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-[9px] font-bold transition-all focus:outline-none focus:ring-2 focus:ring-yellow-400/60 ${
                   theme === opt.mode
                     ? 'bg-yellow-400 text-blue-950 shadow-sm'
-                    : 'text-slate-300 hover:bg-slate-700/60 hover:text-white'
+                    : 'text-slate-400 hover:bg-slate-700/60 hover:text-white'
                 }`}
               >
                 {opt.icon}
@@ -173,78 +167,29 @@ export default function Sidebar({ activeTab, setActiveTab, isOpen, setIsOpen, pe
           </div>
         </div>
 
-        {/* User Profile Section */}
-        <div className="p-4 border-t border-slate-800/80 bg-slate-950/40">
-          {isAuthenticated && user ? (
-            <div className="flex flex-col gap-2">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-indigo-500 to-indigo-800 border border-indigo-400/30 flex items-center justify-center font-bold text-sm text-indigo-300 shadow-md">
-                  {user.name.charAt(0).toUpperCase()}
-                </div>
-                <div className="min-w-0 flex-1">
-                  <p className="text-xs font-semibold text-slate-100 truncate">
-                    {user.name}
-                  </p>
-                  <p className="text-[10px] text-indigo-400 font-mono truncate">
-                    {user.email}
-                  </p>
-                  <span className={`inline-block px-1.5 py-0.5 text-[8px] font-bold rounded mt-0.5 uppercase tracking-wider ${
-                    user.role === 'admin' 
-                      ? 'bg-violet-500/15 text-violet-300'
-                      : user.role === 'gestor'
-                      ? 'bg-blue-500/15 text-blue-300'
-                      : user.role === 'analista'
-                      ? 'bg-emerald-500/15 text-emerald-300'
-                      : 'bg-yellow-500/15 text-yellow-400'
-                  }`}>
-                    {ROLE_LABELS[user.role]}
-                  </span>
-                </div>
-              </div>
-              <div className="mt-2 pt-2 text-[9px] text-slate-400 border-t border-slate-800 flex items-center justify-between">
-                <div className="flex items-center gap-1">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
-                  Sessão Autenticada
-                </div>
-                <button
-                  onClick={handleLogout}
-                  className="text-[10px] text-red-400 hover:text-red-300 font-bold hover:underline cursor-pointer flex items-center gap-1"
-                >
-                  <LogOut size={10} />
-                  Sair
-                </button>
-              </div>
-            </div>
-          ) : (
-            <div className="flex flex-col gap-2.5">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center font-bold text-sm text-slate-400 shadow-sm">
-                  <User size={18} />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <p className="text-xs font-semibold text-slate-100 truncate">
-                    Modo Visitante
-                  </p>
-                  <p className="text-[10px] text-slate-400 truncate">
-                    Apenas Visualização
-                  </p>
-                  <span className="inline-block px-1.5 py-0.5 bg-yellow-500/10 text-yellow-400 text-[8px] font-bold rounded mt-0.5 uppercase tracking-wider">
-                    Acesso Público
-                  </span>
-                </div>
-              </div>
-              <button
-                onClick={() => {
-                  setActiveTab('login');
-                  setIsOpen(false);
-                }}
-                className="w-full py-2 px-3 bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-700 hover:to-indigo-800 text-white rounded-xl text-xs font-bold transition-all shadow-md text-center cursor-pointer uppercase tracking-wider"
-              >
-                Login
-              </button>
-            </div>
-          )}
-        </div>
+        {isAuthenticated && user && (
+          <div className="px-3 pb-4 shrink-0">
+            <button
+              onClick={handleLogout}
+              className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border border-slate-700/60 text-slate-400 hover:text-red-400 hover:border-red-800/40 hover:bg-red-950/20 text-[11px] font-bold transition-all focus:outline-none focus:ring-2 focus:ring-red-400/60 cursor-pointer"
+            >
+              <LogOut size={14} />
+              Sair do Sistema
+            </button>
+          </div>
+        )}
+
+        {!isAuthenticated && (
+          <div className="px-3 pb-4 shrink-0">
+            <button
+              onClick={() => handleNav('login')}
+              className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-700 hover:to-indigo-800 text-white text-[11px] font-bold transition-all shadow-md focus:outline-none focus:ring-2 focus:ring-yellow-400/60 cursor-pointer"
+            >
+              <ShieldCheck size={14} />
+              Acessar o Sistema
+            </button>
+          </div>
+        )}
       </aside>
     </>
   );

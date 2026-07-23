@@ -1,7 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { Users as UsersIcon, ShieldCheck, UserPlus, Trash2, CheckCircle2, XCircle, Loader2, AlertCircle, KeyRound } from 'lucide-react';
+import { TableSkeleton } from './ui/Skeleton';
 import { User, UserRole } from '../types';
 import { authApi, ROLE_LABELS, ROLE_PERMISSIONS } from '../services/api';
+import { useToast } from '../contexts/ToastContext';
 
 interface UsersViewProps {
   currentUser: User;
@@ -15,6 +17,7 @@ const ROLE_STYLES: Record<UserRole, string> = {
 };
 
 export default function UsersView({ currentUser }: UsersViewProps) {
+  const { toast } = useToast();
   const [users, setUsers] = useState<User[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -46,7 +49,7 @@ export default function UsersView({ currentUser }: UsersViewProps) {
       setShowForm(false);
       load();
     } catch (e: any) {
-      alert('Erro: ' + (e.message || 'Não foi possível criar'));
+      toast('error', 'Erro ao criar usuário', e?.message || 'Não foi possível criar');
     } finally {
       setSaving(false);
     }
@@ -57,7 +60,7 @@ export default function UsersView({ currentUser }: UsersViewProps) {
       await authApi.updateUser(u.id, { active: u.active !== false });
       load();
     } catch (e: any) {
-      alert('Erro: ' + (e.message || 'Não foi possível atualizar'));
+      toast('error', 'Erro ao atualizar', e?.message || 'Não foi possível atualizar');
     }
   };
 
@@ -66,12 +69,12 @@ export default function UsersView({ currentUser }: UsersViewProps) {
       await authApi.updateUser(u.id, { role });
       load();
     } catch (e: any) {
-      alert('Erro: ' + (e.message || 'Não foi possível atualizar'));
+      toast('error', 'Erro ao atualizar', e?.message || 'Não foi possível atualizar');
     }
   };
 
   if (isLoading) {
-    return <div className="min-h-[300px] flex items-center justify-center"><Loader2 className="w-8 h-8 text-brand-600 animate-spin" /></div>;
+    return <TableSkeleton rows={5} />;
   }
 
   return (

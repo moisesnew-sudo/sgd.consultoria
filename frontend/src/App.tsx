@@ -3,8 +3,10 @@ import Sidebar from './components/Sidebar';
 import DemandsView from './components/DemandsView';
 import LoginView from './components/LoginView';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
+import { ToastProvider } from './contexts/ToastContext';
 import { Demand, MunicipalityData } from './types';
 import { demandsApi, municipalitiesApi } from './services/api';
+import { Skeleton } from './components/ui/Skeleton';
 
 const DashboardView = lazy(() => import('./components/DashboardView'));
 const NewDemandView = lazy(() => import('./components/NewDemandView'));
@@ -19,10 +21,25 @@ const BackupView = lazy(() => import('./components/BackupView'));
 
 function ViewFallback() {
   return (
-    <div className="min-h-[400px] flex items-center justify-center">
-      <div className="flex flex-col items-center gap-3">
-        <div className="w-10 h-10 border-4 border-slate-900 dark:border-slate-600 border-t-brand-600 rounded-full animate-spin" />
-        <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 font-mono">Carregando...</p>
+    <div className="min-h-[400px] p-8 space-y-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        {Array.from({ length: 4 }).map((_, i) => (
+          <div key={i} className="bg-white dark:bg-[#111a2e] border border-slate-100 dark:border-slate-700/50 rounded-2xl p-5 space-y-3">
+            <Skeleton className="h-4 w-24" />
+            <Skeleton className="h-8 w-32" />
+            <Skeleton className="h-3 w-40" />
+          </div>
+        ))}
+      </div>
+      <div className="bg-white dark:bg-[#111a2e] border border-slate-100 dark:border-slate-700/50 rounded-2xl p-6 space-y-4">
+        <Skeleton className="h-5 w-48" />
+        {Array.from({ length: 4 }).map((_, i) => (
+          <div key={i} className="flex gap-4">
+            <Skeleton className="h-4 w-24" />
+            <Skeleton className="h-4 flex-1" />
+            <Skeleton className="h-4 w-20" />
+          </div>
+        ))}
       </div>
     </div>
   );
@@ -246,7 +263,9 @@ function AppContent() {
 export default function App() {
   return (
     <AuthProvider>
-      <AppContent />
+      <ToastProvider>
+        <AppContent />
+      </ToastProvider>
     </AuthProvider>
   );
 }

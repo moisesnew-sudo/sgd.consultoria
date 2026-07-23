@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { MapPin, Plus, Search, Edit2, Trash2, X, Save, Loader2 } from 'lucide-react';
 import { municipalitiesApi } from '../services/api';
 import { MunicipalityData } from '../types';
+import { useToast } from '../contexts/ToastContext';
+import { ConfirmModal } from './ui/ConfirmModal';
 
 interface MunicipalitiesViewProps {
   municipalities: MunicipalityData[];
@@ -30,6 +32,7 @@ const getRegionForUf = (uf: string): string => {
 };
 
 export default function MunicipalitiesView({ municipalities, setMunicipalities }: MunicipalitiesViewProps) {
+  const { toast } = useToast();
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedUf, setSelectedUf] = useState('');
   const [showModal, setShowModal] = useState(false);
@@ -37,6 +40,7 @@ export default function MunicipalitiesView({ municipalities, setMunicipalities }
   const [formName, setFormName] = useState('');
   const [formUf, setFormUf] = useState('CE');
   const [isSaving, setIsSaving] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<MunicipalityData | null>(null);
 
   const filteredMunicipalities = municipalities.filter(m => {
     const matchesSearch = m.name.toLowerCase().includes(searchTerm.toLowerCase());
@@ -76,27 +80,35 @@ export default function MunicipalitiesView({ municipalities, setMunicipalities }
           m => m.name.toLowerCase() === formName.trim().toLowerCase() && m.uf === formUf
         );
         if (exists) {
-          alert('Município já cadastrado para esta UF.');
+          toast('warning', 'Município já cadastrado para esta UF.');
           return;
         }
         const created = await municipalitiesApi.create({ name: formName.trim(), uf: formUf });
         setMunicipalities(prev => [...prev, created]);
       }
       setShowModal(false);
+      toast('success', editingMunicipality ? 'Município atualizado' : 'Município cadastrado');
     } catch (err: any) {
-      alert('Erro ao salvar: ' + (err.message || 'Tente novamente'));
+      toast('error', 'Erro ao salvar', err?.message || 'Tente novamente');
     } finally {
       setIsSaving(false);
     }
   };
 
   const handleDelete = async (m: MunicipalityData) => {
-    if (!confirm(`Remover ${m.name} - ${m.uf}?`)) return;
+    setDeleteTarget(m);
+  };
+
+  const confirmDelete = async () => {
+    if (!deleteTarget) return;
     try {
-      if (m.id) await municipalitiesApi.delete(m.id);
-      setMunicipalities(prev => prev.filter(x => !(x.name === m.name && x.uf === m.uf)));
+      if (deleteTarget.id) await municipalitiesApi.delete(deleteTarget.id);
+      setMunicipalities(prev => prev.filter(x => !(x.name === deleteTarget.name && x.uf === deleteTarget.uf)));
+      toast('success', 'Município removido com sucesso');
     } catch (err: any) {
-      alert('Erro ao remover: ' + (err.message || 'Tente novamente'));
+      toast('error', 'Erro ao remover', err?.message || 'Tente novamente');
+    } finally {
+      setDeleteTarget(null);
     }
   };
 
@@ -244,6 +256,16 @@ export default function MunicipalitiesView({ municipalities, setMunicipalities }
           </div>
         </div>
       )}
+
+      <ConfirmModal
+        open={deleteTarget !== null}
+        title="Remover Município"
+        message={`Tem certeza que deseja remover ${deleteTarget?.name} - ${deleteTarget?.uf}? Esta ação não poderá ser desfeita.`}
+        confirmLabel="Remover"
+        variant="danger"
+        onConfirm={confirmDelete}
+        onCancel={() => setDeleteTarget(null)}
+      />
     </div>
   );
 }
