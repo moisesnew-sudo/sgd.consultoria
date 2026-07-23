@@ -73,34 +73,34 @@ export default function Sidebar({ activeTab, setActiveTab, isOpen, setIsOpen, pe
       )}
 
       <aside
-        className={`fixed inset-y-0 left-0 z-40 w-64 bg-[#001f4d] text-slate-100 flex flex-col shadow-2xl transition-transform duration-300 ease-out transform lg:translate-x-0 ${
+        className={`fixed inset-y-0 left-0 z-40 w-72 bg-[#001f4d] text-slate-100 flex flex-col shadow-2xl transition-transform duration-300 ease-out transform lg:translate-x-0 ${
           isOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
         <div className="p-5 border-b border-slate-800/80 shrink-0">
-          <div className="flex items-center gap-3">
-            <div className="w-11 h-11 bg-gradient-to-br from-indigo-500 to-blue-700 rounded-xl flex items-center justify-center shadow-lg border border-white/10 shrink-0">
+          <div className="flex items-start gap-3">
+            <div className="w-11 h-11 mt-0.5 bg-gradient-to-br from-indigo-500 to-blue-700 rounded-xl flex items-center justify-center shadow-lg border border-white/10 shrink-0">
               <Briefcase className="text-white" size={22} />
             </div>
-            <div className="min-w-0">
-              <h1 className="text-sm font-black tracking-wider text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 to-blue-300 truncate">
+            <div>
+              <h1 className="text-[18px] lg:text-[20px] font-bold tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 to-blue-300 leading-tight">
                 CGASI.SE
               </h1>
               <p
-                className="text-[8px] leading-tight uppercase tracking-wide text-slate-400 font-semibold mt-0.5 line-clamp-2"
-                title="COORDENAÇÃO GERAL DE ARTICULAÇÃO E SUPERVISÃO INSTITUCIONAL DA SECRETÁRIA EXECUTIVA/ MAPA"
+                className="text-[12px] lg:text-[13px] font-medium leading-[1.4] text-slate-300 mt-1"
+                title="COORDENAÇÃO GERAL DE ARTICULAÇÃO E SUPERVISÃO INSTITUCIONAL DA SECRETARIA EXECUTIVA / MAPA"
               >
-                COORDENAÇÃO GERAL DE ARTICULAÇÃO E SUPERVISÃO INSTITUCIONAL DA SECRETÁRIA EXECUTIVA/ MAPA
+                COORDENAÇÃO GERAL DE ARTICULAÇÃO E SUPERVISÃO INSTITUCIONAL DA SECRETARIA EXECUTIVA / MAPA
               </p>
             </div>
           </div>
           {isAuthenticated && user && (
-            <div className="mt-3 pt-3 border-t border-slate-800/60 flex items-center gap-2">
+            <div className="mt-4 pt-3 border-t border-slate-800/60 flex items-center gap-2">
               <div className="w-7 h-7 rounded-full bg-gradient-to-br from-indigo-500 to-indigo-800 flex items-center justify-center text-[11px] font-bold text-indigo-200 shrink-0">
                 {user.name.charAt(0).toUpperCase()}
               </div>
-              <div className="min-w-0 flex-1">
-                <p className="text-[11px] font-semibold text-slate-100 truncate">{user.name}</p>
+              <div className="flex-1">
+                <p className="text-[11px] font-semibold text-slate-100">{user.name}</p>
                 <span className={`inline-block px-1.5 py-0.5 text-[7px] font-bold rounded mt-0.5 uppercase tracking-wider ${
                   user.role === 'admin' ? 'bg-violet-500/20 text-violet-300' :
                   user.role === 'gestor' ? 'bg-blue-500/20 text-blue-300' :
