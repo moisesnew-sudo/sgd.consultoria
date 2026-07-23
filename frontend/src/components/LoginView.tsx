@@ -60,7 +60,7 @@ export default function LoginView({ onNavigateToTab }: LoginViewProps) {
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-[#0b1120] flex flex-col justify-center py-12 sm:px-6 lg:px-8 relative overflow-hidden font-sans transition-colors">
       {/* Top corporate accent border */}
-      <div className="fixed top-0 left-0 right-0 h-1 bg-indigo-600 z-50" />
+      <div className="fixed top-0 left-0 right-0 h-1 bg-brand-700 z-50" />
 
       {/* Theme toggle */}
       <button
@@ -78,14 +78,14 @@ export default function LoginView({ onNavigateToTab }: LoginViewProps) {
       </button>
 
       {/* Decorative subtle background elements */}
-      <div className="absolute top-[-10%] left-[-10%] w-[400px] h-[400px] bg-indigo-50 dark:bg-indigo-950/30 rounded-full blur-3xl pointer-events-none" />
+      <div className="absolute top-[-10%] left-[-10%] w-[400px] h-[400px] bg-brand-50 dark:bg-brand-950/30 rounded-full blur-3xl pointer-events-none" />
       <div className="absolute bottom-[-10%] right-[-10%] w-[500px] h-[500px] bg-slate-100 dark:bg-slate-800/30 rounded-full blur-3xl pointer-events-none" />
 
       <div className="sm:mx-auto sm:w-full sm:max-w-md relative z-10">
         <div className="flex flex-col items-center">
           {/* Corporate Logo Badge */}
-          <div className="relative w-16 h-16 bg-gradient-to-tr from-slate-900 to-indigo-950 dark:from-slate-800 dark:to-indigo-900 rounded-2xl flex items-center justify-center shadow-xl border border-slate-800/40">
-            <Briefcase className="text-indigo-400" size={28} />
+          <div className="relative w-16 h-16 bg-gradient-to-tr from-brand-700 to-brand-900 dark:from-brand-600 dark:to-brand-800 rounded-2xl flex items-center justify-center shadow-xl border border-white/10">
+            <Briefcase className="text-brand-200" size={28} />
           </div>
 
           <h1 className="mt-6 text-center text-2xl font-black text-slate-900 dark:text-white uppercase tracking-wider">
@@ -136,7 +136,7 @@ export default function LoginView({ onNavigateToTab }: LoginViewProps) {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="seu@email.gov.br"
-                  className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-900/60 text-sm text-slate-800 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-600 focus:border-transparent transition-all"
+                  className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-900/60 text-sm text-slate-800 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-600 focus:border-transparent transition-all"
                 />
               </div>
             </div>
@@ -160,7 +160,7 @@ export default function LoginView({ onNavigateToTab }: LoginViewProps) {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="Sua senha de acesso"
-                  className="w-full pl-10 pr-10 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-900/60 text-sm text-slate-800 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-600 focus:border-transparent transition-all"
+                  className="w-full pl-10 pr-10 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-900/60 text-sm text-slate-800 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-600 focus:border-transparent transition-all"
                 />
                 <button
                   type="button"
@@ -180,7 +180,7 @@ export default function LoginView({ onNavigateToTab }: LoginViewProps) {
                 name="remember-me"
                 type="checkbox"
                 defaultChecked
-                className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-slate-300 rounded-sm"
+                  className="h-4 w-4 text-brand-600 focus:ring-brand-500 border-slate-300 rounded-sm"
               />
               <label htmlFor="remember-me" className="ml-2 block text-xs font-semibold text-slate-600 cursor-pointer">
                 Manter conectado neste terminal
@@ -192,7 +192,7 @@ export default function LoginView({ onNavigateToTab }: LoginViewProps) {
               <button
                 type="submit"
                 disabled={isLoading}
-                className="w-full py-3 px-4 rounded-xl bg-gradient-to-r from-slate-900 to-indigo-950 text-white font-bold text-xs uppercase tracking-wider hover:opacity-95 shadow-md flex items-center justify-center gap-2 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full py-3 px-4 rounded-xl bg-gradient-to-r from-brand-700 to-brand-800 text-white font-bold text-xs uppercase tracking-wider hover:opacity-95 shadow-md flex items-center justify-center gap-2 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {isLoading ? (
                   <>

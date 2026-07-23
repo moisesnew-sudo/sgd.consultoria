@@ -112,7 +112,7 @@ export default function ReportsView({ demands }: ReportsViewProps) {
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
           <h2 className="text-2xl font-black text-slate-900 flex items-center gap-2">
-            <BarChart3 className="text-indigo-950" size={26} />
+            <BarChart3 className="text-brand-700" size={26} />
             Relatórios e Análises
           </h2>
           <p className="text-sm text-slate-500">
@@ -122,7 +122,7 @@ export default function ReportsView({ demands }: ReportsViewProps) {
         <div className="flex gap-2">
           <button
             onClick={() => setShowReport(true)}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-700 hover:to-indigo-700 text-white text-xs font-bold uppercase tracking-wider cursor-pointer"
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-gradient-to-r from-brand-600 to-brand-700 hover:from-brand-700 hover:to-brand-800 text-white text-xs font-bold uppercase tracking-wider cursor-pointer"
           >
             <Sparkles size={14} /> RELATÓRIO
           </button>
@@ -134,7 +134,7 @@ export default function ReportsView({ demands }: ReportsViewProps) {
           </button>
           <button
             onClick={handleExportJson}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-900 hover:bg-indigo-950 text-white text-xs font-bold uppercase tracking-wider cursor-pointer"
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-brand-700 hover:bg-brand-800 text-white text-xs font-bold uppercase tracking-wider cursor-pointer"
           >
             <Download size={14} /> JSON
           </button>
@@ -146,22 +146,22 @@ export default function ReportsView({ demands }: ReportsViewProps) {
         <div className="flex flex-wrap items-center gap-3">
           <Filter size={14} className="text-slate-400" />
           <select value={filterUf} onChange={(e) => setFilterUf(e.target.value)}
-            className="px-3 py-2 rounded-lg border border-slate-200 text-xs text-slate-700 bg-white focus:ring-2 focus:ring-blue-600 focus:outline-none">
+            className="px-3 py-2 rounded-lg border border-slate-200 text-xs text-slate-700 bg-white focus:ring-2 focus:ring-brand-600 focus:outline-none">
             <option value="">Todas UFs</option>
             {ufs.map(uf => <option key={uf} value={uf}>{uf}</option>)}
           </select>
           <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}
-            className="px-3 py-2 rounded-lg border border-slate-200 text-xs text-slate-700 bg-white focus:ring-2 focus:ring-blue-600 focus:outline-none">
+            className="px-3 py-2 rounded-lg border border-slate-200 text-xs text-slate-700 bg-white focus:ring-2 focus:ring-brand-600 focus:outline-none">
             <option value="">Todos Status</option>
             {Object.entries(STATUS_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
           </select>
           <select value={filterPriority} onChange={(e) => setFilterPriority(e.target.value)}
-            className="px-3 py-2 rounded-lg border border-slate-200 text-xs text-slate-700 bg-white focus:ring-2 focus:ring-blue-600 focus:outline-none">
+            className="px-3 py-2 rounded-lg border border-slate-200 text-xs text-slate-700 bg-white focus:ring-2 focus:ring-brand-600 focus:outline-none">
             <option value="">Todas Prioridades</option>
             {Object.entries(PRIORITY_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
           </select>
           <select value={filterAno} onChange={(e) => setFilterAno(e.target.value)}
-            className="px-3 py-2 rounded-lg border border-slate-200 text-xs text-slate-700 bg-white focus:ring-2 focus:ring-blue-600 focus:outline-none">
+            className="px-3 py-2 rounded-lg border border-slate-200 text-xs text-slate-700 bg-white focus:ring-2 focus:ring-brand-600 focus:outline-none">
             <option value="">Todos Anos</option>
             {Array.from({ length: 51 }, (_, i) => new Date().getFullYear() + i - 30).filter(y => y >= 1990).map(y => <option key={y} value={String(y)}>{y}</option>)}
           </select>
@@ -188,7 +188,7 @@ export default function ReportsView({ demands }: ReportsViewProps) {
 
         <div className="bg-white border border-slate-100 rounded-2xl p-5 shadow-sm">
           <div className="flex items-center gap-3 mb-2">
-            <div className="w-10 h-10 bg-indigo-50 rounded-xl flex items-center justify-center text-indigo-600">
+            <div className="w-10 h-10 bg-brand-50 rounded-xl flex items-center justify-center text-brand-600">
               <TrendingUp size={20} />
             </div>
             <p className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest">Valor Solicitado</p>
@@ -265,7 +265,7 @@ export default function ReportsView({ demands }: ReportsViewProps) {
                 <span className="text-xs font-mono font-bold text-slate-700 w-8 text-center shrink-0">{uf}</span>
                 <div className="flex-1 h-5 bg-slate-100 rounded-full overflow-hidden">
                   <div
-                    className="h-full bg-indigo-500 rounded-full transition-all"
+                    className="h-full bg-brand-500 rounded-full transition-all"
                     style={{ width: `${pct}%` }}
                   />
                 </div>

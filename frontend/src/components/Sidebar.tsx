@@ -62,7 +62,7 @@ export default function Sidebar({ activeTab, setActiveTab, isOpen, setIsOpen, pe
     <>
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="lg:hidden fixed top-4 left-4 z-50 p-2.5 rounded-xl bg-gov-blue text-white shadow-lg focus:outline-none focus:ring-2 focus:ring-yellow-400 hover:bg-gov-blue-dark transition-colors"
+        className="lg:hidden fixed top-4 left-4 z-50 p-2.5 rounded-xl bg-gov-green text-white shadow-lg focus:outline-none focus:ring-2 focus:ring-yellow-400 hover:bg-gov-green-dark transition-colors"
         aria-label={isOpen ? 'Fechar menu' : 'Abrir menu'}
       >
         {isOpen ? <X size={22} /> : <Menu size={22} />}
@@ -73,17 +73,17 @@ export default function Sidebar({ activeTab, setActiveTab, isOpen, setIsOpen, pe
       )}
 
       <aside
-        className={`fixed inset-y-0 left-0 z-40 w-72 bg-[#001f4d] text-slate-100 flex flex-col shadow-2xl transition-transform duration-300 ease-out transform lg:translate-x-0 ${
+        className={`fixed inset-y-0 left-0 z-40 w-72 bg-gov-green text-slate-100 flex flex-col shadow-2xl transition-transform duration-300 ease-out transform lg:translate-x-0 ${
           isOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
         <div className="p-5 border-b border-slate-800/80 shrink-0">
           <div className="flex items-start gap-3">
-            <div className="w-11 h-11 mt-0.5 bg-gradient-to-br from-indigo-500 to-blue-700 rounded-xl flex items-center justify-center shadow-lg border border-white/10 shrink-0">
+            <div className="w-11 h-11 mt-0.5 bg-gradient-to-br from-brand-500 to-brand-700 rounded-xl flex items-center justify-center shadow-lg border border-white/10 shrink-0">
               <Briefcase className="text-white" size={22} />
             </div>
             <div>
-              <h1 className="text-[18px] lg:text-[20px] font-bold tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 to-blue-300 leading-tight">
+              <h1 className="text-[18px] lg:text-[20px] font-bold tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-brand-400 to-brand-200 leading-tight">
                 CGASI.SE
               </h1>
               <p
@@ -96,13 +96,13 @@ export default function Sidebar({ activeTab, setActiveTab, isOpen, setIsOpen, pe
           </div>
           {isAuthenticated && user && (
             <div className="mt-4 pt-3 border-t border-slate-800/60 flex items-center gap-2">
-              <div className="w-7 h-7 rounded-full bg-gradient-to-br from-indigo-500 to-indigo-800 flex items-center justify-center text-[11px] font-bold text-indigo-200 shrink-0">
+              <div className="w-7 h-7 rounded-full bg-gradient-to-br from-brand-500 to-brand-800 flex items-center justify-center text-[11px] font-bold text-brand-200 shrink-0">
                 {user.name.charAt(0).toUpperCase()}
               </div>
               <div className="flex-1">
                 <p className="text-[11px] font-semibold text-slate-100">{user.name}</p>
                 <span className={`inline-block px-1.5 py-0.5 text-[7px] font-bold rounded mt-0.5 uppercase tracking-wider ${
-                  user.role === 'admin' ? 'bg-violet-500/20 text-violet-300' :
+                  user.role === 'admin' ? 'bg-brand-500/20 text-brand-300' :
                   user.role === 'gestor' ? 'bg-blue-500/20 text-blue-300' :
                   user.role === 'analista' ? 'bg-emerald-500/20 text-emerald-300' :
                   'bg-yellow-500/20 text-yellow-400'
@@ -124,7 +124,7 @@ export default function Sidebar({ activeTab, setActiveTab, isOpen, setIsOpen, pe
                 onClick={() => handleNav(item.id)}
                 className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-sm font-medium transition-all group focus:outline-none focus:ring-2 focus:ring-yellow-400/60 ${
                   isActive
-                    ? 'bg-gradient-to-r from-blue-700/90 to-blue-800/80 text-white shadow-sm border-l-[3px] border-yellow-400'
+                    ? 'bg-gradient-to-r from-brand-700/90 to-brand-800/80 text-white shadow-sm border-l-[3px] border-yellow-400'
                     : 'text-slate-300 hover:bg-slate-800/50 hover:text-white'
                 }`}
                 aria-current={isActive ? 'page' : undefined}
@@ -183,7 +183,7 @@ export default function Sidebar({ activeTab, setActiveTab, isOpen, setIsOpen, pe
           <div className="px-3 pb-4 shrink-0">
             <button
               onClick={() => handleNav('login')}
-              className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-700 hover:to-indigo-800 text-white text-[11px] font-bold transition-all shadow-md focus:outline-none focus:ring-2 focus:ring-yellow-400/60 cursor-pointer"
+              className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-gradient-to-r from-brand-600 to-brand-700 hover:from-brand-700 hover:to-brand-800 text-white text-[11px] font-bold transition-all shadow-md focus:outline-none focus:ring-2 focus:ring-yellow-400/60 cursor-pointer"
             >
               <ShieldCheck size={14} />
               Acessar o Sistema

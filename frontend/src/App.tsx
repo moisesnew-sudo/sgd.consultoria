@@ -121,7 +121,7 @@ function AppContent() {
   if (authLoading || isLoading) {
     return (
       <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center gap-3">
-        <div className="w-10 h-10 border-4 border-slate-900 border-t-indigo-500 rounded-full animate-spin"></div>
+        <div className="w-10 h-10 border-4 border-slate-900 border-t-brand-500 rounded-full animate-spin"></div>
         <p className="text-xs font-semibold text-slate-500 font-mono">CGASI.SE • Carregando...</p>
       </div>
     );
@@ -148,7 +148,7 @@ function AppContent() {
   return (
     <div className="min-h-screen bg-slate-50 flex text-slate-800 font-sans" id="sgm-shell">
       {/* Top Corporate Line */}
-      <div className="fixed top-0 left-0 right-0 h-1 bg-indigo-600 z-50" />
+      <div className="fixed top-0 left-0 right-0 h-1 bg-brand-700 z-50" />
 
       {/* Navigation Sidebar */}
       <Sidebar 

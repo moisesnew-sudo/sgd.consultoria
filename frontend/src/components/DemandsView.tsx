@@ -271,7 +271,7 @@ export default function DemandsView({
   // Kanban Columns
   const KANBAN_COLUMNS: { id: DemandStatus; title: string; color: string }[] = [
     { id: 'pendente', title: 'Pendentes', color: 'border-t-amber-500 bg-amber-50/20' },
-    { id: 'analise', title: 'Em Análise', color: 'border-t-indigo-500 bg-indigo-50/20' },
+    { id: 'analise', title: 'Em Análise', color: 'border-t-blue-500 bg-blue-50/20' },
     { id: 'concluido', title: 'Concluídas', color: 'border-t-green-500 bg-green-50/20' },
     { id: 'rejeitado', title: 'Rejeitadas', color: 'border-t-red-500 bg-red-50/20' }
   ];
@@ -279,7 +279,7 @@ export default function DemandsView({
   const getStatusBadgeClass = (status: DemandStatus) => {
     switch (status) {
       case 'pendente': return 'bg-amber-100 text-amber-800 border-amber-200';
-      case 'analise': return 'bg-indigo-100 text-indigo-800 border-indigo-200';
+      case 'analise': return 'bg-blue-100 text-blue-800 border-blue-200';
       case 'concluido': return 'bg-green-100 text-green-800 border-green-200';
       case 'rejeitado': return 'bg-red-100 text-red-800 border-red-200';
       default: return 'bg-slate-100 text-slate-800 border-slate-200';
@@ -425,7 +425,7 @@ export default function DemandsView({
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h2 className="text-2xl font-black text-slate-900 flex items-center gap-2">
-            <FolderKanban className="text-indigo-950" size={26} />
+            <FolderKanban className="text-brand-700" size={26} />
             Fila Geral de Demandas
           </h2>
           <p className="text-sm text-slate-500">
@@ -465,25 +465,25 @@ export default function DemandsView({
         {/* Smart Natural Language Search */}
         <div className="flex flex-col sm:flex-row gap-2">
           <div className="relative flex-1">
-            <Sparkles className="absolute left-3.5 top-1/2 -translate-y-1/2 text-violet-500" size={18} />
+            <Sparkles className="absolute left-3.5 top-1/2 -translate-y-1/2 text-brand-500" size={18} />
             <input
               type="text"
               value={nlQuery}
               onChange={(e) => setNlQuery(e.target.value)}
               onKeyDown={(e) => { if (e.key === 'Enter') runSmartSearch(); }}
               placeholder='Busca inteligente: "demandas atrasadas de SP acima de 1 milhão urgentes"'
-              className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-violet-200 dark:border-violet-800/60 bg-violet-50/40 dark:bg-violet-950/10 text-sm text-slate-800 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-violet-500"
+              className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-brand-200 dark:border-brand-800/60 bg-brand-50/40 dark:bg-brand-950/10 text-sm text-slate-800 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-600"
             />
           </div>
           <button
             onClick={runSmartSearch}
-            className="px-4 py-2.5 rounded-xl bg-violet-600 hover:bg-violet-700 text-white font-bold text-xs uppercase tracking-wider shadow-sm transition-all flex items-center gap-2"
+            className="px-4 py-2.5 rounded-xl bg-brand-600 hover:bg-brand-700 text-white font-bold text-xs uppercase tracking-wider shadow-sm transition-all flex items-center gap-2"
           >
             <Sparkles size={15} /> Buscar
           </button>
         </div>
         {nlExplanation && (
-          <div className="flex items-start gap-2 text-[11px] text-violet-700 dark:text-violet-300 bg-violet-50 dark:bg-violet-950/20 border border-violet-100 dark:border-violet-800/40 rounded-lg px-3 py-2">
+          <div className="flex items-start gap-2 text-[11px] text-brand-700 dark:text-brand-300 bg-brand-50 dark:bg-brand-950/20 border border-brand-100 dark:border-brand-800/40 rounded-lg px-3 py-2">
             <BrainCircuit size={14} className="mt-0.5 shrink-0" />
             <span>{nlExplanation}</span>
           </div>
@@ -851,7 +851,7 @@ export default function DemandsView({
             <div className="bg-slate-900 text-white p-6 sticky top-0 z-10 flex justify-between items-start border-b border-slate-800">
               <div className="space-y-1">
                 <div className="flex items-center gap-2">
-                  <span className="text-xs bg-yellow-400 text-blue-950 font-mono font-black px-2.5 py-1 rounded-lg">
+                    <span className="text-xs bg-yellow-400 text-brand-900 font-mono font-black px-2.5 py-1 rounded-lg">
                     {detailedDemand.id}
                   </span>
                   <span className={`px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider border ${getStatusBadgeClass(detailedDemand.status)}`}>
@@ -868,14 +868,14 @@ export default function DemandsView({
                 {!isEditingDemand && canEdit && (
                   <button
                     onClick={() => handleStartEdit(detailedDemand)}
-                    className="px-3 py-1.5 bg-yellow-400 text-blue-950 text-[10px] font-bold uppercase tracking-wider rounded-lg hover:bg-yellow-300 transition-colors"
+                    className="px-3 py-1.5 bg-yellow-400 text-brand-900 text-[10px] font-bold uppercase tracking-wider rounded-lg hover:bg-yellow-300 transition-colors"
                   >
                     Editar
                   </button>
                 )}
                 <button
                   onClick={() => setDetailedDemand(null)}
-                  className="p-2 text-blue-200 hover:text-white hover:bg-white/10 rounded-xl transition-colors"
+                  className="p-2 text-slate-300 hover:text-white hover:bg-white/10 rounded-xl transition-colors"
                   aria-label="Fechar detalhes"
                 >
                   <X size={20} />
@@ -889,28 +889,28 @@ export default function DemandsView({
               {isEditingDemand ? (
                 /* EDIT FORM */
                 <div className="space-y-6">
-                  <h3 className="text-sm font-extrabold text-indigo-950 uppercase tracking-widest">Editar Demanda</h3>
+                  <h3 className="text-sm font-extrabold text-brand-700 uppercase tracking-widest">Editar Demanda</h3>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-1">
                       <label className="text-xs font-bold text-slate-700 block">Título *</label>
                       <input type="text" value={editTitle} onChange={(e) => setEditTitle(e.target.value)}
-                        className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-blue-600 focus:outline-none" />
+                        className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-brand-600 focus:outline-none" />
                     </div>
                     <div className="space-y-1">
                       <label className="text-xs font-bold text-slate-700 block">Município *</label>
                       <input type="text" value={editMunicipality} onChange={(e) => setEditMunicipality(e.target.value)}
-                        className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-blue-600 focus:outline-none" />
+                        className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-brand-600 focus:outline-none" />
                     </div>
                     <div className="space-y-1">
                       <label className="text-xs font-bold text-slate-700 block">UF</label>
                       <input type="text" value={editUf} onChange={(e) => setEditUf(e.target.value)} maxLength={2}
-                        className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-blue-600 focus:outline-none" />
+                        className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-brand-600 focus:outline-none" />
                     </div>
                     <div className="space-y-1">
                       <label className="text-xs font-bold text-slate-700 block">Status</label>
                       <select value={editStatus} onChange={(e) => setEditStatus(e.target.value as DemandStatus)}
-                        className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm bg-white focus:ring-2 focus:ring-blue-600 focus:outline-none">
+                        className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm bg-white focus:ring-2 focus:ring-brand-600 focus:outline-none">
                         <option value="pendente">Pendente</option>
                         <option value="analise">Em Análise</option>
                         <option value="concluido">Concluído</option>
@@ -920,7 +920,7 @@ export default function DemandsView({
                     <div className="space-y-1">
                       <label className="text-xs font-bold text-slate-700 block">Prioridade</label>
                       <select value={editPriority} onChange={(e) => setEditPriority(e.target.value as DemandPriority)}
-                        className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm bg-white focus:ring-2 focus:ring-blue-600 focus:outline-none">
+                        className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm bg-white focus:ring-2 focus:ring-brand-600 focus:outline-none">
                         <option value="baixa">Baixa</option>
                         <option value="media">Média</option>
                         <option value="alta">Alta</option>
@@ -936,52 +936,52 @@ export default function DemandsView({
                           setEditAno(val ? Number(val) : undefined);
                         }}
                         placeholder="Ex.: 2026"
-                        className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-blue-600 focus:outline-none" />
+                        className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-brand-600 focus:outline-none" />
                     </div>
                     <div className="space-y-1">
                       <label className="text-xs font-bold text-slate-700 block">Valor Solicitado (R$)</label>
                       <input type="number" value={editRequestedValue} onChange={(e) => setEditRequestedValue(e.target.value)}
-                        className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-blue-600 focus:outline-none" />
+                        className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-brand-600 focus:outline-none" />
                     </div>
                     <div className="space-y-1">
                       <label className="text-xs font-bold text-slate-700 block">Órgão</label>
                       <input type="text" value={editOrgan} onChange={(e) => setEditOrgan(e.target.value)}
-                        className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-blue-600 focus:outline-none" />
+                        className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-brand-600 focus:outline-none" />
                     </div>
                     <div className="space-y-1">
                       <label className="text-xs font-bold text-slate-700 block">Prefeitura</label>
                       <input type="text" value={editPrefeitura} onChange={(e) => setEditPrefeitura(e.target.value)}
-                        className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-blue-600 focus:outline-none" />
+                        className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-brand-600 focus:outline-none" />
                     </div>
                     <div className="space-y-1">
                       <label className="text-xs font-bold text-slate-700 block">Nº Proposta</label>
                       <input type="text" value={editProposalNumber} onChange={(e) => setEditProposalNumber(e.target.value)}
-                        className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-blue-600 focus:outline-none" />
+                        className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-brand-600 focus:outline-none" />
                     </div>
                     <div className="space-y-1">
                       <label className="text-xs font-bold text-slate-700 block">Link do Processo</label>
                       <input type="url" value={editProcessLink} onChange={(e) => setEditProcessLink(e.target.value)}
-                        className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-blue-600 focus:outline-none" />
+                        className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-brand-600 focus:outline-none" />
                     </div>
                     <div className="space-y-1">
                       <label className="text-xs font-bold text-slate-700 block">Responsável</label>
                       <input type="text" value={editResponsibleName} onChange={(e) => setEditResponsibleName(e.target.value)}
-                        className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-blue-600 focus:outline-none" />
+                        className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-brand-600 focus:outline-none" />
                     </div>
                     <div className="space-y-1">
                       <label className="text-xs font-bold text-slate-700 block">E-mail Responsável</label>
                       <input type="email" value={editResponsibleEmail} onChange={(e) => setEditResponsibleEmail(e.target.value)}
-                        className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-blue-600 focus:outline-none" />
+                        className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-brand-600 focus:outline-none" />
                     </div>
                     <div className="space-y-1 md:col-span-2">
                       <label className="text-xs font-bold text-slate-700 block">Descrição</label>
                       <textarea rows={3} value={editDescription} onChange={(e) => setEditDescription(e.target.value)}
-                        className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-blue-600 focus:outline-none" />
+                        className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-brand-600 focus:outline-none" />
                     </div>
                     <div className="space-y-1 md:col-span-2">
                       <label className="text-xs font-bold text-slate-700 block">Observações</label>
                       <textarea rows={2} value={editNotes} onChange={(e) => setEditNotes(e.target.value)}
-                        className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-blue-600 focus:outline-none" />
+                        className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-brand-600 focus:outline-none" />
                     </div>
                   </div>
 
@@ -991,7 +991,7 @@ export default function DemandsView({
                       Cancelar
                     </button>
                     <button onClick={handleSaveEdit} disabled={isSavingEdit}
-                      className="py-2.5 px-6 rounded-xl bg-slate-900 hover:bg-indigo-950 text-white font-bold text-xs uppercase tracking-wider disabled:opacity-50">
+                      className="py-2.5 px-6 rounded-xl bg-brand-700 hover:bg-brand-800 text-white font-bold text-xs uppercase tracking-wider disabled:opacity-50">
                       {isSavingEdit ? 'Salvando...' : 'Salvar Alterações'}
                     </button>
                   </div>
@@ -1072,7 +1072,7 @@ export default function DemandsView({
                 </div>
 
                 <div className="flex items-center gap-2.5 text-xs">
-                  <div className="w-8 h-8 rounded-full bg-indigo-50 text-indigo-700 flex items-center justify-center">
+                  <div className="w-8 h-8 rounded-full bg-brand-50 text-brand-700 flex items-center justify-center">
                     <Mail size={16} />
                   </div>
                   <div>
@@ -1093,20 +1093,20 @@ export default function DemandsView({
               </div>
 
               {/* AI Panel */}
-              <div className="rounded-2xl border border-violet-200/60 dark:border-violet-800/40 bg-gradient-to-br from-violet-50/60 to-indigo-50/40 dark:from-violet-950/20 dark:to-indigo-950/10 p-5 space-y-4">
+              <div className="rounded-2xl border border-brand-200/60 dark:border-brand-800/40 bg-gradient-to-br from-brand-50/60 to-brand-50/40 dark:from-brand-950/20 dark:to-brand-950/10 p-5 space-y-4">
                 <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 rounded-lg bg-violet-600 text-white flex items-center justify-center">
+                  <div className="w-8 h-8 rounded-lg bg-brand-600 text-white flex items-center justify-center">
                     <Sparkles size={16} />
                   </div>
                   <div>
-                    <h4 className="text-xs font-black text-violet-900 dark:text-violet-200 uppercase tracking-wider">Assistente IA</h4>
+                    <h4 className="text-xs font-black text-brand-700 dark:text-brand-200 uppercase tracking-wider">Assistente IA</h4>
                     <p className="text-[10px] text-slate-500 dark:text-slate-400">Análise automática da demanda</p>
                   </div>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="bg-white dark:bg-slate-900/50 rounded-xl p-4 border border-slate-100 dark:border-slate-700/50">
-                    <div className="flex items-center gap-1.5 text-[10px] font-bold text-violet-700 dark:text-violet-300 uppercase mb-2">
+                    <div className="flex items-center gap-1.5 text-[10px] font-bold text-brand-700 dark:text-brand-300 uppercase mb-2">
                       <BrainCircuit size={13} /> Resumo Automático
                     </div>
                     <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
@@ -1115,7 +1115,7 @@ export default function DemandsView({
                   </div>
 
                   <div className="bg-white dark:bg-slate-900/50 rounded-xl p-4 border border-slate-100 dark:border-slate-700/50">
-                    <div className="flex items-center gap-1.5 text-[10px] font-bold text-violet-700 dark:text-violet-300 uppercase mb-2">
+                    <div className="flex items-center gap-1.5 text-[10px] font-bold text-brand-700 dark:text-brand-300 uppercase mb-2">
                       <BrainCircuit size={13} /> Sugestão de Prioridade
                     </div>
                     <AISuggestion demand={detailedDemand} />
@@ -1136,7 +1136,7 @@ export default function DemandsView({
 
                   {canEdit ? (
                     <form onSubmit={handleAddTimelineEvent} className="bg-slate-50 border border-slate-100 p-4 rounded-2xl space-y-3">
-                      <span className="text-[10px] font-bold text-indigo-950 uppercase tracking-wider flex items-center gap-1">
+                      <span className="text-[10px] font-bold text-brand-700 uppercase tracking-wider flex items-center gap-1">
                         <CornerDownRight size={12} />
                         Registrar Despacho / Parecer Técnico
                       </span>
@@ -1147,7 +1147,7 @@ export default function DemandsView({
                           value={newEventTitle}
                           onChange={(e) => setNewEventTitle(e.target.value)}
                           placeholder="Ex: Parecer de Engenharia Emitido"
-                          className="px-3 py-1.5 rounded-lg border border-slate-200 text-xs bg-white text-slate-800 focus:outline-none focus:ring-1 focus:ring-blue-600"
+                          className="px-3 py-1.5 rounded-lg border border-slate-200 text-xs bg-white text-slate-800 focus:outline-none focus:ring-1 focus:ring-brand-600"
                           required
                         />
                         <select
@@ -1168,7 +1168,7 @@ export default function DemandsView({
                         value={newEventDesc}
                         onChange={(e) => setNewEventDesc(e.target.value)}
                         placeholder="Descreva as deliberações ou pendências..."
-                        className="w-full px-3 py-1.5 rounded-lg border border-slate-200 text-xs bg-white text-slate-800 focus:outline-none focus:ring-1 focus:ring-blue-600"
+                        className="w-full px-3 py-1.5 rounded-lg border border-slate-200 text-xs bg-white text-slate-800 focus:outline-none focus:ring-1 focus:ring-brand-600"
                       />
 
                       <button
@@ -1338,7 +1338,7 @@ export default function DemandsView({
                           value={newComment}
                           onChange={(e) => setNewComment(e.target.value)}
                           placeholder="Escreva um comentário..."
-                          className="w-full p-2 bg-white border border-blue-200 text-xs text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500 rounded-lg font-sans"
+                          className="w-full p-2 bg-white border border-blue-200 text-xs text-slate-700 focus:outline-none focus:ring-1 focus:ring-brand-500 rounded-lg font-sans"
                         />
                         <div className="flex justify-end">
                           <button
@@ -1450,7 +1450,7 @@ function AISimilar({ demand, all, onSelect }: { demand: Demand; all: Demand[]; o
   if (similar.length === 0) {
     return (
       <div className="bg-white dark:bg-slate-900/50 rounded-xl p-4 border border-slate-100 dark:border-slate-700/50">
-        <div className="flex items-center gap-1.5 text-[10px] font-bold text-violet-700 dark:text-violet-300 uppercase mb-2">
+        <div className="flex items-center gap-1.5 text-[10px] font-bold text-brand-700 dark:text-brand-300 uppercase mb-2">
           <Sparkles size={13} /> Demandas Similares
         </div>
         <p className="text-[11px] text-slate-400">Nenhuma demanda similar encontrada.</p>
@@ -1459,7 +1459,7 @@ function AISimilar({ demand, all, onSelect }: { demand: Demand; all: Demand[]; o
   }
   return (
     <div className="bg-white dark:bg-slate-900/50 rounded-xl p-4 border border-slate-100 dark:border-slate-700/50 md:col-span-2">
-      <div className="flex items-center gap-1.5 text-[10px] font-bold text-violet-700 dark:text-violet-300 uppercase mb-2">
+      <div className="flex items-center gap-1.5 text-[10px] font-bold text-brand-700 dark:text-brand-300 uppercase mb-2">
         <Sparkles size={13} /> Demandas Similares
       </div>
       <div className="flex flex-wrap gap-2">
@@ -1467,7 +1467,7 @@ function AISimilar({ demand, all, onSelect }: { demand: Demand; all: Demand[]; o
           <button
             key={d.id}
             onClick={() => onSelect(d)}
-            className="text-left px-3 py-2 rounded-lg bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 hover:border-violet-300 dark:hover:border-violet-600 transition-colors flex-1 min-w-[200px]"
+            className="text-left px-3 py-2 rounded-lg bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 hover:border-brand-300 dark:hover:border-brand-600 transition-colors flex-1 min-w-[200px]"
           >
             <p className="text-[11px] font-bold text-slate-700 dark:text-slate-200 truncate">{d.title}</p>
             <p className="text-[9px] text-slate-400 font-mono mt-0.5">{d.id} • {d.municipality}/{d.uf}</p>

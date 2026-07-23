@@ -23,7 +23,7 @@ export default function SettingsView({ onBackToLogin }: SettingsViewProps) {
   
   const [settings, setSettings] = useState<AppSettings>({
     organization_name: 'CGASI.SE - Coordenação Geral de Articulação e Supervisão Institucional da Secretária Executiva/ MAPA',
-    primary_color: '#001f4d',
+    primary_color: '#2E7D32',
     accent_color: '#2563eb',
     logo_url: ''
   });
@@ -120,7 +120,7 @@ export default function SettingsView({ onBackToLogin }: SettingsViewProps) {
     <div className="max-w-3xl mx-auto space-y-6">
       <div>
         <h2 className="text-2xl font-black text-slate-900 flex items-center gap-2">
-          <SettingsIcon className="text-indigo-950" size={26} />
+          <SettingsIcon className="text-brand-700" size={26} />
           Configurações do Sistema
         </h2>
         <p className="text-sm text-slate-500">
@@ -140,7 +140,7 @@ export default function SettingsView({ onBackToLogin }: SettingsViewProps) {
 
       {/* General Settings */}
       <div className="bg-white border border-slate-100 rounded-3xl p-6 shadow-sm space-y-5">
-        <h3 className="text-xs font-extrabold text-indigo-950 uppercase tracking-widest flex items-center gap-2">
+        <h3 className="text-xs font-extrabold text-brand-700 uppercase tracking-widest flex items-center gap-2">
           <SettingsIcon size={16} /> Aparência
         </h3>
 
@@ -150,7 +150,7 @@ export default function SettingsView({ onBackToLogin }: SettingsViewProps) {
             type="text"
             value={settings.organization_name}
             onChange={(e) => setSettings({ ...settings, organization_name: e.target.value })}
-            className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-transparent"
+            className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-brand-600 focus:border-transparent"
           />
         </div>
 
@@ -168,7 +168,7 @@ export default function SettingsView({ onBackToLogin }: SettingsViewProps) {
                 type="text"
                 value={settings.primary_color}
                 onChange={(e) => setSettings({ ...settings, primary_color: e.target.value })}
-                className="flex-1 px-3 py-2 rounded-lg border border-slate-200 text-xs font-mono text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-600"
+                className="flex-1 px-3 py-2 rounded-lg border border-slate-200 text-xs font-mono text-slate-700 focus:outline-none focus:ring-2 focus:ring-brand-600"
               />
             </div>
           </div>
@@ -185,7 +185,7 @@ export default function SettingsView({ onBackToLogin }: SettingsViewProps) {
                 type="text"
                 value={settings.accent_color}
                 onChange={(e) => setSettings({ ...settings, accent_color: e.target.value })}
-                className="flex-1 px-3 py-2 rounded-lg border border-slate-200 text-xs font-mono text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-600"
+                className="flex-1 px-3 py-2 rounded-lg border border-slate-200 text-xs font-mono text-slate-700 focus:outline-none focus:ring-2 focus:ring-brand-600"
               />
             </div>
           </div>
@@ -194,7 +194,7 @@ export default function SettingsView({ onBackToLogin }: SettingsViewProps) {
         <button
           onClick={handleSaveSettings}
           disabled={isSaving}
-          className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-slate-900 hover:bg-indigo-950 text-white font-bold text-xs uppercase tracking-wider cursor-pointer disabled:opacity-50 transition-colors"
+          className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-brand-700 hover:bg-brand-800 text-white font-bold text-xs uppercase tracking-wider cursor-pointer disabled:opacity-50 transition-colors"
         >
           {isSaving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
           Salvar Aparência
@@ -203,7 +203,7 @@ export default function SettingsView({ onBackToLogin }: SettingsViewProps) {
 
       {/* Password */}
       <div className="bg-white border border-slate-100 rounded-3xl p-6 shadow-sm space-y-5">
-        <h3 className="text-xs font-extrabold text-indigo-950 uppercase tracking-widest flex items-center gap-2">
+        <h3 className="text-xs font-extrabold text-brand-700 uppercase tracking-widest flex items-center gap-2">
           <Shield size={16} /> Segurança
         </h3>
 
@@ -222,7 +222,7 @@ export default function SettingsView({ onBackToLogin }: SettingsViewProps) {
                 type={showCurrentPassword ? 'text' : 'password'}
                 value={currentPassword}
                 onChange={(e) => setCurrentPassword(e.target.value)}
-                className="w-full px-4 py-2.5 pr-10 rounded-xl border border-slate-200 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-transparent"
+                className="w-full px-4 py-2.5 pr-10 rounded-xl border border-slate-200 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-brand-600 focus:border-transparent"
               />
               <button
                 type="button"
@@ -242,7 +242,7 @@ export default function SettingsView({ onBackToLogin }: SettingsViewProps) {
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
                 placeholder="Mínimo 8 caracteres"
-                className="w-full px-4 py-2.5 pr-10 rounded-xl border border-slate-200 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-transparent"
+                className="w-full px-4 py-2.5 pr-10 rounded-xl border border-slate-200 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-brand-600 focus:border-transparent"
               />
               <button
                 type="button"
@@ -260,7 +260,7 @@ export default function SettingsView({ onBackToLogin }: SettingsViewProps) {
               type="password"
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
-              className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-transparent"
+              className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-brand-600 focus:border-transparent"
             />
           </div>
 
@@ -277,7 +277,7 @@ export default function SettingsView({ onBackToLogin }: SettingsViewProps) {
 
       {/* Data Management */}
       <div className="bg-white border border-slate-100 rounded-3xl p-6 shadow-sm space-y-5">
-        <h3 className="text-xs font-extrabold text-indigo-950 uppercase tracking-widest flex items-center gap-2">
+        <h3 className="text-xs font-extrabold text-brand-700 uppercase tracking-widest flex items-center gap-2">
           <Download size={16} /> Dados
         </h3>
 

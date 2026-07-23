@@ -122,7 +122,7 @@ export default function MunicipalitiesView({ municipalities, setMunicipalities }
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
           <h2 className="text-2xl font-black text-slate-900 flex items-center gap-2">
-            <MapPin className="text-indigo-950" size={26} />
+            <MapPin className="text-brand-700" size={26} />
             Municípios Cadastrados
           </h2>
           <p className="text-sm text-slate-500">
@@ -131,7 +131,7 @@ export default function MunicipalitiesView({ municipalities, setMunicipalities }
         </div>
         <button
           onClick={handleAdd}
-          className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-900 text-white text-xs font-bold uppercase tracking-wider hover:bg-indigo-950 transition-colors shadow-sm cursor-pointer"
+          className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-brand-700 text-white text-xs font-bold uppercase tracking-wider hover:bg-brand-800 transition-colors shadow-sm cursor-pointer"
         >
           <Plus size={16} />
           Novo Município
@@ -147,13 +147,13 @@ export default function MunicipalitiesView({ municipalities, setMunicipalities }
             placeholder="Buscar município..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 text-sm text-slate-800 bg-white focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-transparent"
+            className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 text-sm text-slate-800 bg-white focus:outline-none focus:ring-2 focus:ring-brand-600 focus:border-transparent"
           />
         </div>
         <select
           value={selectedUf}
           onChange={(e) => setSelectedUf(e.target.value)}
-          className="px-4 py-2.5 rounded-xl border border-slate-200 text-sm text-slate-800 bg-white focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-transparent"
+          className="px-4 py-2.5 rounded-xl border border-slate-200 text-sm text-slate-800 bg-white focus:outline-none focus:ring-2 focus:ring-brand-600 focus:border-transparent"
         >
           <option value="">Todas as UFs</option>
           {BRAZILIAN_STATES.filter(uf => ufCounts[uf]).map(uf => (
@@ -220,7 +220,7 @@ export default function MunicipalitiesView({ municipalities, setMunicipalities }
                   value={formName}
                   onChange={(e) => setFormName(e.target.value)}
                   placeholder="Ex: Petrolina"
-                  className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-transparent"
+                  className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-brand-600 focus:border-transparent"
                 />
               </div>
               <div>
@@ -228,7 +228,7 @@ export default function MunicipalitiesView({ municipalities, setMunicipalities }
                 <select
                   value={formUf}
                   onChange={(e) => setFormUf(e.target.value)}
-                  className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm text-slate-800 bg-white focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-transparent"
+                  className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm text-slate-800 bg-white focus:outline-none focus:ring-2 focus:ring-brand-600 focus:border-transparent"
                 >
                   {BRAZILIAN_STATES.map(uf => (
                     <option key={uf} value={uf}>{uf}</option>
@@ -247,7 +247,7 @@ export default function MunicipalitiesView({ municipalities, setMunicipalities }
               <button
                 onClick={handleSave}
                 disabled={isSaving || !formName.trim()}
-                className="flex-1 py-2.5 px-4 rounded-xl bg-slate-900 hover:bg-indigo-950 text-white font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                className="flex-1 py-2.5 px-4 rounded-xl bg-brand-700 hover:bg-brand-800 text-white font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
               >
                 {isSaving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
                 {editingMunicipality ? 'Atualizar' : 'Cadastrar'}

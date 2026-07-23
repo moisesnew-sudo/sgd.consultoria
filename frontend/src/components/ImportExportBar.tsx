@@ -150,7 +150,7 @@ export default function ImportExportBar({ rows, onImported }: ImportExportBarPro
         h1{font-size:18px;margin:0 0 4px} p{color:#64748b;font-size:12px;margin:0 0 16px}
         table{width:100%;border-collapse:collapse;font-size:11px}
         th,td{border:1px solid #e2e8f0;padding:6px 8px;text-align:left}
-        th{background:#001f4d;color:#fff}
+        th{background:#2E7D32;color:#fff}
         tr:nth-child(even){background:#f8fafc}
       </style></head><body>
       <h1>CGASI.SE — Relatório de Demandas</h1>

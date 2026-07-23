@@ -59,7 +59,7 @@ export function ConfirmModal({
             className={`flex-1 py-2.5 px-4 rounded-xl font-bold text-xs uppercase tracking-wider cursor-pointer disabled:opacity-50 ${
               variant === 'danger'
                 ? 'bg-red-600 hover:bg-red-700 text-white'
-                : 'bg-slate-900 hover:bg-indigo-950 text-white'
+                : 'bg-slate-900 hover:bg-brand-800 text-white'
             }`}
           >
             {loading ? 'Aguarde...' : confirmLabel}

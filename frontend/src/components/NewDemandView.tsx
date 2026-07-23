@@ -211,7 +211,7 @@ export default function NewDemandView({ municipalities, onAddDemand, onNavigateT
           <p className="text-sm text-slate-500">
             A proposta foi inserida no sistema com o ID:
           </p>
-          <div className="inline-block bg-slate-900 text-indigo-400 font-mono font-bold text-lg px-4 py-2 rounded-xl border border-slate-800 shadow-xs">
+          <div className="inline-block bg-slate-900 text-brand-300 font-mono font-bold text-lg px-4 py-2 rounded-xl border border-slate-800 shadow-xs">
             {createdProtocol.id}
           </div>
         </div>
@@ -225,7 +225,7 @@ export default function NewDemandView({ municipalities, onAddDemand, onNavigateT
           </button>
           <button
             onClick={() => onNavigateToTab('demands')}
-            className="flex-1 py-3 px-4 rounded-xl bg-[#001f4d] hover:bg-blue-800 text-white font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2"
+            className="flex-1 py-3 px-4 rounded-xl bg-brand-700 hover:bg-brand-800 text-white font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2"
           >
             Visualizar Demandas
           </button>
@@ -244,7 +244,7 @@ export default function NewDemandView({ municipalities, onAddDemand, onNavigateT
     <div className="max-w-4xl mx-auto space-y-6" id="new-demand-view-root">
       <div>
         <h2 className="text-2xl font-black text-slate-900 flex items-center gap-2">
-          <FileText className="text-indigo-950" size={26} />
+          <FileText className="text-brand-700" size={26} />
           Cadastro Geral de Demandas
         </h2>
         <p className="text-sm text-slate-500">
@@ -256,7 +256,7 @@ export default function NewDemandView({ municipalities, onAddDemand, onNavigateT
         
         {/* Section 1: Location */}
         <div className="space-y-5">
-          <h3 className="text-xs font-extrabold text-indigo-950 uppercase tracking-widest border-b border-slate-100 pb-2 flex items-center gap-1.5">
+          <h3 className="text-xs font-extrabold text-brand-700 uppercase tracking-widest border-b border-slate-100 pb-2 flex items-center gap-1.5">
             <MapPin size={16} />
             1. Origem e Localização
           </h3>
@@ -267,7 +267,7 @@ export default function NewDemandView({ municipalities, onAddDemand, onNavigateT
                 id="uf-select"
                 value={uf}
                 onChange={(e) => handleUfChange(e.target.value)}
-                className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm text-slate-800 bg-white focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-transparent"
+                className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm text-slate-800 bg-white focus:outline-none focus:ring-2 focus:ring-brand-600 focus:border-transparent"
               >
                 {BRAZILIAN_STATES.map(state => (
                   <option key={state} value={state}>{state}</option>
@@ -284,7 +284,7 @@ export default function NewDemandView({ municipalities, onAddDemand, onNavigateT
                 value={municipality}
                 onChange={(e) => handleMunicipalityChange(e.target.value)}
                 placeholder="Ex: Petrolina"
-                className={`w-full px-4 py-2.5 rounded-xl border text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-transparent ${
+                className={`w-full px-4 py-2.5 rounded-xl border text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-brand-600 focus:border-transparent ${
                   errors.municipality ? 'border-red-400 bg-red-50/20' : 'border-slate-200'
                 }`}
               />
@@ -304,7 +304,7 @@ export default function NewDemandView({ municipalities, onAddDemand, onNavigateT
                 value={prefeitura}
                 onChange={(e) => setPrefeitura(e.target.value)}
                 placeholder="Ex: Prefeitura Municipal de Petrolina"
-                className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-transparent"
+                className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-brand-600 focus:border-transparent"
               />
             </div>
 
@@ -316,7 +316,7 @@ export default function NewDemandView({ municipalities, onAddDemand, onNavigateT
                 value={proposalNumber}
                 onChange={(e) => setProposalNumber(e.target.value)}
                 placeholder="Ex: PROP-2026-8794"
-                className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-transparent"
+                className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-brand-600 focus:border-transparent"
               />
             </div>
           </div>
@@ -324,7 +324,7 @@ export default function NewDemandView({ municipalities, onAddDemand, onNavigateT
 
         {/* Section 2: Project Details */}
         <div className="space-y-5">
-          <h3 className="text-xs font-extrabold text-indigo-950 uppercase tracking-widest border-b border-slate-100 pb-2 flex items-center gap-1.5">
+          <h3 className="text-xs font-extrabold text-brand-700 uppercase tracking-widest border-b border-slate-100 pb-2 flex items-center gap-1.5">
             <Layers size={16} />
             2. Detalhes do Projeto
           </h3>
@@ -337,7 +337,7 @@ export default function NewDemandView({ municipalities, onAddDemand, onNavigateT
                 value={objeto}
                 onChange={(e) => setObjeto(e.target.value)}
                 placeholder="Ex: Construção de Creche Proinfância"
-                className={`w-full px-4 py-2.5 rounded-xl border text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-transparent ${
+                className={`w-full px-4 py-2.5 rounded-xl border text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-brand-600 focus:border-transparent ${
                   errors.objeto ? 'border-red-400 bg-red-50/20' : 'border-slate-200'
                 }`}
               />
@@ -352,7 +352,7 @@ export default function NewDemandView({ municipalities, onAddDemand, onNavigateT
                 value={organ}
                 onChange={(e) => setOrgan(e.target.value)}
                 placeholder="Ex: MEC, MS, FNDE"
-                className={`w-full px-4 py-2.5 rounded-xl border text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-transparent ${
+                className={`w-full px-4 py-2.5 rounded-xl border text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-brand-600 focus:border-transparent ${
                   errors.organ ? 'border-red-400 bg-red-50/20' : 'border-slate-200'
                 }`}
               />
@@ -369,7 +369,7 @@ export default function NewDemandView({ municipalities, onAddDemand, onNavigateT
                   value={requestedValue}
                   onChange={(e) => setRequestedValue(e.target.value)}
                   placeholder="Ex: 1250000"
-                  className={`w-full pl-9 pr-4 py-2.5 rounded-xl border text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-transparent ${
+                  className={`w-full pl-9 pr-4 py-2.5 rounded-xl border text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-brand-600 focus:border-transparent ${
                     errors.requestedValue ? 'border-red-400 bg-red-50/20' : 'border-slate-200'
                   }`}
                 />
@@ -389,7 +389,7 @@ export default function NewDemandView({ municipalities, onAddDemand, onNavigateT
                 id="status-select"
                 value={status}
                 onChange={(e) => setStatus(e.target.value as DemandStatus)}
-                className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm text-slate-800 bg-white focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-transparent"
+                className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm text-slate-800 bg-white focus:outline-none focus:ring-2 focus:ring-brand-600 focus:border-transparent"
               >
                 <option value="pendente">Pendente</option>
                 <option value="analise">Em Análise</option>
@@ -411,7 +411,7 @@ export default function NewDemandView({ municipalities, onAddDemand, onNavigateT
                   setAno(val ? Number(val) : 0);
                 }}
                 placeholder="Ex.: 2026"
-                className={`w-full px-4 py-2.5 rounded-xl border text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-transparent ${
+                className={`w-full px-4 py-2.5 rounded-xl border text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-brand-600 focus:border-transparent ${
                   errors.ano ? 'border-red-400 bg-red-50/20' : 'border-slate-200'
                 }`}
               />
@@ -426,7 +426,7 @@ export default function NewDemandView({ municipalities, onAddDemand, onNavigateT
                 value={processLink}
                 onChange={(e) => setProcessLink(e.target.value)}
                 placeholder="https://processos.governo.gov.br/..."
-                className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-transparent"
+                className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-brand-600 focus:border-transparent"
               />
             </div>
           </div>
@@ -434,7 +434,7 @@ export default function NewDemandView({ municipalities, onAddDemand, onNavigateT
 
         {/* Section 3: Responsibility */}
         <div className="space-y-5">
-          <h3 className="text-xs font-extrabold text-indigo-950 uppercase tracking-widest border-b border-slate-100 pb-2 flex items-center gap-1.5">
+          <h3 className="text-xs font-extrabold text-brand-700 uppercase tracking-widest border-b border-slate-100 pb-2 flex items-center gap-1.5">
             <DollarSign size={16} />
             3. Responsável e Criticidade
           </h3>
@@ -446,7 +446,7 @@ export default function NewDemandView({ municipalities, onAddDemand, onNavigateT
                 type="text"
                 value={responsibleName}
                 onChange={(e) => setResponsibleName(e.target.value)}
-                className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-transparent"
+                className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-brand-600 focus:border-transparent"
               />
             </div>
 
@@ -457,7 +457,7 @@ export default function NewDemandView({ municipalities, onAddDemand, onNavigateT
                 type="email"
                 value={responsibleEmail}
                 onChange={(e) => setResponsibleEmail(e.target.value)}
-                className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-transparent"
+                className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-brand-600 focus:border-transparent"
               />
             </div>
 
@@ -527,7 +527,7 @@ export default function NewDemandView({ municipalities, onAddDemand, onNavigateT
                 {attachments.map((file, idx) => (
                   <div key={idx} className="flex items-center justify-between p-3 bg-white border border-slate-200/60 rounded-xl shadow-xs">
                     <div className="min-w-0 flex-1 flex items-center gap-2">
-                      <div className="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0 font-bold text-[9px] uppercase font-mono">
+                      <div className="w-8 h-8 rounded-lg bg-brand-50 text-brand-600 flex items-center justify-center shrink-0 font-bold text-[9px] uppercase font-mono">
                         {file.name.split('.').pop() || 'PDF'}
                       </div>
                       <div className="min-w-0">
@@ -558,7 +558,7 @@ export default function NewDemandView({ municipalities, onAddDemand, onNavigateT
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
             placeholder="Anotações internas..."
-            className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-transparent"
+            className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-brand-600 focus:border-transparent"
           />
         </div>
 
@@ -574,7 +574,7 @@ export default function NewDemandView({ municipalities, onAddDemand, onNavigateT
           <button
             type="submit"
             disabled={isSubmitting}
-            className="py-3 px-8 rounded-xl bg-slate-900 hover:bg-indigo-950 text-white font-bold text-xs uppercase tracking-wider shadow-md hover:shadow-lg transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+            className="py-3 px-8 rounded-xl bg-brand-700 hover:bg-brand-800 text-white font-bold text-xs uppercase tracking-wider shadow-md hover:shadow-lg transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
           >
             {isSubmitting ? (
               <>

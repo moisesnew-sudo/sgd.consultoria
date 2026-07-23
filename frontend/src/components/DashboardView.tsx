@@ -48,7 +48,7 @@ const STATUS_LABEL: Record<string, string> = {
 };
 const STATUS_COLOR: Record<string, string> = {
   pendente: '#f59e0b',
-  analise: '#3b5bdb',
+  analise: '#2563eb',
   concluido: '#10b981',
   rejeitado: '#f43f5e',
 };
@@ -247,7 +247,7 @@ export default function DashboardView({ onNavigateToTab, onSelectDemand }: Dashb
           <select
             value={yearFilter}
             onChange={(e) => setYearFilter(e.target.value)}
-            className="px-3 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-900/60 text-xs text-slate-700 dark:text-slate-200 bg-white focus:outline-none focus:ring-2 focus:ring-blue-600"
+            className="px-3 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-900/60 text-xs text-slate-700 dark:text-slate-200 bg-white focus:outline-none focus:ring-2 focus:ring-brand-600"
           >
             <option value="all">Todos os anos</option>
             {Array.from({ length: 51 }, (_, i) => new Date().getFullYear() + i - 30).filter(y => y >= 1990).map(y => (
@@ -275,7 +275,7 @@ export default function DashboardView({ onNavigateToTab, onSelectDemand }: Dashb
           { delay: 0, label: 'Total de Demandas', value: String(metrics.total), hint: 'Cadastradas no sistema', icon: <BarChart3 size={20} />, accent: 'brand' as const },
           { delay: 50, label: 'Em Andamento', value: String(metrics.inProgress), hint: 'Em análise', icon: <Hourglass size={20} />, accent: 'blue' as const },
           { delay: 100, label: 'Concluídas', value: String(metrics.concluded), hint: `${fmtPct(metrics.concluded)}% do total`, icon: <CheckCircle2 size={20} />, accent: 'green' as const },
-          { delay: 150, label: 'Valor Solicitado', value: formatCompactCurrency(metrics.totalValue), hint: `Completo: ${formatCurrency(metrics.totalValue)}`, icon: <DollarSign size={20} />, accent: 'violet' as const },
+          { delay: 150, label: 'Valor Solicitado', value: formatCompactCurrency(metrics.totalValue), hint: `Completo: ${formatCurrency(metrics.totalValue)}`, icon: <DollarSign size={20} />, accent: 'brand' as const },
           { delay: 250, label: 'Municípios', value: String(metrics.municipalities), hint: 'Atendidos', icon: <MapPin size={20} />, accent: 'amber' as const },
           { delay: 300, label: 'Vencidas', value: String(metrics.overdue), hint: `${fmtPct(metrics.overdue)}% do total`, icon: <AlertTriangle size={20} />, accent: 'rose' as const },
           { delay: 350, label: 'Ticket Médio', value: metrics.total > 0 ? formatCompactCurrency(metrics.totalValue / metrics.total) : 'R$ 0', hint: `${metrics.total} demanda(s)`, icon: <DollarSign size={20} />, accent: 'blue' as const },
@@ -358,7 +358,7 @@ export default function DashboardView({ onNavigateToTab, onSelectDemand }: Dashb
               <YAxis tick={{ fontSize: 11, fill: '#64748b' }} axisLine={false} tickLine={false} allowDecimals={false} />
               <Tooltip
                 contentStyle={{ borderRadius: 12, border: '1px solid #e2e8f0', fontSize: 12, background: 'rgba(255,255,255,0.95)' }}
-                cursor={{ fill: 'rgba(59,91,219,0.08)' }}
+                cursor={{ fill: 'rgba(46,125,50,0.08)' }}
               />
               <Bar dataKey="value" radius={[6, 6, 0, 0]} name="Demandas">
                 {charts.statusData.map((e) => <Cell key={e.key} fill={e.color} />)}
@@ -410,7 +410,7 @@ export default function DashboardView({ onNavigateToTab, onSelectDemand }: Dashb
               <YAxis tick={{ fontSize: 11, fill: '#64748b' }} axisLine={false} tickLine={false} tickFormatter={(v) => v >= 1000 ? `${(v / 1000).toFixed(0)}k` : `${v}`} />
               <Tooltip contentStyle={{ borderRadius: 12, border: '1px solid #e2e8f0', fontSize: 12 }} formatter={(v: any) => formatCurrency(Number(v))} />
               <Legend wrapperStyle={{ fontSize: 11 }} />
-              <Line type="monotone" dataKey="solicitado" name="Solicitado" stroke="#3b5bdb" strokeWidth={3} dot={{ r: 3 }} activeDot={{ r: 5 }} />
+              <Line type="monotone" dataKey="solicitado" name="Solicitado" stroke="#2E7D32" strokeWidth={3} dot={{ r: 3 }} activeDot={{ r: 5 }} />
               <Line type="monotone" dataKey="concluido" name="Concluído" stroke="#10b981" strokeWidth={3} dot={{ r: 3 }} activeDot={{ r: 5 }} />
             </LineChart>
           </ResponsiveContainer>
@@ -442,7 +442,7 @@ export default function DashboardView({ onNavigateToTab, onSelectDemand }: Dashb
             {charts.rankingProg.length === 0 && <p className="text-xs text-slate-400">Sem dados.</p>}
             {charts.rankingProg.map((p, i) => (
               <div key={p.name} className="flex items-center gap-3">
-                <span className={`w-6 h-6 rounded-lg flex items-center justify-center text-[11px] font-black ${i === 0 ? 'bg-violet-100 text-violet-700' : i === 1 ? 'bg-slate-100 text-slate-600' : i === 2 ? 'bg-blue-100 text-blue-700' : 'bg-slate-50 text-slate-400'}`}>{i + 1}</span>
+                <span className={`w-6 h-6 rounded-lg flex items-center justify-center text-[11px] font-black ${i === 0 ? 'bg-brand-100 text-brand-700' : i === 1 ? 'bg-slate-100 text-slate-600' : i === 2 ? 'bg-blue-100 text-blue-700' : 'bg-slate-50 text-slate-400'}`}>{i + 1}</span>
                 <div className="flex-1 min-w-0">
                   <div className="flex justify-between text-xs">
                     <span className="font-semibold text-slate-700 dark:text-slate-200 truncate">{p.name}</span>

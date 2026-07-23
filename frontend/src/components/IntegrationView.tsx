@@ -45,7 +45,7 @@ export default function IntegrationView() {
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h2 className="text-2xl font-black tracking-tight text-slate-900 dark:text-white flex items-center gap-2">
-            <Plug className="text-violet-600" /> API & Integrações
+            <Plug className="text-brand-600" /> API & Integrações
           </h2>
           <p className="text-sm text-slate-500 dark:text-slate-400">Conecte o CGASI.SE a outros sistemas via REST API</p>
         </div>
@@ -63,7 +63,7 @@ export default function IntegrationView() {
           {/* Token + Base URL */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="bg-white dark:bg-slate-900/50 rounded-2xl border border-slate-100 dark:border-slate-700/50 p-4 space-y-2">
-              <div className="flex items-center gap-1.5 text-[10px] font-bold text-violet-700 dark:text-violet-300 uppercase">
+              <div className="flex items-center gap-1.5 text-[10px] font-bold text-brand-700 dark:text-brand-300 uppercase">
                 <KeyRound size={13} /> Token de API (Servidor-a-Servidor)
               </div>
               <div className="flex items-center gap-2">
@@ -76,7 +76,7 @@ export default function IntegrationView() {
             </div>
 
             <div className="bg-white dark:bg-slate-900/50 rounded-2xl border border-slate-100 dark:border-slate-700/50 p-4 space-y-2">
-              <div className="flex items-center gap-1.5 text-[10px] font-bold text-violet-700 dark:text-violet-300 uppercase">
+              <div className="flex items-center gap-1.5 text-[10px] font-bold text-brand-700 dark:text-brand-300 uppercase">
                 <Webhook size={13} /> Base URL
               </div>
               <div className="flex items-center gap-2">
@@ -123,7 +123,7 @@ export default function IntegrationView() {
           {/* cURL example */}
           <div className="bg-white dark:bg-slate-900/50 rounded-2xl border border-slate-100 dark:border-slate-700/50 p-4 space-y-2">
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-1.5 text-[10px] font-bold text-violet-700 dark:text-violet-300 uppercase">
+              <div className="flex items-center gap-1.5 text-[10px] font-bold text-brand-700 dark:text-brand-300 uppercase">
                 <Code2 size={13} /> Exemplo (cURL)
               </div>
               <button onClick={() => copy(curlExample, 'curl')} className="p-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800">

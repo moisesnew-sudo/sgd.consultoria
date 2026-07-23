@@ -38,17 +38,16 @@ interface KpiProps {
   value: string;
   hint?: string;
   icon: React.ReactNode;
-  accent?: 'brand' | 'green' | 'amber' | 'rose' | 'blue' | 'violet';
+  accent?: 'brand' | 'green' | 'amber' | 'rose' | 'blue';
   trend?: { value: string; positive?: boolean };
 }
 
 const accentMap: Record<NonNullable<KpiProps['accent']>, string> = {
   brand: 'bg-brand-50 dark:bg-brand-900/40 text-brand-600 dark:text-brand-300',
-  green: 'bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-300',
+  green: 'bg-green-50 dark:bg-green-900/30 text-green-600 dark:text-green-300',
   amber: 'bg-amber-50 dark:bg-amber-900/30 text-amber-600 dark:text-amber-300',
   rose: 'bg-rose-50 dark:bg-rose-900/30 text-rose-600 dark:text-rose-300',
   blue: 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-300',
-  violet: 'bg-violet-50 dark:bg-violet-900/30 text-violet-600 dark:text-violet-300',
 };
 
 export function Kpi({ label, value, hint, icon, accent = 'brand', trend }: KpiProps) {
