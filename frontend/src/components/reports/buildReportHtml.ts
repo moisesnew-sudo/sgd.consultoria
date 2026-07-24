@@ -266,7 +266,7 @@ body{font-family:'Inter','Segoe UI',system-ui,sans-serif;font-size:12px;line-hei
     <div style="flex:1;display:flex;flex-direction:column;justify-content:center">
       <span class="cvr-bdg">Relatório Executivo</span>
       <h1 class="cvr-tit">RELATÓRIO EXECUTIVO</h1>
-      <p class="cvr-sub">Análise Inteligente das Demandas</p>
+      <p class="cvr-sub">Análise Gerencial das Demandas</p>
       <div class="cvr-info">
         <div class="r"><span class="l">Data de emissão</span><span class="v">${dateStr}</span></div>
         <div class="r"><span class="l">Horário</span><span class="v">${timeStr}</span></div>
@@ -329,11 +329,11 @@ body{font-family:'Inter','Segoe UI',system-ui,sans-serif;font-size:12px;line-hei
   ${pageFooter()}
 </div>
 
-<!-- ===== PAGE 3: ANÁLISE IA ===== -->
+<!-- ===== PAGE 3: ANÁLISE EXECUTIVA ===== -->
 <div class="pg">
   ${pageHeader(3, totalPages, shortDate)}
   <div class="pg-bd">
-    ${sectionTitle('Análise da IA', '#6366f1', iconBrain)}
+    ${sectionTitle('Análise Executiva', '#6366f1', iconBrain)}
     <div class="anl">
       ${analysis.map(p => `<p>${p}</p>`).join('\n')}
     </div>
@@ -399,7 +399,11 @@ body{font-family:'Inter','Segoe UI',system-ui,sans-serif;font-size:12px;line-hei
       <table class="tb">
         <thead><tr><th>ID</th><th>Título</th><th>Município/UF</th><th>Órgão</th><th>Ano</th><th>Status</th><th>Prioridade</th><th>Valor</th><th>Data</th></tr></thead>
         <tbody>
-          ${demands.map(d => {
+          ${[...demands].sort((a, b) => {
+            const cmp = a.municipality.localeCompare(b.municipality, 'pt-BR', { sensitivity: 'base' });
+            if (cmp !== 0) return cmp;
+            return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+          }).map(d => {
             const stColor = SC[d.status] || '#94a3b8';
             const prColor = PC[d.priority] || '#94a3b8';
             return `<tr>
