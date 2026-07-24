@@ -27,9 +27,6 @@ import {
   PieChart,
   Pie,
   Cell,
-  LineChart,
-  Line,
-  Legend
 } from 'recharts';
 import { Demand } from '../types';
 import { demandsApi, formatCurrency, formatDate } from '../services/api';
@@ -174,25 +171,7 @@ export default function DashboardView({ onNavigateToTab, onSelectDemand }: Dashb
       .sort((a, b) => b.value - a.value)
       .slice(0, 6);
 
-    const monthMap = new Map<string, { solicitado: number; concluido: number }>();
-    for (const d of demands) {
-      const dt = new Date(d.created_at);
-      const key = `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}`;
-      const cur = monthMap.get(key) || { solicitado: 0, concluido: 0 };
-      cur.solicitado += d.requested_value || 0;
-      if (d.status === 'concluido') cur.concluido += d.requested_value || 0;
-      monthMap.set(key, cur);
-    }
-    const evolution = Array.from(monthMap.entries())
-      .sort((a, b) => a[0].localeCompare(b[0]))
-      .slice(-12)
-      .map(([k, v]) => ({
-        month: k.slice(2),
-        solicitado: Math.round(v.solicitado),
-        concluido: Math.round(v.concluido),
-      }));
-
-    return { statusData, priorityData, rankingMuni, rankingProg, evolution };
+    return { statusData, priorityData, rankingMuni, rankingProg };
   }, [demands, metrics]);
 
   const recentEvents = useMemo(() => {
@@ -400,22 +379,7 @@ export default function DashboardView({ onNavigateToTab, onSelectDemand }: Dashb
         </Card>
       </section>
 
-      {/* CHARTS ROW 2 - EVOLUTION */}
-      <section className="grid grid-cols-1 gap-4">
-        <Card title="Evolução Mensal" subtitle="Valor solicitado vs. concluído (R$)" icon={<Activity size={18} />}>
-          <ResponsiveContainer width="100%" height={280}>
-            <LineChart data={charts.evolution} margin={{ top: 8, right: 8, left: -8, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" className="dark:[stroke:#1e293b]" vertical={false} />
-              <XAxis dataKey="month" tick={{ fontSize: 11, fill: '#64748b' }} axisLine={false} tickLine={false} />
-              <YAxis tick={{ fontSize: 11, fill: '#64748b' }} axisLine={false} tickLine={false} tickFormatter={(v) => v >= 1000 ? `${(v / 1000).toFixed(0)}k` : `${v}`} />
-              <Tooltip contentStyle={{ borderRadius: 12, border: '1px solid #e2e8f0', fontSize: 12 }} formatter={(v: any) => formatCurrency(Number(v))} />
-              <Legend wrapperStyle={{ fontSize: 11 }} />
-              <Line type="monotone" dataKey="solicitado" name="Solicitado" stroke="#2E7D32" strokeWidth={3} dot={{ r: 3 }} activeDot={{ r: 5 }} />
-              <Line type="monotone" dataKey="concluido" name="Concluído" stroke="#10b981" strokeWidth={3} dot={{ r: 3 }} activeDot={{ r: 5 }} />
-            </LineChart>
-          </ResponsiveContainer>
-        </Card>
-      </section>
+
 
       {/* RANKINGS */}
       <section className="grid grid-cols-1 lg:grid-cols-2 gap-4">
