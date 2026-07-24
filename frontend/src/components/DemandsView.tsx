@@ -27,6 +27,7 @@ import {
 } from 'lucide-react';
 import { Demand, DemandStatus, DemandPriority, TimelineEvent, PaginatedResponse } from '../types';
 import { demandsApi, formatCurrency, formatDate, ROLE_PERMISSIONS } from '../services/api';
+import { formatCurrencyInput, parseCurrencyInput } from '../lib/currency';
 import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../contexts/ToastContext';
 import { TableSkeleton } from './ui/Skeleton';
@@ -156,7 +157,7 @@ export default function DemandsView({
     setEditPriority(demand.priority);
     setEditMunicipality(demand.municipality);
     setEditUf(demand.uf);
-    setEditRequestedValue(String(demand.requested_value || ''));
+    setEditRequestedValue(formatCurrencyInput(String(Math.round((demand.requested_value || 0) * 100))));
     setEditOrgan(demand.organ || '');
     setEditPrefeitura(demand.prefeitura || '');
     setEditProposalNumber(demand.proposal_number || '');
@@ -180,7 +181,7 @@ export default function DemandsView({
         priority: editPriority,
         municipality: editMunicipality.trim(),
         uf: editUf,
-        requested_value: editRequestedValue ? Number(editRequestedValue) : 0,
+        requested_value: editRequestedValue ? parseCurrencyInput(editRequestedValue) : 0,
         organ: editOrgan.trim() || undefined,
         prefeitura: editPrefeitura.trim() || undefined,
         proposal_number: editProposalNumber.trim() || undefined,
@@ -940,7 +941,7 @@ export default function DemandsView({
                     </div>
                     <div className="space-y-1">
                       <label className="text-xs font-bold text-slate-700 block">Valor Solicitado (R$)</label>
-                      <input type="number" value={editRequestedValue} onChange={(e) => setEditRequestedValue(e.target.value)}
+                      <input type="text" inputMode="numeric" value={editRequestedValue} onChange={(e) => setEditRequestedValue(formatCurrencyInput(e.target.value))}
                         className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-brand-600 focus:outline-none" />
                     </div>
                     <div className="space-y-1">
