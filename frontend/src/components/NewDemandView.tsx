@@ -11,7 +11,8 @@ import {
   AlertCircle
 } from 'lucide-react';
 import { Demand, DemandPriority, DemandStatus, Attachment } from '../types';
-import { demandsApi, formatCurrency } from '../services/api';
+import { demandsApi } from '../services/api';
+import { formatCurrencyInput, parseCurrencyInput } from '../lib/currency';
 import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../contexts/ToastContext';
 
@@ -154,7 +155,7 @@ export default function NewDemandView({ municipalities, onAddDemand, onNavigateT
         priority,
         municipality,
         uf,
-        requested_value: requestedValue ? Number(requestedValue) : 0,
+        requested_value: requestedValue ? parseCurrencyInput(requestedValue) : 0,
         prefeitura: prefeitura || `Prefeitura Municipal de ${municipality}`,
         proposal_number: proposalNumber || undefined,
         organ: organ || undefined,
@@ -365,22 +366,17 @@ export default function NewDemandView({ municipalities, onAddDemand, onNavigateT
                 <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs font-semibold">R$</span>
                 <input
                   id="value-input"
-                  type="number"
+                  type="text"
+                  inputMode="numeric"
                   value={requestedValue}
-                  onChange={(e) => setRequestedValue(e.target.value)}
-                  placeholder="Ex: 1250000"
+                  onChange={(e) => setRequestedValue(formatCurrencyInput(e.target.value))}
+                  placeholder="R$ 0,00"
                   className={`w-full pl-9 pr-4 py-2.5 rounded-xl border text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-brand-600 focus:border-transparent ${
                     errors.requestedValue ? 'border-red-400 bg-red-50/20' : 'border-slate-200'
                   }`}
                 />
               </div>
-              {errors.requestedValue ? (
-                <p className="text-[10px] text-red-500 font-semibold">{errors.requestedValue}</p>
-              ) : (
-                <p className="text-[9px] text-slate-400 font-mono">
-                  {requestedValue && !isNaN(Number(requestedValue)) ? `Formatado: ${formatCurrency(Number(requestedValue))}` : 'Apenas números'}
-                </p>
-              )}
+              {errors.requestedValue && <p className="text-[10px] text-red-500 font-semibold">{errors.requestedValue}</p>}
             </div>
 
             <div className="md:col-span-6 space-y-1" id="field-status">

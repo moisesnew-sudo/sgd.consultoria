@@ -1,8 +1,11 @@
 import React, { useState, useRef } from 'react';
 import * as XLSX from 'xlsx';
-import { UploadCloud, Download, FileSpreadsheet, FileText, FileJson, X, Loader2, CheckCircle2, AlertTriangle } from 'lucide-react';
+import { jsPDF } from 'jspdf';
+import autoTable from 'jspdf-autotable';
+import { UploadCloud, Download, FileText, X, Loader2, CheckCircle2, AlertTriangle } from 'lucide-react';
 import { Demand } from '../types';
 import { demandsApi, formatDate } from '../services/api';
+import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../contexts/ToastContext';
 
 interface ImportExportBarProps {
@@ -52,8 +55,13 @@ function mapRow(row: any): Partial<Demand> | null {
   return mapped as Partial<Demand>;
 }
 
+const fmtCurrency = (v: number): string => {
+  return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v);
+};
+
 export default function ImportExportBar({ rows, onImported }: ImportExportBarProps) {
   const { toast } = useToast();
+  const { user } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [importing, setImporting] = useState(false);
@@ -65,7 +73,6 @@ export default function ImportExportBar({ rows, onImported }: ImportExportBarPro
     setImportResult(null);
     try {
       const data = await file.arrayBuffer();
-      const isCsv = file.name.toLowerCase().endsWith('.csv');
       const wb = XLSX.read(data, { type: 'array', codepage: 65001 });
       const sheet = wb.Sheets[wb.SheetNames[0]];
       const json: any[] = XLSX.utils.sheet_to_json(sheet, { defval: '', raw: false });
@@ -125,7 +132,7 @@ export default function ImportExportBar({ rows, onImported }: ImportExportBarPro
       d.id, d.title, d.municipality, d.uf, d.ano || '', d.status, d.priority, d.category,
       d.requested_value, d.organ || '', d.proposal_number || '', d.responsible_name || '', formatDate(d.created_at)
     ].map(escape).join(','));
-    const csv = '﻿' + [headers.join(','), ...lines].join('\n');
+    const csv = '\uFEFF' + [headers.join(','), ...lines].join('\n');
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -136,31 +143,205 @@ export default function ImportExportBar({ rows, onImported }: ImportExportBarPro
   };
 
   const exportPdf = () => {
-    const win = window.open('', '_blank', 'width=900,height=700');
-    if (!win) return;
-    const body = rows.map(d => `
-      <tr>
-        <td>${d.id}</td><td>${d.title}</td><td>${d.municipality}/${d.uf}</td>
-        <td>${d.ano || '—'}</td><td>${d.status}</td><td>${d.priority}</td><td>R$ ${(d.requested_value || 0).toFixed(2)}</td>
-      </tr>`).join('');
-    win.document.write(`<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8">
-      <title>CGASI.SE - Relatório de Demandas</title>
-      <style>
-        body{font-family:Arial,sans-serif;margin:32px;color:#0f172a}
-        h1{font-size:18px;margin:0 0 4px} p{color:#64748b;font-size:12px;margin:0 0 16px}
-        table{width:100%;border-collapse:collapse;font-size:11px}
-        th,td{border:1px solid #e2e8f0;padding:6px 8px;text-align:left}
-        th{background:#2E7D32;color:#fff}
-        tr:nth-child(even){background:#f8fafc}
-      </style></head><body>
-      <h1>CGASI.SE — Relatório de Demandas</h1>
-      <p>Gerado em ${new Date().toLocaleString('pt-BR')} • ${rows.length} registro(s) filtrado(s)</p>
-      <table><thead><tr>
-        <th>ID</th><th>Título</th><th>Município/UF</th><th>Ano</th><th>Status</th><th>Prioridade</th><th>Valor</th>
-      </tr></thead><tbody>${body}</tbody></table>
-      <script>window.onload=()=>{window.print()}</script>
-      </body></html>`);
-    win.document.close();
+    const doc = new jsPDF('landscape', 'mm', 'a4');
+    const pageW = 297;
+    const margin = 20;
+    const usableW = pageW - margin * 2;
+
+    const now = new Date();
+    const dateStr = now.toLocaleDateString('pt-BR');
+    const timeStr = now.toLocaleTimeString('pt-BR');
+
+    const sorted = [...rows].sort((a, b) =>
+      a.municipality.localeCompare(b.municipality, 'pt-BR', { sensitivity: 'base' })
+    );
+
+    const totalValue = rows.reduce((s, d) => s + (d.requested_value || 0), 0);
+    const municipalitiesSet = new Set(rows.map(d => d.municipality));
+    const organsSet = new Set(rows.map(d => d.organ).filter(Boolean));
+    const ufsSet = new Set(rows.map(d => d.uf));
+
+    const primaryColor: [number, number, number] = [46, 125, 50];
+    const lightBg: [number, number, number] = [245, 250, 245];
+
+    const addHeader = () => {
+      doc.setFontSize(18);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(...primaryColor);
+      doc.text('CGASI.SE', pageW / 2, 20, { align: 'center' });
+
+      doc.setFontSize(9);
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(100, 116, 139);
+      doc.text(
+        'COORDENAÇÃO GERAL DE ARTICULAÇÃO E SUPERVISÃO INSTITUCIONAL DA SECRETARIA EXECUTIVA / MAPA',
+        pageW / 2, 26, { align: 'center' }
+      );
+
+      doc.setDrawColor(...primaryColor);
+      doc.setLineWidth(0.8);
+      doc.line(margin, 30, pageW - margin, 30);
+    };
+
+    const addFooter = (pageNum: number, totalPages: number) => {
+      doc.setFontSize(7);
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(148, 163, 184);
+      doc.text('Sistema CGASI.SE', margin, 204);
+      doc.text('Relatório emitido automaticamente', margin, 208);
+      doc.text(`${dateStr} ${timeStr}`, margin, 212);
+
+      doc.text(`Página ${pageNum} de ${totalPages}`, pageW - margin, 204, { align: 'right' });
+    };
+
+    const addInfoBox = (y: number): number => {
+      const boxX = margin;
+      const boxY = y;
+      const boxW = usableW;
+      const boxH = 38;
+      const colW = boxW / 4;
+
+      doc.setDrawColor(226, 232, 240);
+      doc.setFillColor(248, 250, 252);
+      doc.roundedRect(boxX, boxY, boxW, boxH, 2, 2, 'FD');
+
+      doc.setFontSize(8);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(100, 116, 139);
+
+      const items = [
+        ['Emissão', `${dateStr} ${timeStr}`],
+        ['Usuário', user?.name || '—'],
+        ['Total de Demandas', String(rows.length)],
+        ['Valor Total', fmtCurrency(totalValue)],
+        ['Municípios', String(municipalitiesSet.size)],
+        ['Órgãos', String(organsSet.size)],
+        ['Estados', String(ufsSet.size)],
+      ];
+
+      items.forEach(([label, value], i) => {
+        const x = boxX + (i % 4) * colW + 4;
+        const yPos = boxY + 6 + Math.floor(i / 4) * 15;
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(6.5);
+        doc.setTextColor(148, 163, 184);
+        doc.text(label.toUpperCase(), x, yPos);
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(8.5);
+        doc.setTextColor(15, 23, 42);
+        doc.text(value, x, yPos + 5);
+      });
+
+      return boxY + boxH + 10;
+    };
+
+    const tableTitleY = addInfoBox(38);
+
+    doc.setFontSize(14);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(15, 23, 42);
+    doc.text('RELATÓRIO GERAL DE DEMANDAS', pageW / 2, tableTitleY, { align: 'center' });
+
+    const tableY = tableTitleY + 8;
+
+    const columns = [
+      { header: 'Município', dataKey: 'municipality' },
+      { header: 'Estado', dataKey: 'uf' },
+      { header: 'Órgão', dataKey: 'organ' },
+      { header: 'Ano', dataKey: 'ano' },
+      { header: 'Nº Proposta', dataKey: 'proposal_number' },
+      { header: 'Objeto', dataKey: 'title' },
+      { header: 'Valor Solicitado', dataKey: 'requested_value' },
+      { header: 'Status', dataKey: 'status' },
+      { header: 'Prioridade', dataKey: 'priority' },
+    ];
+
+    const statusLabel: Record<string, string> = {
+      pendente: 'Pendente', analise: 'Em Análise', concluido: 'Concluído', rejeitado: 'Rejeitado',
+    };
+    const priorityLabel: Record<string, string> = {
+      baixa: 'Baixa', media: 'Média', alta: 'Alta', urgente: 'Urgente',
+    };
+
+    const tableData = sorted.map(d => [
+      d.municipality,
+      d.uf,
+      d.organ || '—',
+      d.ano != null ? String(d.ano) : '—',
+      d.proposal_number || '—',
+      d.title,
+      fmtCurrency(d.requested_value || 0),
+      statusLabel[d.status] || d.status,
+      priorityLabel[d.priority] || d.priority,
+    ]);
+
+    const totalPagesExp = '{totalPages}';
+
+    autoTable(doc, {
+      startY: tableY,
+      head: [columns.map(c => c.header)],
+      body: tableData,
+      theme: 'grid',
+      styles: {
+        fontSize: 7,
+        cellPadding: 2.5,
+        lineColor: [226, 232, 240],
+        lineWidth: 0.3,
+        textColor: [51, 65, 85],
+        valign: 'middle',
+      },
+      headStyles: {
+        fillColor: primaryColor,
+        textColor: [255, 255, 255],
+        fontStyle: 'bold',
+        fontSize: 7,
+        halign: 'center',
+      },
+      alternateRowStyles: {
+        fillColor: lightBg,
+      },
+      columnStyles: {
+        0: { cellWidth: 'auto' },
+        1: { cellWidth: 14, halign: 'center' },
+        2: { cellWidth: 'auto' },
+        3: { cellWidth: 12, halign: 'center' },
+        4: { cellWidth: 'auto' },
+        5: { cellWidth: 'auto' },
+        6: { cellWidth: 28, halign: 'right', fontStyle: 'bold' },
+        7: { cellWidth: 20, halign: 'center' },
+        8: { cellWidth: 18, halign: 'center' },
+      },
+      margin: { top: margin, right: margin, bottom: 24, left: margin },
+      pageBreak: 'auto',
+      showHead: 'everyPage',
+      tableLineWidth: 0,
+      didDrawPage: (data: any) => {
+        if (data.pageCount > 0) {
+          addFooter(data.pageCount, data.pageCount);
+        }
+      },
+    });
+
+    const finalPages = (doc as any).internal?.getNumberOfPages?.() || 1;
+    if (finalPages > 1 || true) {
+      for (let i = 1; i <= finalPages; i++) {
+        doc.setPage(i);
+        const currentPage = i;
+        const totalPages = finalPages;
+        const existingFooter = (doc as any).internal?.pageFooters?.[i];
+
+        const pageH = 297;
+        doc.setFontSize(7);
+        doc.setFont('helvetica', 'normal');
+        doc.setTextColor(148, 163, 184);
+        doc.text('Sistema CGASI.SE', margin, 204);
+        doc.text('Relatório emitido automaticamente', margin, 208);
+        doc.text(`${dateStr} ${timeStr}`, margin, 212);
+        doc.text(`Página ${currentPage} de ${totalPages}`, pageW - margin, 204, { align: 'right' });
+      }
+    }
+
+    doc.save(`sgd-demandas-${now.toISOString().slice(0, 10)}.pdf`);
   };
 
   return (
@@ -179,6 +360,20 @@ export default function ImportExportBar({ rows, onImported }: ImportExportBarPro
           >
             <Download size={15} /> Exportar
           </button>
+          <div className="absolute right-0 top-full mt-1 min-w-[180px] bg-white dark:bg-[#111a2e] border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl z-50 hidden group-hover:block overflow-hidden">
+            <button
+              onClick={exportExcel}
+              className="w-full text-left px-4 py-2.5 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center gap-2 border-b border-slate-100 dark:border-slate-700/50"
+            >
+              <FileText size={14} className="text-green-600" /> Exportar Excel
+            </button>
+            <button
+              onClick={exportPdf}
+              className="w-full text-left px-4 py-2.5 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center gap-2"
+            >
+              <FileText size={14} className="text-red-600" /> Exportar PDF
+            </button>
+          </div>
         </div>
       </div>
 
