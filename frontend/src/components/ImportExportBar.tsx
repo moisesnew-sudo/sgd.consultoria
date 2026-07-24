@@ -8,8 +8,23 @@ import { demandsApi, formatDate } from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../contexts/ToastContext';
 
+interface FiltersState {
+  search?: string;
+  status?: string;
+  priority?: string;
+  category?: string;
+  uf?: string;
+  responsible?: string;
+  ano?: string;
+  dateFrom?: string;
+  dateTo?: string;
+  valueMin?: string;
+  valueMax?: string;
+}
+
 interface ImportExportBarProps {
   rows: Demand[];
+  filters?: FiltersState;
   onImported: (created: Demand[]) => void;
 }
 
@@ -52,6 +67,9 @@ function mapRow(row: any): Partial<Demand> | null {
   mapped.category = mapped.category || mapped.title.substring(0, 30);
   mapped.status = mapped.status || 'pendente';
   mapped.priority = mapped.priority || 'media';
+  mapped.title = String(mapped.title).toUpperCase();
+  mapped.municipality = String(mapped.municipality).toUpperCase();
+  if (mapped.organ) mapped.organ = String(mapped.organ).toUpperCase();
   return mapped as Partial<Demand>;
 }
 
@@ -59,7 +77,7 @@ const fmtCurrency = (v: number): string => {
   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v);
 };
 
-export default function ImportExportBar({ rows, onImported }: ImportExportBarProps) {
+export default function ImportExportBar({ rows, filters, onImported }: ImportExportBarProps) {
   const { toast } = useToast();
   const { user } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
@@ -163,86 +181,131 @@ export default function ImportExportBar({ rows, onImported }: ImportExportBarPro
 
     const primaryColor: [number, number, number] = [46, 125, 50];
     const lightBg: [number, number, number] = [245, 250, 245];
+    const filterBg: [number, number, number] = [248, 250, 252];
 
-    const addHeader = () => {
+    function addHeader(y: number) {
       doc.setFontSize(18);
       doc.setFont('helvetica', 'bold');
       doc.setTextColor(...primaryColor);
-      doc.text('CGASI.SE', pageW / 2, 20, { align: 'center' });
+      doc.text('CGASI.SE', pageW / 2, y, { align: 'center' });
 
       doc.setFontSize(9);
       doc.setFont('helvetica', 'normal');
       doc.setTextColor(100, 116, 139);
       doc.text(
         'COORDENAÇÃO GERAL DE ARTICULAÇÃO E SUPERVISÃO INSTITUCIONAL DA SECRETARIA EXECUTIVA / MAPA',
-        pageW / 2, 26, { align: 'center' }
+        pageW / 2, y + 6, { align: 'center' }
       );
 
       doc.setDrawColor(...primaryColor);
       doc.setLineWidth(0.8);
-      doc.line(margin, 30, pageW - margin, 30);
-    };
+      doc.line(margin, y + 10, pageW - margin, y + 10);
+    }
 
-    const addFooter = (pageNum: number, totalPages: number) => {
+    function addFooter(pageNum: number, totalPages: number) {
       doc.setFontSize(7);
       doc.setFont('helvetica', 'normal');
       doc.setTextColor(148, 163, 184);
       doc.text('Sistema CGASI.SE', margin, 204);
       doc.text('Relatório emitido automaticamente', margin, 208);
       doc.text(`${dateStr} ${timeStr}`, margin, 212);
-
       doc.text(`Página ${pageNum} de ${totalPages}`, pageW - margin, 204, { align: 'right' });
-    };
+    }
 
-    const addInfoBox = (y: number): number => {
-      const boxX = margin;
-      const boxY = y;
-      const boxW = usableW;
-      const boxH = 38;
-      const colW = boxW / 4;
+    addHeader(12);
 
-      doc.setDrawColor(226, 232, 240);
-      doc.setFillColor(248, 250, 252);
-      doc.roundedRect(boxX, boxY, boxW, boxH, 2, 2, 'FD');
+    const infoY = 30;
+    const infoBoxH = 38;
+    const colW = usableW / 4;
 
-      doc.setFontSize(8);
+    doc.setDrawColor(226, 232, 240);
+    doc.setFillColor(...filterBg);
+    doc.roundedRect(margin, infoY, usableW, infoBoxH, 2, 2, 'FD');
+
+    const infoItems = [
+      ['Emissão', `${dateStr} ${timeStr}`],
+      ['Usuário', user?.name || '—'],
+      ['Total de Demandas', String(rows.length)],
+      ['Valor Total', fmtCurrency(totalValue)],
+      ['Municípios', String(municipalitiesSet.size)],
+      ['Órgãos', String(organsSet.size)],
+      ['Estados', String(ufsSet.size)],
+    ];
+
+    infoItems.forEach(([label, value], i) => {
+      const x = margin + (i % 4) * colW + 4;
+      const yPos = infoY + 6 + Math.floor(i / 4) * 15;
       doc.setFont('helvetica', 'bold');
-      doc.setTextColor(100, 116, 139);
+      doc.setFontSize(6.5);
+      doc.setTextColor(148, 163, 184);
+      doc.text(label.toUpperCase(), x, yPos);
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(8.5);
+      doc.setTextColor(15, 23, 42);
+      doc.text(value, x, yPos + 5);
+    });
 
-      const items = [
-        ['Emissão', `${dateStr} ${timeStr}`],
-        ['Usuário', user?.name || '—'],
-        ['Total de Demandas', String(rows.length)],
-        ['Valor Total', fmtCurrency(totalValue)],
-        ['Municípios', String(municipalitiesSet.size)],
-        ['Órgãos', String(organsSet.size)],
-        ['Estados', String(ufsSet.size)],
-      ];
+    let cursorY = infoY + infoBoxH + 8;
 
-      items.forEach(([label, value], i) => {
-        const x = boxX + (i % 4) * colW + 4;
-        const yPos = boxY + 6 + Math.floor(i / 4) * 15;
-        doc.setFont('helvetica', 'bold');
-        doc.setFontSize(6.5);
-        doc.setTextColor(148, 163, 184);
-        doc.text(label.toUpperCase(), x, yPos);
-        doc.setFont('helvetica', 'bold');
-        doc.setFontSize(8.5);
-        doc.setTextColor(15, 23, 42);
-        doc.text(value, x, yPos + 5);
-      });
-
-      return boxY + boxH + 10;
+    // FILTERS SECTION
+    const statusLabel: Record<string, string> = {
+      pendente: 'Pendentes', analise: 'Em Análise', concluido: 'Concluídas', rejeitado: 'Rejeitadas',
+    };
+    const priorityLabel: Record<string, string> = {
+      baixa: 'Baixa', media: 'Média', alta: 'Alta', urgente: 'Urgente',
     };
 
-    const tableTitleY = addInfoBox(38);
+    const f = filters;
+    const filterLines: [string, string][] = [
+      ['UF', f?.uf && f.uf !== 'all' ? f.uf : 'Todos'],
+      ['Municípios', f?.search || 'Todos'],
+      ['Órgão', 'Todos'],
+      ['Status', f?.status && f.status !== 'all' ? (statusLabel[f.status] || f.status) : 'Todos'],
+      ['Prioridade', f?.priority && f.priority !== 'all' ? (priorityLabel[f.priority] || f.priority) : 'Todas'],
+      ['Ano', f?.ano && f.ano !== 'all' ? f.ano : 'Todos'],
+    ];
 
+    if (f?.dateFrom || f?.dateTo) {
+      filterLines.push(['Período', `${f.dateFrom || '—'} até ${f.dateTo || '—'}`]);
+    } else {
+      filterLines.push(['Período', 'Todos']);
+    }
+
+    doc.setDrawColor(...primaryColor);
+    doc.setFillColor(...filterBg);
+    const filterBoxH = 22 + Math.ceil(filterLines.length / 2) * 10;
+    doc.roundedRect(margin, cursorY, usableW, filterBoxH, 2, 2, 'FD');
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(7);
+    doc.setTextColor(...primaryColor);
+    doc.text('FILTROS APLICADOS', margin + 4, cursorY + 6);
+
+    const halfCol = usableW / 2;
+    filterLines.forEach(([label, value], i) => {
+      const colIdx = i % 2;
+      const rowIdx = Math.floor(i / 2);
+      const x = margin + colIdx * halfCol + 4;
+      const y = cursorY + 14 + rowIdx * 10;
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(6.5);
+      doc.setTextColor(148, 163, 184);
+      doc.text(label + ':', x, y);
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(7);
+      doc.setTextColor(15, 23, 42);
+      doc.text(value, x + 20, y);
+    });
+
+    cursorY += filterBoxH + 10;
+
+    // TABLE TITLE
     doc.setFontSize(14);
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(15, 23, 42);
-    doc.text('RELATÓRIO GERAL DE DEMANDAS', pageW / 2, tableTitleY, { align: 'center' });
+    doc.text('RELATÓRIO DE DEMANDAS', pageW / 2, cursorY, { align: 'center' });
 
-    const tableY = tableTitleY + 8;
+    cursorY += 8;
 
     const columns = [
       { header: 'Município', dataKey: 'municipality' },
@@ -256,13 +319,6 @@ export default function ImportExportBar({ rows, onImported }: ImportExportBarPro
       { header: 'Prioridade', dataKey: 'priority' },
     ];
 
-    const statusLabel: Record<string, string> = {
-      pendente: 'Pendente', analise: 'Em Análise', concluido: 'Concluído', rejeitado: 'Rejeitado',
-    };
-    const priorityLabel: Record<string, string> = {
-      baixa: 'Baixa', media: 'Média', alta: 'Alta', urgente: 'Urgente',
-    };
-
     const tableData = sorted.map(d => [
       d.municipality,
       d.uf,
@@ -275,10 +331,8 @@ export default function ImportExportBar({ rows, onImported }: ImportExportBarPro
       priorityLabel[d.priority] || d.priority,
     ]);
 
-    const totalPagesExp = '{totalPages}';
-
     autoTable(doc, {
-      startY: tableY,
+      startY: cursorY,
       head: [columns.map(c => c.header)],
       body: tableData,
       theme: 'grid',
@@ -323,22 +377,15 @@ export default function ImportExportBar({ rows, onImported }: ImportExportBarPro
     });
 
     const finalPages = (doc as any).internal?.getNumberOfPages?.() || 1;
-    if (finalPages > 1 || true) {
-      for (let i = 1; i <= finalPages; i++) {
-        doc.setPage(i);
-        const currentPage = i;
-        const totalPages = finalPages;
-        const existingFooter = (doc as any).internal?.pageFooters?.[i];
-
-        const pageH = 297;
-        doc.setFontSize(7);
-        doc.setFont('helvetica', 'normal');
-        doc.setTextColor(148, 163, 184);
-        doc.text('Sistema CGASI.SE', margin, 204);
-        doc.text('Relatório emitido automaticamente', margin, 208);
-        doc.text(`${dateStr} ${timeStr}`, margin, 212);
-        doc.text(`Página ${currentPage} de ${totalPages}`, pageW - margin, 204, { align: 'right' });
-      }
+    for (let i = 1; i <= finalPages; i++) {
+      doc.setPage(i);
+      doc.setFontSize(7);
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(148, 163, 184);
+      doc.text('Sistema CGASI.SE', margin, 204);
+      doc.text('Relatório emitido automaticamente', margin, 208);
+      doc.text(`${dateStr} ${timeStr}`, margin, 212);
+      doc.text(`Página ${i} de ${finalPages}`, pageW - margin, 204, { align: 'right' });
     }
 
     doc.save(`sgd-demandas-${now.toISOString().slice(0, 10)}.pdf`);
