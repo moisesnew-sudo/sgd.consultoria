@@ -70,9 +70,12 @@ export default function NewDemandView({ municipalities, onAddDemand, onNavigateT
   const filteredMunicipalities = municipalities.filter(m => m.uf === uf);
 
   const handleMunicipalityChange = (val: string) => {
-    setMunicipality(val);
-    if (val) {
-      setPrefeitura(`Prefeitura Municipal de ${val}`);
+    const upper = val.toUpperCase();
+    setMunicipality(upper);
+    if (upper) {
+      setPrefeitura(`Prefeitura Municipal de ${upper}`);
+    } else {
+      setPrefeitura('');
     }
   };
 
@@ -80,7 +83,7 @@ export default function NewDemandView({ municipalities, onAddDemand, onNavigateT
     setUf(selectedUf);
     const firstMun = municipalities.find(m => m.uf === selectedUf);
     if (firstMun) {
-      handleMunicipalityChange(firstMun.name);
+      handleMunicipalityChange(firstMun.name.toUpperCase());
     } else {
       setMunicipality('');
       setPrefeitura('');
@@ -156,7 +159,7 @@ export default function NewDemandView({ municipalities, onAddDemand, onNavigateT
         municipality,
         uf,
         requested_value: requestedValue ? parseCurrencyInput(requestedValue) : 0,
-        prefeitura: prefeitura || `Prefeitura Municipal de ${municipality}`,
+        prefeitura: (prefeitura || `Prefeitura Municipal de ${municipality}`).toUpperCase(),
         proposal_number: proposalNumber || undefined,
         organ: organ || undefined,
         process_link: processLink.trim() || undefined,
@@ -336,7 +339,7 @@ export default function NewDemandView({ municipalities, onAddDemand, onNavigateT
                 id="objeto-input"
                 type="text"
                 value={objeto}
-                onChange={(e) => setObjeto(e.target.value)}
+                onChange={(e) => setObjeto(e.target.value.toUpperCase())}
                 placeholder="Ex: Construção de Creche Proinfância"
                 className={`w-full px-4 py-2.5 rounded-xl border text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-brand-600 focus:border-transparent ${
                   errors.objeto ? 'border-red-400 bg-red-50/20' : 'border-slate-200'

@@ -437,7 +437,23 @@ export default function DemandsView({
         <div className="flex items-center gap-2 self-start md:self-center">
           {canCreate && (
             <Suspense fallback={<div className="h-9 w-24 rounded-xl bg-slate-100 dark:bg-slate-800 animate-pulse" />}>
-              <ImportExportBar rows={filteredDemands} onImported={(created) => created.forEach(d => onAddDemand?.(d))} />
+              <ImportExportBar
+                rows={filteredDemands}
+                filters={{
+                  search: search || undefined,
+                  status: statusFilter !== 'all' ? statusFilter : undefined,
+                  priority: priorityFilter !== 'all' ? priorityFilter : undefined,
+                  category: categoryFilter !== 'all' ? categoryFilter : undefined,
+                  uf: ufFilter !== 'all' ? ufFilter : undefined,
+                  responsible: responsibleFilter !== 'all' ? responsibleFilter : undefined,
+                  ano: anoFilter !== 'all' ? anoFilter : undefined,
+                  dateFrom: dateFrom || undefined,
+                  dateTo: dateTo || undefined,
+                  valueMin: valueMin || undefined,
+                  valueMax: valueMax || undefined,
+                }}
+                onImported={(created) => created.forEach(d => onAddDemand?.(d))}
+              />
             </Suspense>
           )}
           <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-xl">
@@ -895,12 +911,12 @@ export default function DemandsView({
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-1">
                       <label className="text-xs font-bold text-slate-700 block">Título *</label>
-                      <input type="text" value={editTitle} onChange={(e) => setEditTitle(e.target.value)}
+                      <input type="text" value={editTitle} onChange={(e) => setEditTitle(e.target.value.toUpperCase())}
                         className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-brand-600 focus:outline-none" />
                     </div>
                     <div className="space-y-1">
                       <label className="text-xs font-bold text-slate-700 block">Município *</label>
-                      <input type="text" value={editMunicipality} onChange={(e) => setEditMunicipality(e.target.value)}
+                      <input type="text" value={editMunicipality} onChange={(e) => setEditMunicipality(e.target.value.toUpperCase())}
                         className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-brand-600 focus:outline-none" />
                     </div>
                     <div className="space-y-1">
