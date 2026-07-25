@@ -1,5 +1,5 @@
 import bcrypt from 'bcryptjs';
-import { get, run } from './database.js';
+import { get, run, all } from './database.js';
 
 export async function runSeed() {
   console.log('🌱 Verificando dados iniciais...');
@@ -68,6 +68,81 @@ export async function runSeed() {
     );
   }
   console.log(`✅ ${municipalities.length} municípios inseridos`);
+
+  // Seed permissions
+  const existingPermissions = await get('SELECT id FROM permissions LIMIT 1');
+  if (!existingPermissions) {
+    const permissions = [
+      { key: 'dashboard.view', name: 'Visualizar Dashboard', category: 'Dashboard', description: 'Acessar o painel de dashboard' },
+      { key: 'demands.view', name: 'Visualizar Demandas', category: 'Demandas', description: 'Visualizar a lista de demandas' },
+      { key: 'demands.create', name: 'Cadastrar Demandas', category: 'Demandas', description: 'Criar novas demandas' },
+      { key: 'demands.edit', name: 'Editar Demandas', category: 'Demandas', description: 'Editar demandas existentes' },
+      { key: 'demands.delete', name: 'Excluir Demandas', category: 'Demandas', description: 'Excluir demandas' },
+      { key: 'demands.export_excel', name: 'Exportar Excel', category: 'Demandas', description: 'Exportar dados para Excel' },
+      { key: 'demands.export_pdf', name: 'Exportar PDF', category: 'Demandas', description: 'Exportar dados para PDF' },
+      { key: 'reports.view', name: 'Visualizar Relatórios', category: 'Relatórios', description: 'Acessar a seção de relatórios' },
+      { key: 'reports.emit', name: 'Emitir Relatórios', category: 'Relatórios', description: 'Gerar relatórios' },
+      { key: 'reports.print', name: 'Imprimir Relatórios', category: 'Relatórios', description: 'Imprimir relatórios' },
+      { key: 'reports.export', name: 'Exportar Relatórios', category: 'Relatórios', description: 'Exportar relatórios' },
+      { key: 'users.view', name: 'Visualizar Usuários', category: 'Usuários', description: 'Visualizar lista de usuários' },
+      { key: 'users.create', name: 'Cadastrar Usuários', category: 'Usuários', description: 'Criar novos usuários' },
+      { key: 'users.edit', name: 'Editar Usuários', category: 'Usuários', description: 'Editar usuários existentes' },
+      { key: 'users.delete', name: 'Excluir Usuários', category: 'Usuários', description: 'Excluir usuários' },
+      { key: 'users.manage_permissions', name: 'Gerenciar Permissões', category: 'Usuários', description: 'Gerenciar permissões de acesso' },
+      { key: 'settings.view', name: 'Visualizar Configurações', category: 'Configurações', description: 'Acessar a tela de configurações' },
+      { key: 'settings.edit', name: 'Alterar Configurações', category: 'Configurações', description: 'Modificar configurações do sistema' },
+    ];
+
+    for (const p of permissions) {
+      const result = await run(
+        'INSERT INTO permissions (key, name, category, description) VALUES ($1, $2, $3, $4) ON CONFLICT (key) DO NOTHING RETURNING id',
+        [p.key, p.name, p.category, p.description]
+      );
+    }
+
+    // Get all permission IDs
+    const allPerms = await all<{ id: number; key: string }>('SELECT id, key FROM permissions');
+
+    const permMap: Record<string, number> = {};
+    for (const p of allPerms) {
+      permMap[p.key] = p.id;
+    }
+
+    // Role permission mappings
+    const adminPerms = allPerms.map(p => p.id);
+    const gestorPerms = [
+      'dashboard.view', 'demands.view', 'demands.create', 'demands.edit', 'demands.delete',
+      'demands.export_excel', 'demands.export_pdf',
+      'reports.view', 'reports.emit', 'reports.print', 'reports.export'
+    ].filter(k => permMap[k]).map(k => permMap[k]);
+    const analistaPerms = [
+      'dashboard.view', 'demands.view', 'demands.create', 'demands.edit',
+      'demands.export_excel', 'demands.export_pdf',
+      'reports.view'
+    ].filter(k => permMap[k]).map(k => permMap[k]);
+    const consultaPerms = [
+      'dashboard.view', 'demands.view',
+      'reports.view'
+    ].filter(k => permMap[k]).map(k => permMap[k]);
+
+    const rolePerms: Record<string, number[]> = {
+      admin: adminPerms,
+      gestor: gestorPerms,
+      analista: analistaPerms,
+      consulta: consultaPerms,
+    };
+
+    for (const [role, permIds] of Object.entries(rolePerms)) {
+      for (const permId of permIds) {
+        await run(
+          'INSERT INTO role_permissions (role, permission_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',
+          [role, permId]
+        );
+      }
+    }
+
+    console.log('✅ Permissões e perfis padrão criados');
+  }
 
   const existingSettings = await get('SELECT id FROM system_settings WHERE id = 1');
   if (!existingSettings) {

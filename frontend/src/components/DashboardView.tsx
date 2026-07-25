@@ -31,6 +31,7 @@ import {
 import { Demand } from '../types';
 import { demandsApi, formatCurrency, formatDate } from '../services/api';
 import { Card, Kpi } from './ui/Card';
+import { useAuth } from '../contexts/AuthContext';
 
 interface DashboardViewProps {
   onNavigateToTab: (tab: string) => void;
@@ -76,6 +77,7 @@ const CustomPieTooltip = ({ active, payload }: any) => {
 };
 
 export default function DashboardView({ onNavigateToTab, onSelectDemand }: DashboardViewProps) {
+  const { hasPermission } = useAuth();
   const [demands, setDemands] = useState<Demand[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -233,12 +235,14 @@ export default function DashboardView({ onNavigateToTab, onSelectDemand }: Dashb
               <option key={y} value={String(y)}>{y}</option>
             ))}
           </select>
-          <button
-            onClick={() => onNavigateToTab('new-demand')}
-            className="px-4 py-2.5 rounded-xl bg-brand-600 hover:bg-brand-700 text-white font-bold text-xs uppercase tracking-wider shadow-sm transition-all"
-          >
-            Nova Demanda
-          </button>
+          {hasPermission('demands.create') && (
+            <button
+              onClick={() => onNavigateToTab('new-demand')}
+              className="px-4 py-2.5 rounded-xl bg-brand-600 hover:bg-brand-700 text-white font-bold text-xs uppercase tracking-wider shadow-sm transition-all"
+            >
+              Nova Demanda
+            </button>
+          )}
           <button
             onClick={() => onNavigateToTab('demands')}
             className="px-4 py-2.5 rounded-xl bg-white dark:bg-[#111a2e] border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 font-bold text-xs uppercase tracking-wider hover:bg-slate-50 dark:hover:bg-slate-800 transition-all"

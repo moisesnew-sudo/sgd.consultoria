@@ -2,7 +2,7 @@ import { Router, Request, Response } from 'express';
 import { z } from 'zod';
 import { get, all, run } from '../database.js';
 import { Demand, TimelineEvent, Attachment } from '../types.js';
-import { authenticateToken, requireRole, optionalAuth } from '../middleware/auth.js';
+import { authenticateToken, requireRole, optionalAuth, requirePermission } from '../middleware/auth.js';
 import { logAudit } from '../lib/audit.js';
 
 const router = Router();
@@ -144,10 +144,10 @@ router.get('/:id', optionalAuth, async (req: Request, res: Response) => {
   }
 });
 
-router.post('/', authenticateToken, async (req: Request, res: Response) => {
+router.post('/', authenticateToken, requirePermission('demands.create'), async (req: Request, res: Response) => {
   try {
     if (req.user!.role === 'consulta') {
-      return res.status(403).json({ error: 'Seu perfil (Consulta) é somente leitura' });
+      return res.status(403).json({ error: 'Consulta não pode cadastrar demandas' });
     }
     const data = demandSchema.parse(req.body);
     const currentYear = new Date().getFullYear();
@@ -195,10 +195,10 @@ router.post('/', authenticateToken, async (req: Request, res: Response) => {
   }
 });
 
-router.put('/:id', authenticateToken, async (req: Request, res: Response) => {
+router.put('/:id', authenticateToken, requirePermission('demands.edit'), async (req: Request, res: Response) => {
   try {
     if (req.user!.role === 'consulta') {
-      return res.status(403).json({ error: 'Seu perfil (Consulta) é somente leitura' });
+      return res.status(403).json({ error: 'Consulta não pode editar demandas' });
     }
     const existing = await get<Demand>('SELECT * FROM demands WHERE id = $1', [req.params.id as string]);
     if (!existing) return res.status(404).json({ error: 'Demanda não encontrada' });
@@ -250,10 +250,10 @@ router.put('/:id', authenticateToken, async (req: Request, res: Response) => {
   }
 });
 
-router.delete('/:id', authenticateToken, async (req: Request, res: Response) => {
+router.delete('/:id', authenticateToken, requirePermission('demands.delete'), async (req: Request, res: Response) => {
   try {
     if (req.user!.role !== 'admin' && req.user!.role !== 'gestor') {
-      return res.status(403).json({ error: 'Apenas administradores e gestores podem remover demandas' });
+      return res.status(403).json({ error: 'Sem permissão para excluir demandas' });
     }
 
     const demand = await get<Demand>('SELECT * FROM demands WHERE id = $1', [req.params.id as string]);
@@ -280,7 +280,7 @@ router.delete('/:id', authenticateToken, async (req: Request, res: Response) => 
   }
 });
 
-router.post('/:id/timeline', authenticateToken, async (req: Request, res: Response) => {
+router.post('/:id/timeline', authenticateToken, requirePermission('demands.edit'), async (req: Request, res: Response) => {
   try {
     if (req.user!.role === 'consulta') {
       return res.status(403).json({ error: 'Seu perfil (Consulta) é somente leitura' });

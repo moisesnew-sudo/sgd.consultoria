@@ -3,8 +3,8 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { z } from 'zod';
 import { get, run, all } from '../database.js';
-import { User, UserResponse } from '../types.js';
-import { authenticateToken } from '../middleware/auth.js';
+import { User, UserResponse, Permission } from '../types.js';
+import { authenticateToken, requirePermission } from '../middleware/auth.js';
 
 const router = Router();
 
@@ -38,14 +38,29 @@ router.post('/login', async (req: Request, res: Response) => {
       return res.status(401).json({ error: 'Credenciais inválidas' });
     }
 
+    let permissions: string[] = [];
+    if (user.role === 'admin') {
+      const allPerms = await all<{ key: string }>('SELECT key FROM permissions');
+      permissions = allPerms.map(p => p.key);
+    } else {
+      const userPerms = await all<{ key: string }>(
+        `SELECT p.key FROM user_permissions up
+         JOIN permissions p ON p.id = up.permission_id
+         WHERE up.user_id = $1 AND up.granted = TRUE`,
+        [user.id]
+      );
+      permissions = userPerms.map(p => p.key);
+    }
+
     const userResponse: UserResponse = {
       id: user.id,
       email: user.email,
       name: user.name,
-      role: user.role
+      role: user.role,
+      permissions
     };
 
-    const token = jwt.sign(userResponse, process.env.JWT_SECRET!, {
+    const token = jwt.sign({ id: user.id, email: user.email, name: user.name, role: user.role }, process.env.JWT_SECRET!, {
       expiresIn: (process.env.JWT_EXPIRES_IN || '24h') as jwt.SignOptions['expiresIn']
     });
 
@@ -59,7 +74,7 @@ router.post('/login', async (req: Request, res: Response) => {
   }
 });
 
-router.post('/register', authenticateToken, async (req: Request, res: Response) => {
+router.post('/register', authenticateToken, requirePermission('users.create'), async (req: Request, res: Response) => {
   try {
     if (req.user?.role !== 'admin') {
       return res.status(403).json({ error: 'Apenas administradores podem criar usuários' });
@@ -78,6 +93,19 @@ router.post('/register', authenticateToken, async (req: Request, res: Response) 
       [email, passwordHash, name, role || 'consulta']
     );
 
+    const registerUserId = result.rows[0].id;
+    const registerRole = result.rows[0].role;
+    const registerRolePerms = await all<{ permission_id: number }>(
+      'SELECT permission_id FROM role_permissions WHERE role = $1',
+      [registerRole]
+    );
+    for (const rp of registerRolePerms) {
+      await run(
+        'INSERT INTO user_permissions (user_id, permission_id, granted) VALUES ($1, $2, TRUE) ON CONFLICT DO NOTHING',
+        [registerUserId, rp.permission_id]
+      );
+    }
+
     res.status(201).json({
       message: 'Usuário criado com sucesso',
       user: result.rows[0]
@@ -92,7 +120,7 @@ router.post('/register', authenticateToken, async (req: Request, res: Response) 
 });
 
 router.get('/me', authenticateToken, async (req: Request, res: Response) => {
-  const user = await get<UserResponse>(
+  const user = await get<UserResponse & { created_at: string }>(
     'SELECT id, email, name, role, created_at FROM users WHERE id = $1',
     [req.user!.id]
   );
@@ -101,7 +129,21 @@ router.get('/me', authenticateToken, async (req: Request, res: Response) => {
     return res.status(404).json({ error: 'Usuário não encontrado' });
   }
 
-  res.json(user);
+  let permissions: string[] = [];
+  if (user.role === 'admin') {
+    const allPerms = await all<{ key: string }>('SELECT key FROM permissions');
+    permissions = allPerms.map(p => p.key);
+  } else {
+    const userPerms = await all<{ key: string }>(
+      `SELECT p.key FROM user_permissions up
+       JOIN permissions p ON p.id = up.permission_id
+       WHERE up.user_id = $1 AND up.granted = TRUE`,
+      [user.id]
+    );
+    permissions = userPerms.map(p => p.key);
+  }
+
+  res.json({ ...user, permissions });
 });
 
 router.put('/change-password', authenticateToken, async (req: Request, res: Response) => {
@@ -141,7 +183,7 @@ router.put('/change-password', authenticateToken, async (req: Request, res: Resp
 });
 
 // List users (admin and gestor can view; admin manages)
-router.get('/users', authenticateToken, async (req: Request, res: Response) => {
+router.get('/users', authenticateToken, requirePermission('users.view'), async (req: Request, res: Response) => {
   try {
     if (req.user?.role !== 'admin' && req.user?.role !== 'gestor') {
       return res.status(403).json({ error: 'Permissão insuficiente' });
@@ -157,7 +199,7 @@ router.get('/users', authenticateToken, async (req: Request, res: Response) => {
 });
 
 // Create user (admin only)
-router.post('/users', authenticateToken, async (req: Request, res: Response) => {
+router.post('/users', authenticateToken, requirePermission('users.create'), async (req: Request, res: Response) => {
   try {
     if (req.user?.role !== 'admin') {
       return res.status(403).json({ error: 'Apenas administradores podem criar usuários' });
@@ -172,6 +214,20 @@ router.post('/users', authenticateToken, async (req: Request, res: Response) => 
       'INSERT INTO users (email, password_hash, name, role) VALUES ($1, $2, $3, $4) RETURNING id, email, name, role, active',
       [email, passwordHash, name, role || 'consulta']
     );
+
+    const newUserId = result.rows[0].id;
+    const newRole = result.rows[0].role;
+    const rolePerms = await all<{ permission_id: number }>(
+      'SELECT permission_id FROM role_permissions WHERE role = $1',
+      [newRole]
+    );
+    for (const rp of rolePerms) {
+      await run(
+        'INSERT INTO user_permissions (user_id, permission_id, granted) VALUES ($1, $2, TRUE) ON CONFLICT DO NOTHING',
+        [newUserId, rp.permission_id]
+      );
+    }
+
     res.status(201).json({ message: 'Usuário criado com sucesso', user: result.rows[0] });
   } catch (error) {
     if (error instanceof z.ZodError) {
@@ -189,7 +245,7 @@ const updateUserSchema = z.object({
   name: z.string().min(2).optional()
 });
 
-router.put('/users/:id', authenticateToken, async (req: Request, res: Response) => {
+router.put('/users/:id', authenticateToken, requirePermission('users.edit'), async (req: Request, res: Response) => {
   try {
     if (req.user?.role !== 'admin') {
       return res.status(403).json({ error: 'Apenas administradores podem editar usuários' });

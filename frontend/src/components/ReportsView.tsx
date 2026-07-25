@@ -4,6 +4,7 @@ import {
 } from 'lucide-react';
 import { Demand, DemandStatus } from '../types';
 import { demandsApi, formatCurrency } from '../services/api';
+import { useAuth } from '../contexts/AuthContext';
 import ExecutiveReport from './ExecutiveReport';
 
 interface ReportsViewProps {
@@ -25,6 +26,9 @@ const PRIORITY_LABELS: Record<string, string> = {
 };
 
 export default function ReportsView({ demands }: ReportsViewProps) {
+  const { hasPermission } = useAuth();
+  const canEmit = hasPermission('reports.emit');
+  const canExport = hasPermission('reports.export');
   const [filterUf, setFilterUf] = useState('');
   const [filterStatus, setFilterStatus] = useState('');
   const [filterPriority, setFilterPriority] = useState('');
@@ -120,24 +124,30 @@ export default function ReportsView({ demands }: ReportsViewProps) {
           </p>
         </div>
         <div className="flex gap-2">
-          <button
-            onClick={() => setShowReport(true)}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-gradient-to-r from-brand-600 to-brand-700 hover:from-brand-700 hover:to-brand-800 text-white text-xs font-bold uppercase tracking-wider cursor-pointer"
-          >
-            <Sparkles size={14} /> RELATÓRIO
-          </button>
-          <button
-            onClick={handleExportCsv}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-bold uppercase tracking-wider cursor-pointer"
-          >
-            <Download size={14} /> CSV
-          </button>
-          <button
-            onClick={handleExportJson}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-brand-700 hover:bg-brand-800 text-white text-xs font-bold uppercase tracking-wider cursor-pointer"
-          >
-            <Download size={14} /> JSON
-          </button>
+          {canEmit && (
+            <button
+              onClick={() => setShowReport(true)}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-gradient-to-r from-brand-600 to-brand-700 hover:from-brand-700 hover:to-brand-800 text-white text-xs font-bold uppercase tracking-wider cursor-pointer"
+            >
+              <Sparkles size={14} /> RELATÓRIO
+            </button>
+          )}
+          {canExport && (
+            <button
+              onClick={handleExportCsv}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-bold uppercase tracking-wider cursor-pointer"
+            >
+              <Download size={14} /> CSV
+            </button>
+          )}
+          {canExport && (
+            <button
+              onClick={handleExportJson}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-brand-700 hover:bg-brand-800 text-white text-xs font-bold uppercase tracking-wider cursor-pointer"
+            >
+              <Download size={14} /> JSON
+            </button>
+          )}
         </div>
       </div>
 

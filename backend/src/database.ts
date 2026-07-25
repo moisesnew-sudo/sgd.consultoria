@@ -148,6 +148,29 @@ export async function initDatabase() {
       updated_at TIMESTAMPTZ DEFAULT NOW()
     );
 
+    CREATE TABLE IF NOT EXISTS permissions (
+      id SERIAL PRIMARY KEY,
+      key TEXT UNIQUE NOT NULL,
+      name TEXT NOT NULL,
+      category TEXT NOT NULL,
+      description TEXT,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    );
+
+    CREATE TABLE IF NOT EXISTS user_permissions (
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      permission_id INTEGER NOT NULL REFERENCES permissions(id) ON DELETE CASCADE,
+      granted BOOLEAN DEFAULT TRUE,
+      created_at TIMESTAMPTZ DEFAULT NOW(),
+      PRIMARY KEY (user_id, permission_id)
+    );
+
+    CREATE TABLE IF NOT EXISTS role_permissions (
+      role TEXT NOT NULL CHECK(role IN ('admin', 'gestor', 'analista', 'consulta')),
+      permission_id INTEGER NOT NULL REFERENCES permissions(id) ON DELETE CASCADE,
+      PRIMARY KEY (role, permission_id)
+    );
+
     CREATE INDEX IF NOT EXISTS idx_demands_status ON demands(status);
     CREATE INDEX IF NOT EXISTS idx_demands_municipality ON demands(municipality);
     CREATE INDEX IF NOT EXISTS idx_demands_uf ON demands(uf);
@@ -164,6 +187,9 @@ export async function initDatabase() {
 
     -- Add ano column to demands (idempotent)
     ALTER TABLE demands ADD COLUMN IF NOT EXISTS ano INTEGER DEFAULT EXTRACT(YEAR FROM NOW());
+
+    CREATE INDEX IF NOT EXISTS idx_user_permissions_user_id ON user_permissions(user_id);
+    CREATE INDEX IF NOT EXISTS idx_permissions_category ON permissions(category);
   `);
 
   console.log('✅ Tabelas criadas/verificadas');

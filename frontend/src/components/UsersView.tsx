@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from 'react';
-import { Users as UsersIcon, ShieldCheck, UserPlus, Trash2, CheckCircle2, XCircle, Loader2, AlertCircle, KeyRound } from 'lucide-react';
+import { Users as UsersIcon, ShieldCheck, UserPlus, Trash2, CheckCircle2, XCircle, Loader2, AlertCircle, KeyRound, Lock } from 'lucide-react';
 import { TableSkeleton } from './ui/Skeleton';
 import { User, UserRole } from '../types';
 import { authApi, ROLE_LABELS, ROLE_PERMISSIONS } from '../services/api';
 import { useToast } from '../contexts/ToastContext';
+import PermissionsModal from './PermissionsModal';
 
 interface UsersViewProps {
   currentUser: User;
@@ -24,6 +25,7 @@ export default function UsersView({ currentUser }: UsersViewProps) {
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ name: '', email: '', password: '', role: 'analista' as UserRole });
   const [saving, setSaving] = useState(false);
+  const [permTarget, setPermTarget] = useState<{ id: number; name: string } | null>(null);
 
   const load = async () => {
     try {
@@ -185,7 +187,34 @@ export default function UsersView({ currentUser }: UsersViewProps) {
                       )}
                     </td>
                     <td className="py-4 px-6 text-right">
-                      {!isSelf && (
+                      {!isSelf && currentUser.role === 'admin' && (
+                        <div className="flex items-center justify-end gap-2">
+                          <button
+                            onClick={() => setPermTarget({ id: u.id, name: u.name })}
+                            title="Gerenciar Permissões"
+                            className="p-1.5 rounded-lg text-slate-400 hover:text-brand-600 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                          >
+                            <Lock size={16} />
+                          </button>
+                          <select
+                            value={u.role}
+                            onChange={(e) => changeRole(u, e.target.value as UserRole)}
+                            className="text-[10px] px-2 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 dark:bg-slate-900 text-slate-700 dark:text-slate-200"
+                          >
+                            {(['admin', 'gestor', 'analista', 'consulta'] as UserRole[]).map(r => (
+                              <option key={r} value={r}>{ROLE_LABELS[r]}</option>
+                            ))}
+                          </select>
+                          <button
+                            onClick={() => toggleActive(u)}
+                            title={u.active !== false ? 'Desativar' : 'Ativar'}
+                            className="p-1.5 rounded-lg text-slate-400 hover:text-brand-600 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                          >
+                            {u.active !== false ? <XCircle size={16} /> : <CheckCircle2 size={16} />}
+                          </button>
+                        </div>
+                      )}
+                      {!isSelf && currentUser.role !== 'admin' && (
                         <div className="flex items-center justify-end gap-2">
                           <select
                             value={u.role}
@@ -214,6 +243,15 @@ export default function UsersView({ currentUser }: UsersViewProps) {
           </table>
         </div>
       </div>
+
+      {permTarget && (
+        <PermissionsModal
+          userId={permTarget.id}
+          userName={permTarget.name}
+          onClose={() => setPermTarget(null)}
+          onSaved={() => load()}
+        />
+      )}
     </div>
   );
 }

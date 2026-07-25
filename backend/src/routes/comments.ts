@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { z } from 'zod';
 import { get, all, run } from '../database.js';
-import { authenticateToken } from '../middleware/auth.js';
+import { authenticateToken, requirePermission } from '../middleware/auth.js';
 import { logAudit } from '../lib/audit.js';
 
 const router = Router();
@@ -23,7 +23,7 @@ router.get('/:id/comments', authenticateToken, async (req: Request, res: Respons
   }
 });
 
-router.post('/:id/comments', authenticateToken, async (req: Request, res: Response) => {
+router.post('/:id/comments', authenticateToken, requirePermission('demands.edit'), async (req: Request, res: Response) => {
   try {
     if (req.user!.role === 'consulta') {
       return res.status(403).json({ error: 'Seu perfil (Consulta) é somente leitura' });

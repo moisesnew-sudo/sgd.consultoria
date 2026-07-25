@@ -10,6 +10,26 @@ export interface User {
   role: UserRole;
   active?: boolean;
   created_at?: string;
+  permissions?: string[];
+}
+
+export interface Permission {
+  id: number;
+  key: string;
+  name: string;
+  category: string;
+  description?: string;
+}
+
+export interface PermissionCategory {
+  category: string;
+  permissions: Permission[];
+}
+
+export interface UserPermission {
+  permission_id: number;
+  key: string;
+  granted: boolean;
 }
 
 export interface MunicipalityData {

@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { z } from 'zod';
 import { get, all, run } from '../database.js';
-import { authenticateToken, requireRole } from '../middleware/auth.js';
+import { authenticateToken, requireRole, requirePermission } from '../middleware/auth.js';
 
 const router = Router();
 
@@ -33,7 +33,7 @@ router.get('/', async (req: Request, res: Response) => {
   }
 });
 
-router.put('/', authenticateToken, requireRole('admin'), async (req: Request, res: Response) => {
+router.put('/', authenticateToken, requireRole('admin'), requirePermission('settings.edit'), async (req: Request, res: Response) => {
   try {
     const data = settingsSchema.parse(req.body);
     await run(`INSERT INTO system_settings (id) VALUES (1) ON CONFLICT (id) DO NOTHING`);

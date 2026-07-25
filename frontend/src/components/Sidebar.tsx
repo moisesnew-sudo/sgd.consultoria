@@ -17,7 +17,7 @@ interface SidebarProps {
 }
 
 export default function Sidebar({ activeTab, setActiveTab, isOpen, setIsOpen, pendingCount }: SidebarProps) {
-  const { user, isAuthenticated, logout } = useAuth();
+  const { user, isAuthenticated, logout, hasPermission } = useAuth();
   const { theme, setTheme } = useTheme();
 
   const themeOptions: { mode: ThemeMode; icon: React.ReactNode; label: string }[] = [
@@ -26,25 +26,35 @@ export default function Sidebar({ activeTab, setActiveTab, isOpen, setIsOpen, pe
     { mode: 'system', icon: <MonitorSmartphone size={14} />, label: 'Auto' },
   ];
 
-  const canCreate = user?.role === 'admin' || user?.role === 'gestor' || user?.role === 'analista';
-  const canManageUsers = user?.role === 'admin';
-  const canSettings = user?.role === 'admin';
+  const canCreate = hasPermission('demands.create');
+  const canManageUsers = hasPermission('users.view');
+  const canViewSettings = hasPermission('settings.view');
 
   const menuItems = [
-    { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, badge: null },
+    ...(isAuthenticated && hasPermission('dashboard.view') ? [
+      { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, badge: null }
+    ] : []),
     ...(isAuthenticated && canCreate ? [
       { id: 'new-demand', label: 'Nova Demanda', icon: FilePlus2, badge: null }
     ] : []),
-    { id: 'demands', label: 'Demandas', icon: FolderKanban, badge: pendingCount > 0 ? pendingCount : null },
-    { id: 'calendar', label: 'Calendário', icon: Calendar, badge: null },
-    { id: 'reports', label: 'Relatórios', icon: FileBarChart, badge: null },
+    ...(isAuthenticated && hasPermission('demands.view') ? [
+      { id: 'demands', label: 'Demandas', icon: FolderKanban, badge: pendingCount > 0 ? pendingCount : null }
+    ] : []),
+    ...(isAuthenticated && hasPermission('demands.view') ? [
+      { id: 'calendar', label: 'Calendário', icon: Calendar, badge: null }
+    ] : []),
+    ...(isAuthenticated && hasPermission('reports.view') ? [
+      { id: 'reports', label: 'Relatórios', icon: FileBarChart, badge: null }
+    ] : []),
     ...(isAuthenticated && canManageUsers ? [
       { id: 'users', label: 'Usuários', icon: Users, badge: null },
+    ] : []),
+    ...(isAuthenticated && hasPermission('settings.view') ? [
+      { id: 'settings', label: 'Configurações', icon: Settings, badge: null }
+    ] : []),
+    ...(isAuthenticated && canManageUsers ? [
       { id: 'backup', label: 'Backup', icon: Database, badge: null }
     ] : []),
-    ...(isAuthenticated && canSettings ? [
-      { id: 'settings', label: 'Configurações', icon: Settings, badge: null }
-    ] : [])
   ];
 
   const handleLogout = useCallback(() => {

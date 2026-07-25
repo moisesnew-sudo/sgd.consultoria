@@ -1,13 +1,16 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
 import { User } from '../types';
-import { authApi } from '../services/api';
+import { authApi, permissionsApi } from '../services/api';
 
 interface AuthContextType {
   user: User | null;
   isAuthenticated: boolean;
   isLoading: boolean;
+  hasPermission: (key: string) => boolean;
+  hasAnyPermission: (keys: string[]) => boolean;
   login: (email: string, password: string) => Promise<void>;
   logout: () => void;
+  refreshPermissions: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -17,7 +20,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    // Check for existing session
     const storedUser = localStorage.getItem('sgd_user');
     const token = localStorage.getItem('sgd_token');
 
@@ -32,6 +34,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
     setIsLoading(false);
   }, []);
+
+  const hasPermission = useCallback((key: string): boolean => {
+    if (!user) return false;
+    if (user.role === 'admin') return true;
+    if (!user.permissions) return false;
+    return user.permissions.includes(key);
+  }, [user]);
+
+  const hasAnyPermission = useCallback((keys: string[]): boolean => {
+    return keys.some(k => hasPermission(k));
+  }, [hasPermission]);
+
+  const refreshPermissions = async () => {
+    try {
+      const me = await authApi.getMe();
+      const updatedUser = { ...user!, ...me };
+      setUser(updatedUser);
+      localStorage.setItem('sgd_user', JSON.stringify(updatedUser));
+    } catch {
+      // ignore
+    }
+  };
 
   const login = async (email: string, password: string) => {
     const data = await authApi.login(email, password);
@@ -48,8 +72,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       user, 
       isAuthenticated: !!user, 
       isLoading,
+      hasPermission,
+      hasAnyPermission,
       login, 
-      logout 
+      logout,
+      refreshPermissions
     }}>
       {children}
     </AuthContext.Provider>

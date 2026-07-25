@@ -79,7 +79,9 @@ const fmtCurrency = (v: number): string => {
 
 export default function ImportExportBar({ rows, filters, onImported }: ImportExportBarProps) {
   const { toast } = useToast();
-  const { user } = useAuth();
+  const { user, hasPermission } = useAuth();
+  const canExportExcel = hasPermission('demands.export_excel');
+  const canExportPdf = hasPermission('demands.export_pdf');
   const [isOpen, setIsOpen] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [importing, setImporting] = useState(false);
@@ -408,18 +410,22 @@ export default function ImportExportBar({ rows, filters, onImported }: ImportExp
             <Download size={15} /> Exportar
           </button>
           <div className="absolute right-0 top-full mt-1 min-w-[180px] bg-white dark:bg-[#111a2e] border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl z-50 hidden group-hover:block overflow-hidden">
-            <button
-              onClick={exportExcel}
-              className="w-full text-left px-4 py-2.5 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center gap-2 border-b border-slate-100 dark:border-slate-700/50"
-            >
-              <FileText size={14} className="text-green-600" /> Exportar Excel
-            </button>
-            <button
-              onClick={exportPdf}
-              className="w-full text-left px-4 py-2.5 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center gap-2"
-            >
-              <FileText size={14} className="text-red-600" /> Exportar PDF
-            </button>
+            {canExportExcel && (
+              <button
+                onClick={exportExcel}
+                className="w-full text-left px-4 py-2.5 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center gap-2 border-b border-slate-100 dark:border-slate-700/50"
+              >
+                <FileText size={14} className="text-green-600" /> Exportar Excel
+              </button>
+            )}
+            {canExportPdf && (
+              <button
+                onClick={exportPdf}
+                className="w-full text-left px-4 py-2.5 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center gap-2"
+              >
+                <FileText size={14} className="text-red-600" /> Exportar PDF
+              </button>
+            )}
           </div>
         </div>
       </div>

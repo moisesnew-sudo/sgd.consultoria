@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import { UserResponse } from '../types.js';
+import { get } from '../database.js';
 
 declare global {
   namespace Express {
@@ -42,6 +43,32 @@ export const requireRole = (...roles: string[]) => {
     }
 
     next();
+  };
+};
+
+export const requirePermission = (permissionKey: string) => {
+  return async (req: Request, res: Response, next: NextFunction) => {
+    if (!req.user) {
+      return res.status(401).json({ error: 'Usuário não autenticado' });
+    }
+    if (req.user.role === 'admin') {
+      return next();
+    }
+    try {
+      const result = await get<{ granted: boolean }>(
+        `SELECT up.granted FROM user_permissions up
+         JOIN permissions p ON p.id = up.permission_id
+         WHERE up.user_id = $1 AND p.key = $2 AND up.granted = TRUE`,
+        [req.user.id, permissionKey]
+      );
+      if (!result) {
+        return res.status(403).json({ error: 'Acesso negado. Você não possui permissão para executar esta ação.' });
+      }
+      next();
+    } catch (error) {
+      console.error('Permission check error:', error);
+      return res.status(500).json({ error: 'Erro ao verificar permissão' });
+    }
   };
 };
 

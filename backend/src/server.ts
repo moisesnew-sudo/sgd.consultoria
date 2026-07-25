@@ -21,6 +21,7 @@ import settingsRoutes from './routes/settings.js';
 import commentsRoutes from './routes/comments.js';
 import auditRoutes from './routes/audit.js';
 import integrationsRoutes from './routes/integrations.js';
+import permissionsRoutes from './routes/permissions.js';
 import { runSeed } from './seed.js';
 import { initDatabase } from './database.js';
 
@@ -61,6 +62,7 @@ app.use('/api/municipalities', municipalitiesRoutes);
 app.use('/api/settings', settingsRoutes);
 app.use('/api/audit', auditRoutes);
 app.use('/api/integrations', integrationsRoutes);
+app.use('/api/permissions', permissionsRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {

@@ -21,6 +21,7 @@ const ACTION_LABELS: Record<string, string> = {
   delete: 'Exclusão',
   comment: 'Comentário',
   login: 'Login',
+  update_permissions: 'Permissões',
 };
 
 export default function AuditView() {

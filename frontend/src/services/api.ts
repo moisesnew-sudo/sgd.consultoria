@@ -6,7 +6,9 @@ import {
   UserRole,
   PaginatedResponse, 
   DashboardStats,
-  TimelineEvent 
+  TimelineEvent,
+  PermissionCategory,
+  UserPermission
 } from '../types';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'https://sgd-consultoria.onrender.com/api';
@@ -73,6 +75,20 @@ export const authApi = {
 
   updateUser: (id: number, data: { role?: UserRole; active?: boolean; name?: string }) =>
     request<User>('/auth/users/' + id, { method: 'PUT', body: JSON.stringify(data) }),
+};
+
+export const permissionsApi = {
+  getAll: () => request<PermissionCategory[]>('/permissions'),
+
+  getMyPermissions: () => request<string[]>('/permissions/my'),
+
+  getUserPermissions: (userId: number) => request<UserPermission[]>(`/permissions/user/${userId}`),
+
+  updateUserPermissions: (userId: number, permissions: { permission_id: number; granted: boolean }[]) =>
+    request<{ message: string }>(`/permissions/user/${userId}`, {
+      method: 'PUT',
+      body: JSON.stringify({ permissions }),
+    }),
 };
 
 export const ROLE_LABELS: Record<UserRole, string> = {

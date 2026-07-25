@@ -67,13 +67,15 @@ export default function DemandsView({
   onDeleteDemand,
   isLoading
 }: DemandsViewProps) {
-  const { user, isAuthenticated } = useAuth();
+  const { user, isAuthenticated, hasPermission } = useAuth();
   const { toast } = useToast();
-  const canEdit = isAuthenticated && user?.role !== 'consulta';
-  const canDelete = isAuthenticated && (user?.role === 'admin' || user?.role === 'gestor');
+  const canEdit = hasPermission('demands.edit');
+  const canDelete = hasPermission('demands.delete');
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
-  const canCreate = isAuthenticated && user?.role !== 'consulta';
+  const canCreate = hasPermission('demands.create');
+  const canExportExcel = hasPermission('demands.export_excel');
+  const canExportPdf = hasPermission('demands.export_pdf');
   
   // Search & Filters State
   const [search, setSearch] = useState('');
@@ -1348,7 +1350,7 @@ export default function DemandsView({
                       )}
                     </div>
 
-                    {ROLE_PERMISSIONS[user?.role || 'consulta'].canEdit && (
+                    {hasPermission('demands.edit') && (
                       <form onSubmit={handleAddComment} className="space-y-2">
                         <textarea
                           rows={2}

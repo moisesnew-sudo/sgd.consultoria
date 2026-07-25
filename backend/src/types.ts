@@ -19,6 +19,7 @@ export interface UserResponse {
   email: string;
   name: string;
   role: UserRole;
+  permissions?: string[];
 }
 
 export interface MunicipalityData {
@@ -91,4 +92,18 @@ export interface SystemSettings {
 
 export interface AuthRequest extends Express.Request {
   user?: UserResponse;
+}
+
+export interface Permission {
+  id: number;
+  key: string;
+  name: string;
+  category: string;
+  description?: string;
+  created_at: string;
+}
+
+export interface PermissionCategory {
+  category: string;
+  permissions: Permission[];
 }
