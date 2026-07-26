@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import { z } from 'zod';
 import { get, all, run } from '../database.js';
 import { authenticateToken, requireRole, requirePermission } from '../middleware/auth.js';
+import { logAudit, logExport, extractMeta } from '../lib/audit.js';
 
 const router = Router();
 
@@ -19,7 +20,7 @@ const settingsSchema = z.object({
   budget_cap: z.number().positive().optional()
 });
 
-router.get('/', async (req: Request, res: Response) => {
+router.get('/', authenticateToken, async (req: Request, res: Response) => {
   try {
     let settings = await get('SELECT * FROM system_settings WHERE id = 1');
     if (!settings) {
@@ -35,6 +36,7 @@ router.get('/', async (req: Request, res: Response) => {
 
 router.put('/', authenticateToken, requireRole('admin'), requirePermission('settings.edit'), async (req: Request, res: Response) => {
   try {
+    const { ip_address, user_agent } = extractMeta(req);
     const data = settingsSchema.parse(req.body);
     await run(`INSERT INTO system_settings (id) VALUES (1) ON CONFLICT (id) DO NOTHING`);
 
@@ -57,6 +59,12 @@ router.put('/', authenticateToken, requireRole('admin'), requirePermission('sett
     }
 
     const updated = await get('SELECT * FROM system_settings WHERE id = 1');
+    await logAudit({
+      entity_type: 'settings', entity_id: '1', action: 'update',
+      user_id: req.user!.id, user_name: req.user!.name,
+      details: { changed: Object.keys(data) },
+      ip_address, user_agent
+    });
     res.json(updated);
   } catch (error) {
     if (error instanceof z.ZodError) return res.status(400).json({ error: 'Dados inválidos', details: error.errors });
@@ -81,6 +89,7 @@ router.get('/export', authenticateToken, requireRole('admin'), async (req: Reque
       timestamp: new Date().toISOString(),
       data: { demands, municipalities, settings, users, timeline, attachments, comments, audit }
     };
+    await logExport(req, req.user!, 'excel', demands.length, { type: 'full_backup' });
     res.setHeader('Content-Type', 'application/json');
     res.setHeader('Content-Disposition', `attachment; filename=SGD_Backup_${new Date().toISOString().split('T')[0]}.json`);
     res.json(exportData);

@@ -54,7 +54,10 @@ export const authApi = {
     return data;
   },
 
-  logout: () => {
+  logout: async () => {
+    try {
+      await request<{ message: string }>('/auth/logout', { method: 'POST' });
+    } catch { /* ignore */ }
     localStorage.removeItem('sgd_token');
     localStorage.removeItem('sgd_user');
   },
@@ -185,18 +188,86 @@ export const demandsApi = {
     }),
 };
 
+// Export logging
+export const logExport = async (exportType: 'pdf' | 'excel', recordCount: number, filters?: any) => {
+  try {
+    await request('/audit/log-export', {
+      method: 'POST',
+      body: JSON.stringify({ export_type: exportType, record_count: recordCount, filters }),
+    });
+  } catch { /* non-critical */ }
+};
+
 // Audit API
 export const auditApi = {
-  list: (params?: { entity_type?: string; entity_id?: string; limit?: number }) => {
+  list: (params?: { entity_type?: string; entity_id?: string; action?: string; user_id?: string; start_date?: string; end_date?: string; page?: number; limit?: number }) => {
     const searchParams = new URLSearchParams();
     if (params) {
       Object.entries(params).forEach(([key, value]) => {
-        if (value !== undefined && value !== 'all') searchParams.append(key, String(value));
+        if (value !== undefined && value !== 'all' && value !== '') searchParams.append(key, String(value));
       });
     }
     const qs = searchParams.toString();
-    return request<any[]>(`/audit${qs ? '?' + qs : ''}`);
+    return request<any>(`/audit${qs ? '?' + qs : ''}`);
   },
+  getDashboardStats: (params?: { start_date?: string; end_date?: string }) => {
+    const searchParams = new URLSearchParams();
+    if (params) {
+      Object.entries(params).forEach(([key, value]) => {
+        if (value !== undefined) searchParams.append(key, String(value));
+      });
+    }
+    const qs = searchParams.toString();
+    return request<any>(`/audit/dashboard-stats${qs ? '?' + qs : ''}`);
+  },
+};
+
+// Password Reset API
+export const passwordResetApi = {
+  request: (email: string) =>
+    request<{ message: string }>('/password-reset/request', {
+      method: 'POST',
+      body: JSON.stringify({ email }),
+    }),
+  reset: (token: string, password: string) =>
+    request<{ message: string }>('/password-reset/reset', {
+      method: 'POST',
+      body: JSON.stringify({ token, password }),
+    }),
+};
+
+// Sessions API
+export const sessionsApi = {
+  list: () => request<any[]>('/sessions'),
+  terminate: (id: number) => request<{ message: string }>(`/sessions/${id}`, { method: 'DELETE' }),
+  mySessions: () => request<any[]>('/sessions/my-sessions'),
+};
+
+// Backups API
+export const backupsApi = {
+  list: () => request<any[]>('/backups'),
+  create: (type: string = 'manual') =>
+    request<any>('/backups', { method: 'POST', body: JSON.stringify({ type }) }),
+  download: (id: number) => `${API_BASE}/backups/${id}/download`,
+  verify: (id: number) => request<{ valid: boolean; stored_hash: string; computed_hash: string; filename: string }>(`/backups/${id}/verify`, { method: 'POST' }),
+  restore: (id: number) => request<{ message: string }>(`/backups/${id}/restore`, { method: 'POST' }),
+};
+
+// Monitoring API
+export const monitoringApi = {
+  health: () => request<any>('/monitoring/health'),
+  snapshot: () => request<any>('/monitoring/snapshot', { method: 'POST' }),
+  history: (limit?: number) => request<any[]>(`/monitoring/history${limit ? '?limit=' + limit : ''}`),
+};
+
+// LGPD API
+export const lgpdApi = {
+  dashboard: () => request<any>('/lgpd/dashboard'),
+};
+
+// Demand Versions API
+export const demandVersionsApi = {
+  list: (demandId: string) => request<any[]>(`/demands/${demandId}/versions`),
 };
 
 // Integration API

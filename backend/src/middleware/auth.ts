@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
+import crypto from 'crypto';
 import { UserResponse } from '../types.js';
 import { get } from '../database.js';
 
@@ -15,7 +16,14 @@ export interface AuthRequest extends Request {
   user?: UserResponse;
 }
 
-export const authenticateToken = (req: Request, res: Response, next: NextFunction) => {
+const cleanupBlacklist = async () => {
+  try {
+    const { run } = await import('../database.js');
+    await run('DELETE FROM token_blacklist WHERE expires_at < NOW()');
+  } catch { /* non-critical cleanup */ }
+};
+
+export const authenticateToken = async (req: Request, res: Response, next: NextFunction) => {
   const authHeader = req.headers['authorization'];
   const token = authHeader && authHeader.split(' ')[1];
 
@@ -25,7 +33,15 @@ export const authenticateToken = (req: Request, res: Response, next: NextFunctio
 
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET!) as UserResponse;
+
+    const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+    const blacklisted = await get('SELECT id FROM token_blacklist WHERE token_hash = $1', [tokenHash]);
+    if (blacklisted) {
+      return res.status(401).json({ error: 'Sessão encerrada. Faça login novamente.' });
+    }
+
     req.user = decoded;
+    cleanupBlacklist();
     next();
   } catch (error) {
     return res.status(403).json({ error: 'Token inválido ou expirado' });

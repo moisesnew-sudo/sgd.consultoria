@@ -66,13 +66,11 @@ export default function IntegrationView() {
               <div className="flex items-center gap-1.5 text-[10px] font-bold text-brand-700 dark:text-brand-300 uppercase">
                 <KeyRound size={13} /> Token de API (Servidor-a-Servidor)
               </div>
-              <div className="flex items-center gap-2">
-                <code className="flex-1 px-2 py-1.5 bg-slate-900 text-emerald-300 rounded-lg text-[11px] font-mono truncate">{info.apiToken}</code>
-                <button onClick={() => copy(info.apiToken, 'token')} className="p-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800">
-                  {copied === 'token' ? <Check size={14} className="text-emerald-500" /> : <Copy size={14} />}
-                </button>
+              <div className="flex items-center gap-2 p-3 bg-amber-50 dark:bg-amber-900/20 rounded-lg border border-amber-200 dark:border-amber-700/50">
+                <p className="text-[11px] text-amber-700 dark:text-amber-300">
+                  O token de API é gerado e exibido apenas no momento da criação. Se necessário, gere um novo token na tela de administração.
+                </p>
               </div>
-              <p className="text-[10px] text-slate-400">Use como <code>Authorization: Bearer</code>. Rotacione alterando o JWT_SECRET.</p>
             </div>
 
             <div className="bg-white dark:bg-slate-900/50 rounded-2xl border border-slate-100 dark:border-slate-700/50 p-4 space-y-2">

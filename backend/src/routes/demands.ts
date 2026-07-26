@@ -2,8 +2,8 @@ import { Router, Request, Response } from 'express';
 import { z } from 'zod';
 import { get, all, run } from '../database.js';
 import { Demand, TimelineEvent, Attachment } from '../types.js';
-import { authenticateToken, requireRole, optionalAuth, requirePermission } from '../middleware/auth.js';
-import { logAudit } from '../lib/audit.js';
+import { authenticateToken, requirePermission } from '../middleware/auth.js';
+import { logAudit, extractMeta } from '../lib/audit.js';
 
 const router = Router();
 
@@ -24,7 +24,7 @@ const demandSchema = z.object({
   responsible_email: z.string().email('Email inválido').optional().or(z.literal('')),
   responsible_phone: z.string().optional(),
   notes: z.string().optional(),
-   ano: z.coerce.number().int().optional()
+  ano: z.coerce.number().int().optional()
 });
 
 const timelineEventSchema = z.object({
@@ -33,12 +33,23 @@ const timelineEventSchema = z.object({
   status_changed_to: z.enum(['analise', 'pendente', 'concluido', 'rejeitado']).optional()
 });
 
-router.get('/', optionalAuth, async (req: Request, res: Response) => {
+async function saveDemandVersion(demandId: string, snapshot: any, changedBy: number, changedByName: string, ipAddress?: string) {
+  const version = await get<{ v: number }>(
+    'SELECT COALESCE(MAX(version), 0) + 1 as v FROM demand_versions WHERE demand_id = $1',
+    [demandId]
+  );
+  await run(
+    `INSERT INTO demand_versions (demand_id, version, snapshot, changed_by, changed_by_name, ip_address)
+     VALUES ($1, $2, $3, $4, $5, $6)`,
+    [demandId, version?.v || 1, JSON.stringify(snapshot), changedBy, changedByName, ipAddress || null]
+  );
+}
+
+router.get('/', authenticateToken, requirePermission('demands.view'), async (req: Request, res: Response) => {
   try {
     const { status, priority, municipality, uf, category, search, page = '1', limit = '50' } = req.query;
     let sql = 'SELECT * FROM demands WHERE 1=1';
     const params: any[] = [];
-
     if (status && status !== 'all') { sql += ' AND status = $' + (params.length + 1); params.push(status); }
     if (priority && priority !== 'all') { sql += ' AND priority = $' + (params.length + 1); params.push(priority); }
     if (municipality && municipality !== 'all') { sql += ' AND municipality = $' + (params.length + 1); params.push(municipality); }
@@ -49,14 +60,11 @@ router.get('/', optionalAuth, async (req: Request, res: Response) => {
       const t = `%${search}%`;
       params.push(t, t, t);
     }
-
     const countResult = await get<{ count: string }>(sql.replace('SELECT *', 'SELECT COUNT(*) as count'), params);
     const total = parseInt(countResult?.count || '0');
-
     const offset = (Number(page) - 1) * Number(limit);
     sql += ' ORDER BY created_at DESC LIMIT $' + (params.length + 1) + ' OFFSET $' + (params.length + 2);
     params.push(Number(limit), offset);
-
     const demands = await all<Demand>(sql, params);
     const demandsWithDetails = await Promise.all(demands.map(async demand => {
       const timeline = await all<TimelineEvent>(
@@ -67,7 +75,6 @@ router.get('/', optionalAuth, async (req: Request, res: Response) => {
       );
       return { ...demand, timeline, attachments };
     }));
-
     res.json({
       data: demandsWithDetails,
       pagination: { page: Number(page), limit: Number(limit), total, pages: Math.ceil(total / Number(limit)) }
@@ -78,8 +85,7 @@ router.get('/', optionalAuth, async (req: Request, res: Response) => {
   }
 });
 
-// Calendar events: demands (created/updated) + timeline events
-router.get('/calendar/events', optionalAuth, async (req: Request, res: Response) => {
+router.get('/calendar/events', authenticateToken, requirePermission('demands.view'), async (req: Request, res: Response) => {
   try {
     const demands = await all<Demand>(
       "SELECT id, title, status, priority, municipality, uf, created_at, updated_at FROM demands"
@@ -89,30 +95,16 @@ router.get('/calendar/events', optionalAuth, async (req: Request, res: Response)
     );
     const result = [
       ...demands.map(d => ({
-        id: `d-${d.id}`,
-        title: d.title,
-        date: d.created_at,
-        type: 'demand_created',
-        status: d.status,
-        priority: d.priority,
-        demandId: d.id
+        id: `d-${d.id}`, title: d.title, date: d.created_at,
+        type: 'demand_created', status: d.status, priority: d.priority, demandId: d.id
       })),
       ...demands.map(d => ({
-        id: `u-${d.id}`,
-        title: `Atualização: ${d.title}`,
-        date: d.updated_at,
-        type: 'demand_updated',
-        status: d.status,
-        priority: d.priority,
-        demandId: d.id
+        id: `u-${d.id}`, title: `Atualização: ${d.title}`, date: d.updated_at,
+        type: 'demand_updated', status: d.status, priority: d.priority, demandId: d.id
       })),
       ...events.map((e: any) => ({
-        id: `t-${e.demand_id}-${e.created_at}`,
-        title: e.title,
-        date: e.created_at,
-        type: 'timeline',
-        status: e.status_changed_to || null,
-        demandId: e.demand_id
+        id: `t-${e.demand_id}-${e.created_at}`, title: e.title, date: e.created_at,
+        type: 'timeline', status: e.status_changed_to || null, demandId: e.demand_id
       }))
     ];
     res.json(result);
@@ -122,11 +114,24 @@ router.get('/calendar/events', optionalAuth, async (req: Request, res: Response)
   }
 });
 
-router.get('/:id', optionalAuth, async (req: Request, res: Response) => {
+router.get('/:id/versions', authenticateToken, requirePermission('demands.view'), async (req: Request, res: Response) => {
+  try {
+    const versions = await all(
+      `SELECT id, version, snapshot, changed_by, changed_by_name, ip_address, created_at
+       FROM demand_versions WHERE demand_id = $1 ORDER BY version DESC`,
+      [req.params.id as string]
+    );
+    res.json(versions);
+  } catch (error) {
+    console.error('Get versions error:', error);
+    res.status(500).json({ error: 'Erro ao buscar versões' });
+  }
+});
+
+router.get('/:id', authenticateToken, requirePermission('demands.view'), async (req: Request, res: Response) => {
   try {
     const demand = await get<Demand>('SELECT * FROM demands WHERE id = $1', [req.params.id as string]);
     if (!demand) return res.status(404).json({ error: 'Demanda não encontrada' });
-
     const timeline = await all<TimelineEvent>(
       'SELECT * FROM timeline_events WHERE demand_id = $1 ORDER BY created_at DESC', [demand.id]
     );
@@ -136,7 +141,6 @@ router.get('/:id', optionalAuth, async (req: Request, res: Response) => {
     const comments = await all(
       'SELECT * FROM comments WHERE demand_id = $1 ORDER BY created_at ASC', [demand.id]
     );
-
     res.json({ ...demand, timeline, attachments, comments });
   } catch (error) {
     console.error('Get demand error:', error);
@@ -146,6 +150,7 @@ router.get('/:id', optionalAuth, async (req: Request, res: Response) => {
 
 router.post('/', authenticateToken, requirePermission('demands.create'), async (req: Request, res: Response) => {
   try {
+    const { ip_address, user_agent } = extractMeta(req);
     if (req.user!.role === 'consulta') {
       return res.status(403).json({ error: 'Consulta não pode cadastrar demandas' });
     }
@@ -156,7 +161,6 @@ router.post('/', authenticateToken, requirePermission('demands.create'), async (
     const id = `${data.organ || 'SGD'}-${currentYear}-${String(count + 1).padStart(3, '0')}`;
     const now = new Date().toISOString();
     const anoVal = data.ano ?? currentYear;
-
     await run(
       `INSERT INTO demands (id, title, description, category, status, priority, municipality, uf, requested_value, prefeitura, proposal_number, organ, process_link, responsible_name, responsible_email, responsible_phone, notes, created_by, created_at, updated_at, ano)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21)`,
@@ -166,23 +170,22 @@ router.post('/', authenticateToken, requirePermission('demands.create'), async (
        data.process_link || '', data.responsible_name || req.user!.name, data.responsible_email || req.user!.email,
        data.responsible_phone || '', data.notes || '', req.user!.id, now, now, anoVal]
     );
-
     await run(
       `INSERT INTO timeline_events (id, demand_id, title, description, user_name, status_changed_to, created_at)
        VALUES ($1, $2, $3, $4, $5, $6, $7)`,
       [`ev-${Date.now()}`, id, 'Demanda Cadastrada', `Demanda criada por ${req.user!.name}`, req.user!.name, data.status || 'pendente', now]
     );
-
     await run(
       'UPDATE municipalities SET demands_count = demands_count + 1, total_value = total_value + $1, updated_at = NOW() WHERE name = $2 AND uf = $3',
       [data.requested_value || 0, data.municipality, data.uf]
     );
-
+    await saveDemandVersion(id, { ...data, created_by: req.user!.id }, req.user!.id, req.user!.name, ip_address);
     const newDemand = await get<Demand>('SELECT * FROM demands WHERE id = $1', [id]);
     await logAudit({
       entity_type: 'demand', entity_id: id, action: 'create',
       user_id: req.user!.id, user_name: req.user!.name,
-      details: { municipality: data.municipality, uf: data.uf, value: data.requested_value || 0 }
+      details: { municipality: data.municipality, uf: data.uf, value: data.requested_value || 0 },
+      ip_address, user_agent
     });
     res.status(201).json(newDemand);
   } catch (error) {
@@ -197,17 +200,17 @@ router.post('/', authenticateToken, requirePermission('demands.create'), async (
 
 router.put('/:id', authenticateToken, requirePermission('demands.edit'), async (req: Request, res: Response) => {
   try {
+    const { ip_address, user_agent } = extractMeta(req);
     if (req.user!.role === 'consulta') {
       return res.status(403).json({ error: 'Consulta não pode editar demandas' });
     }
     const existing = await get<Demand>('SELECT * FROM demands WHERE id = $1', [req.params.id as string]);
     if (!existing) return res.status(404).json({ error: 'Demanda não encontrada' });
-
+    await saveDemandVersion(req.params.id as string, existing, req.user!.id, req.user!.name, ip_address);
     const data = demandSchema.partial().parse(req.body);
     const updates: string[] = [];
     const values: any[] = [];
     let idx = 1;
-
     for (const [key, value] of Object.entries(data)) {
       if (value !== undefined) {
         const col = key.replace(/([A-Z])/g, '_$1').toLowerCase();
@@ -215,12 +218,10 @@ router.put('/:id', authenticateToken, requirePermission('demands.edit'), async (
         values.push(value);
       }
     }
-
     if (updates.length > 0) {
-      updates.push(`updated_at = NOW()`);
+      updates.push('updated_at = NOW()');
       values.push(req.params.id as string);
       await run(`UPDATE demands SET ${updates.join(', ')} WHERE id = $${idx}`, values);
-
       if (data.status && data.status !== existing.status) {
         const user = await get<{ name: string }>('SELECT name FROM users WHERE id = $1', [req.user!.id]);
         await run(
@@ -232,12 +233,12 @@ router.put('/:id', authenticateToken, requirePermission('demands.edit'), async (
         );
       }
     }
-
     const updated = await get<Demand>('SELECT * FROM demands WHERE id = $1', [req.params.id as string]);
     await logAudit({
       entity_type: 'demand', entity_id: req.params.id as string, action: 'update',
       user_id: req.user!.id, user_name: req.user!.name,
-      details: { changed: Object.keys(data), status: data.status }
+      details: { changed: Object.keys(data), status: data.status },
+      ip_address, user_agent
     });
     res.json(updated);
   } catch (error) {
@@ -252,26 +253,24 @@ router.put('/:id', authenticateToken, requirePermission('demands.edit'), async (
 
 router.delete('/:id', authenticateToken, requirePermission('demands.delete'), async (req: Request, res: Response) => {
   try {
+    const { ip_address, user_agent } = extractMeta(req);
     if (req.user!.role !== 'admin' && req.user!.role !== 'gestor') {
       return res.status(403).json({ error: 'Sem permissão para excluir demandas' });
     }
-
     const demand = await get<Demand>('SELECT * FROM demands WHERE id = $1', [req.params.id as string]);
     if (!demand) return res.status(404).json({ error: 'Demanda não encontrada' });
-
     await run('DELETE FROM timeline_events WHERE demand_id = $1', [req.params.id as string]);
     await run('DELETE FROM attachments WHERE demand_id = $1', [req.params.id as string]);
     await run('DELETE FROM demands WHERE id = $1', [req.params.id as string]);
-
     await run(
       'UPDATE municipalities SET demands_count = GREATEST(demands_count - 1, 0), total_value = GREATEST(total_value - $1, 0), updated_at = NOW() WHERE name = $2 AND uf = $3',
       [demand.requested_value, demand.municipality, demand.uf]
     );
-
     await logAudit({
       entity_type: 'demand', entity_id: req.params.id as string, action: 'delete',
       user_id: req.user!.id, user_name: req.user!.name,
-      details: { municipality: demand.municipality, uf: demand.uf }
+      details: { municipality: demand.municipality, uf: demand.uf },
+      ip_address, user_agent
     });
     res.json({ message: 'Demanda removida com sucesso' });
   } catch (error) {
@@ -287,21 +286,17 @@ router.post('/:id/timeline', authenticateToken, requirePermission('demands.edit'
     }
     const demand = await get<Demand>('SELECT * FROM demands WHERE id = $1', [req.params.id as string]);
     if (!demand) return res.status(404).json({ error: 'Demanda não encontrada' });
-
     const data = timelineEventSchema.parse(req.body);
     const eventId = `ev-${Date.now()}`;
     const now = new Date().toISOString();
-
     await run(
       `INSERT INTO timeline_events (id, demand_id, title, description, user_name, status_changed_to, created_at)
        VALUES ($1, $2, $3, $4, $5, $6, $7)`,
       [eventId, req.params.id as string, data.title, data.description || 'Nenhuma descrição informada.', req.user!.name, data.status_changed_to || null, now]
     );
-
     if (data.status_changed_to) {
       await run('UPDATE demands SET status = $1, updated_at = NOW() WHERE id = $2', [data.status_changed_to, req.params.id as string]);
     }
-
     const event = await get<TimelineEvent>('SELECT * FROM timeline_events WHERE id = $1', [eventId]);
     res.status(201).json(event);
   } catch (error) {
@@ -311,7 +306,7 @@ router.post('/:id/timeline', authenticateToken, requirePermission('demands.edit'
   }
 });
 
-router.get('/stats/dashboard', optionalAuth, async (req: Request, res: Response) => {
+router.get('/stats/dashboard', authenticateToken, async (req: Request, res: Response) => {
   try {
     const total = await get<{ count: string }>('SELECT COUNT(*) as count FROM demands');
     const byStatus = await all<{ status: string; count: string }>(
@@ -329,7 +324,6 @@ router.get('/stats/dashboard', optionalAuth, async (req: Request, res: Response)
       'SELECT COUNT(*) as count FROM demands WHERE DATE(created_at) = $1', [today]
     );
     const overdue = await getAllOverdue();
-
     res.json({
       total: parseInt(total?.count || '0'),
       byStatus: byStatus.reduce((acc, item) => ({ ...acc, [item.status]: parseInt(item.count) }), {}),
@@ -347,14 +341,14 @@ router.get('/stats/dashboard', optionalAuth, async (req: Request, res: Response)
 
 async function getAllOverdue() {
   const result = await get<{ count: string }>(`
-    SELECT COUNT(*) as count FROM demands 
+    SELECT COUNT(*) as count FROM demands
     WHERE status IN ('pendente', 'analise')
-    AND EXTRACT(EPOCH FROM (NOW() - created_at)) / 86400 > 
-      CASE priority 
-        WHEN 'urgente' THEN 5 
-        WHEN 'alta' THEN 15 
-        WHEN 'media' THEN 30 
-        ELSE 45 
+    AND EXTRACT(EPOCH FROM (NOW() - created_at)) / 86400 >
+      CASE priority
+        WHEN 'urgente' THEN 5
+        WHEN 'alta' THEN 15
+        WHEN 'media' THEN 30
+        ELSE 45
       END
   `);
   return parseInt(result?.count || '0');

@@ -91,6 +91,16 @@ export async function runSeed() {
       { key: 'users.manage_permissions', name: 'Gerenciar Permissões', category: 'Usuários', description: 'Gerenciar permissões de acesso' },
       { key: 'settings.view', name: 'Visualizar Configurações', category: 'Configurações', description: 'Acessar a tela de configurações' },
       { key: 'settings.edit', name: 'Alterar Configurações', category: 'Configurações', description: 'Modificar configurações do sistema' },
+      { key: 'audit.view', name: 'Auditoria - Visualizar Logs', category: 'Auditoria', description: 'Visualizar logs de auditoria' },
+      { key: 'audit.dashboard', name: 'Auditoria - Dashboard', category: 'Auditoria', description: 'Visualizar dashboard de auditoria' },
+      { key: 'audit.export', name: 'Auditoria - Exportar Logs', category: 'Auditoria', description: 'Exportar logs de auditoria' },
+      { key: 'sessions.view', name: 'Sessões - Visualizar', category: 'Auditoria', description: 'Visualizar sessões ativas' },
+      { key: 'sessions.terminate', name: 'Sessões - Encerrar', category: 'Auditoria', description: 'Encerrar sessões ativas' },
+      { key: 'backups.view', name: 'Backups - Visualizar', category: 'Auditoria', description: 'Visualizar backups' },
+      { key: 'backups.create', name: 'Backups - Criar', category: 'Auditoria', description: 'Criar novos backups' },
+      { key: 'backups.restore', name: 'Backups - Restaurar', category: 'Auditoria', description: 'Restaurar backups' },
+      { key: 'monitoring.view', name: 'Monitoramento - Visualizar', category: 'Auditoria', description: 'Visualizar monitoramento do sistema' },
+      { key: 'lgpd.view', name: 'LGPD - Visualizar', category: 'Auditoria', description: 'Visualizar painel LGPD' },
     ];
 
     for (const p of permissions) {

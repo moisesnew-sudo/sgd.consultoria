@@ -35,6 +35,7 @@ import { lazy, Suspense, useMemo } from 'react';
 import { Sparkles, BrainCircuit } from 'lucide-react';
 import { summarizeDemand, suggestPriority, findSimilar, parseNaturalLanguage } from '../lib/ai';
 const ImportExportBar = lazy(() => import('./ImportExportBar'));
+import DemandHistory from './DemandHistory';
 
 interface DemandsViewProps {
   demands: Demand[];
@@ -114,6 +115,7 @@ export default function DemandsView({
 
   // Edit demand state
   const [isEditingDemand, setIsEditingDemand] = useState(false);
+  const [detailTab, setDetailTab] = useState('timeline');
   const [editTitle, setEditTitle] = useState('');
   const [editDescription, setEditDescription] = useState('');
   const [editStatus, setEditStatus] = useState<DemandStatus>('pendente');
@@ -1144,7 +1146,29 @@ export default function DemandsView({
                 <AISimilar demand={detailedDemand} all={demands} onSelect={(d) => handleOpenDetail(d)} />
               </div>
 
-              {/* Timeline & Notes */}
+              {/* Detail Tabs */}
+              <div className="flex items-center gap-1 border-b border-slate-200 dark:border-slate-700">
+                {[
+                  { id: 'timeline', label: 'Trâmites' },
+                  { id: 'comments', label: 'Comentários' },
+                  { id: 'history', label: 'Histórico' },
+                ].map(tab => (
+                  <button key={tab.id} onClick={() => setDetailTab(tab.id)}
+                    className={`text-xs font-bold px-4 py-2.5 border-b-2 transition-colors ${
+                      detailTab === tab.id
+                        ? 'border-brand-600 text-brand-700 dark:text-brand-300'
+                        : 'border-transparent text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'
+                    }`}>
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
+
+              {detailTab === 'history' ? (
+                <div className="bg-white dark:bg-slate-900/50 rounded-2xl border border-slate-100 dark:border-slate-700/50 p-4">
+                  <DemandHistory demandId={detailedDemand.id} />
+                </div>
+              ) : (
               <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
                 
                 <div className="lg:col-span-8 space-y-6">
@@ -1373,6 +1397,7 @@ export default function DemandsView({
                   </div>
                 </div>
               </div>
+              )}
               </>
               )}
             </div>

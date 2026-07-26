@@ -22,6 +22,11 @@ import commentsRoutes from './routes/comments.js';
 import auditRoutes from './routes/audit.js';
 import integrationsRoutes from './routes/integrations.js';
 import permissionsRoutes from './routes/permissions.js';
+import passwordResetRoutes from './routes/password-reset.js';
+import sessionsRoutes from './routes/sessions.js';
+import backupsRoutes from './routes/backups.js';
+import monitoringRoutes from './routes/monitoring.js';
+import lgpdRoutes from './routes/lgpd.js';
 import { runSeed } from './seed.js';
 import { initDatabase } from './database.js';
 
@@ -29,7 +34,25 @@ const app = express();
 const PORT = process.env.PORT || 3001;
 
 // Security middleware
-app.use(helmet());
+const cspDirectives = {
+  defaultSrc: ["'self'"],
+  scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'", 'https://*.googletagmanager.com'],
+  styleSrc: ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
+  fontSrc: ["'self'", 'https://fonts.gstatic.com', 'data:'],
+  imgSrc: ["'self'", 'data:', 'https://*.amazonaws.com', 'https://*.gov.br'],
+  connectSrc: ["'self'", 'https://api.github.com'],
+  frameAncestors: ["'none'"],
+  formAction: ["'self'"],
+  baseUri: ["'self'"]
+};
+app.use(helmet({
+  contentSecurityPolicy: { directives: cspDirectives, reportOnly: false },
+  hsts: { maxAge: 31536000, includeSubDomains: true, preload: true },
+  frameguard: { action: 'deny' },
+  noSniff: true,
+  xssFilter: true,
+  referrerPolicy: { policy: 'strict-origin-when-cross-origin' }
+}));
 
 // CORS configuration
 app.use(cors({
@@ -39,16 +62,25 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization']
 }));
 
-// Rate limiting
-const limiter = rateLimit({
-  windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS || '900000'), // 15 minutes
-  max: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS || '100'),
+// Per-endpoint rate limiters
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 20,
+  message: 'Muitas tentativas de login. Tente novamente mais tarde.',
+  standardHeaders: true,
+  legacyHeaders: false
+});
+
+const apiLimiter = rateLimit({
+  windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS || '900000'),
+  max: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS || '200'),
   message: 'Muitas requisições. Por favor, tente novamente mais tarde.',
   standardHeaders: true,
   legacyHeaders: false
 });
 
-app.use('/api/', limiter);
+app.use('/api/auth/', authLimiter);
+app.use('/api/', apiLimiter);
 
 // Body parsing
 app.use(express.json({ limit: '10mb' }));
@@ -63,6 +95,11 @@ app.use('/api/settings', settingsRoutes);
 app.use('/api/audit', auditRoutes);
 app.use('/api/integrations', integrationsRoutes);
 app.use('/api/permissions', permissionsRoutes);
+app.use('/api/password-reset', passwordResetRoutes);
+app.use('/api/sessions', sessionsRoutes);
+app.use('/api/backups', backupsRoutes);
+app.use('/api/monitoring', monitoringRoutes);
+app.use('/api/lgpd', lgpdRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {

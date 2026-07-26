@@ -147,6 +147,10 @@ export default function LoginView({ onNavigateToTab }: LoginViewProps) {
                 <label htmlFor="password" className="text-xs font-bold text-slate-700 dark:text-slate-200 block">
                   Senha de Acesso *
                 </label>
+                <button type="button" onClick={() => onNavigateToTab('reset-password')}
+                  className="text-[10px] font-bold text-brand-600 hover:text-brand-700 dark:text-brand-400 underline underline-offset-2">
+                  Esqueci minha senha
+                </button>
               </div>
               <div className="relative">
                 <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400">

@@ -4,7 +4,7 @@ import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { UploadCloud, Download, FileText, X, Loader2, CheckCircle2, AlertTriangle } from 'lucide-react';
 import { Demand } from '../types';
-import { demandsApi, formatDate } from '../services/api';
+import { demandsApi, formatDate, logExport } from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../contexts/ToastContext';
 
@@ -143,6 +143,7 @@ export default function ImportExportBar({ rows, filters, onImported }: ImportExp
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Demandas');
     XLSX.writeFile(wb, `sgd-demandas-${new Date().toISOString().slice(0, 10)}.xlsx`);
+    logExport('excel', rows.length, filters);
   };
 
   const exportCsv = () => {
@@ -391,6 +392,7 @@ export default function ImportExportBar({ rows, filters, onImported }: ImportExp
     }
 
     doc.save(`sgd-demandas-${now.toISOString().slice(0, 10)}.pdf`);
+    logExport('pdf', rows.length, filters);
   };
 
   return (

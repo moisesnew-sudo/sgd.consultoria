@@ -2,7 +2,8 @@ import { useCallback } from 'react';
 import {
   LayoutDashboard, FilePlus2, FolderKanban, MapPin, FileBarChart,
   Calendar, Settings, Menu, X, Users, ScrollText, Plug, Database,
-  Briefcase, ShieldCheck, LogOut, User, Sun, Moon, MonitorSmartphone
+  Briefcase, ShieldCheck, LogOut, User, Sun, Moon, MonitorSmartphone,
+  Activity, Shield, LogIn, HardDrive, FileSearch
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme, ThemeMode } from '../contexts/ThemeContext';
@@ -53,12 +54,19 @@ export default function Sidebar({ activeTab, setActiveTab, isOpen, setIsOpen, pe
       { id: 'settings', label: 'Configurações', icon: Settings, badge: null }
     ] : []),
     ...(isAuthenticated && canManageUsers ? [
-      { id: 'backup', label: 'Backup', icon: Database, badge: null }
+      { id: 'backup', label: 'Backups', icon: HardDrive, badge: null }
+    ] : []),
+    ...(isAuthenticated && user?.role === 'admin' ? [
+      { id: 'audit-dashboard', label: 'Auditoria', icon: Activity, badge: null },
+      { id: 'audit', label: 'Logs', icon: ScrollText, badge: null },
+      { id: 'sessions', label: 'Sessões', icon: LogIn, badge: null },
+      { id: 'monitoring', label: 'Monitoramento', icon: Shield, badge: null },
+      { id: 'lgpd', label: 'LGPD', icon: FileSearch, badge: null },
     ] : []),
   ];
 
-  const handleLogout = useCallback(() => {
-    logout();
+  const handleLogout = useCallback(async () => {
+    await logout();
     setActiveTab('demands');
     setIsOpen(false);
   }, [logout, setActiveTab, setIsOpen]);

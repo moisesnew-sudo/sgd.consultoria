@@ -2,6 +2,7 @@ import React, { useState, useEffect, Suspense, lazy } from 'react';
 import Sidebar from './components/Sidebar';
 import DemandsView from './components/DemandsView';
 import LoginView from './components/LoginView';
+import ResetPasswordView from './components/ResetPasswordView';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { ToastProvider } from './contexts/ToastContext';
 import { Demand, MunicipalityData } from './types';
@@ -16,8 +17,13 @@ const SettingsView = lazy(() => import('./components/SettingsView'));
 const UsersView = lazy(() => import('./components/UsersView'));
 const CalendarView = lazy(() => import('./components/CalendarView'));
 const AuditView = lazy(() => import('./components/AuditView'));
+const AuditDashboardView = lazy(() => import('./components/AuditDashboardView'));
 const IntegrationView = lazy(() => import('./components/IntegrationView'));
-const BackupView = lazy(() => import('./components/BackupView'));
+const SessionsView = lazy(() => import('./components/SessionsView'));
+const BackupManagementView = lazy(() => import('./components/BackupManagementView'));
+const MonitoringView = lazy(() => import('./components/MonitoringView'));
+const LgpdView = lazy(() => import('./components/LgpdView'));
+const InactivityWrapper = lazy(() => import('./components/InactivityWrapper').then(m => ({ default: m.default })));
 
 function ViewFallback() {
   return (
@@ -46,17 +52,18 @@ function ViewFallback() {
 }
 
 function AppContent() {
-  const { user, isAuthenticated, isLoading: authLoading } = useAuth();
-  
+  const { user, isAuthenticated, isLoading: authLoading, logout } = useAuth();
+
   // App States
   const [demands, setDemands] = useState<Demand[]>([]);
   const [municipalities, setMunicipalities] = useState<MunicipalityData[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  
+
   const [activeTab, setActiveTab] = useState<string>('dashboard');
   const [isSidebarOpen, setIsSidebarOpen] = useState<boolean>(false);
   const [selectedDemandFromDashboard, setSelectedDemandFromDashboard] = useState<Demand | null>(null);
+  const [showResetPassword, setShowResetPassword] = useState(false);
 
   // Load data on mount (only when authenticated)
   useEffect(() => {
@@ -69,12 +76,12 @@ function AppContent() {
     try {
       setIsLoading(true);
       setError(null);
-      
+
       const [demandsData, municipalitiesData] = await Promise.all([
         demandsApi.getAll({ limit: 999 }),
         municipalitiesApi.getAll()
       ]);
-      
+
       setDemands(demandsData.data);
       setMunicipalities(municipalitiesData);
     } catch (err: any) {
@@ -85,7 +92,6 @@ function AppContent() {
     }
   };
 
-  // Callbacks
   const handleAddDemand = (newDemand: Demand) => {
     setDemands(prev => [newDemand, ...prev]);
   };
@@ -104,14 +110,17 @@ function AppContent() {
   };
 
   const handleNavigateToTab = (tab: string) => {
+    if (tab === 'reset-password') { setShowResetPassword(true); return; }
     setActiveTab(tab);
   };
 
-  // Pending demands count
   const pendingTriageCount = demands.filter(d => d.status === 'pendente').length;
 
   // Show login if not authenticated
   if (!isAuthenticated) {
+    if (showResetPassword) {
+      return <ResetPasswordView onBack={() => setShowResetPassword(false)} />;
+    }
     return (
       <LoginView onNavigateToTab={handleNavigateToTab} />
     );
@@ -145,21 +154,18 @@ function AppContent() {
     );
   }
 
-  return (
+  const content = (
     <div className="min-h-screen bg-slate-50 flex text-slate-800 font-sans" id="sgm-shell">
-      {/* Top Corporate Line */}
       <div className="fixed top-0 left-0 right-0 h-1 bg-brand-700 z-50" />
 
-      {/* Navigation Sidebar */}
-      <Sidebar 
-        activeTab={activeTab} 
-        setActiveTab={setActiveTab} 
-        isOpen={isSidebarOpen} 
+      <Sidebar
+        activeTab={activeTab}
+        setActiveTab={setActiveTab}
+        isOpen={isSidebarOpen}
         setIsOpen={setIsSidebarOpen}
         pendingCount={pendingTriageCount}
       />
 
-      {/* Main View Workspace */}
       <main className="flex-1 min-w-0 lg:pl-72 pt-6 px-4 md:px-8 pb-12">
         <div className="max-w-7xl mx-auto py-8">
           {activeTab === 'dashboard' && (
@@ -210,9 +216,7 @@ function AppContent() {
 
           {activeTab === 'reports' && (
             <Suspense fallback={<ViewFallback />}>
-              <ReportsView
-                demands={demands}
-              />
+              <ReportsView demands={demands} />
             </Suspense>
           )}
 
@@ -243,20 +247,50 @@ function AppContent() {
             </Suspense>
           )}
 
+          {activeTab === 'audit-dashboard' && (
+            <Suspense fallback={<ViewFallback />}>
+              <AuditDashboardView />
+            </Suspense>
+          )}
+
           {activeTab === 'integrations' && (
             <Suspense fallback={<ViewFallback />}>
               <IntegrationView />
             </Suspense>
           )}
 
+          {activeTab === 'sessions' && (
+            <Suspense fallback={<ViewFallback />}>
+              <SessionsView />
+            </Suspense>
+          )}
+
           {activeTab === 'backup' && (
             <Suspense fallback={<ViewFallback />}>
-              <BackupView />
+              <BackupManagementView />
+            </Suspense>
+          )}
+
+          {activeTab === 'monitoring' && (
+            <Suspense fallback={<ViewFallback />}>
+              <MonitoringView />
+            </Suspense>
+          )}
+
+          {activeTab === 'lgpd' && (
+            <Suspense fallback={<ViewFallback />}>
+              <LgpdView />
             </Suspense>
           )}
         </div>
       </main>
     </div>
+  );
+
+  return (
+    <InactivityWrapper onLogout={logout}>
+      {content}
+    </InactivityWrapper>
   );
 }
 

@@ -1,42 +1,110 @@
 import { Router, Request, Response } from 'express';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
+import crypto from 'crypto';
 import { z } from 'zod';
 import { get, run, all } from '../database.js';
-import { User, UserResponse, Permission } from '../types.js';
+import { User, UserResponse } from '../types.js';
 import { authenticateToken, requirePermission } from '../middleware/auth.js';
+import { logAudit, extractMeta } from '../lib/audit.js';
 
 const router = Router();
 
+const PASSWORD_HISTORY_LIMIT = 5;
+const MAX_LOGIN_ATTEMPTS = 5;
+const LOCKOUT_MINUTES = 15;
+
+const passwordSchema = z.string()
+  .min(8, 'Senha deve ter pelo menos 8 caracteres')
+  .regex(/[A-Z]/, 'Senha deve conter pelo menos uma letra maiúscula')
+  .regex(/[a-z]/, 'Senha deve conter pelo menos uma letra minúscula')
+  .regex(/[0-9]/, 'Senha deve conter pelo menos um número')
+  .regex(/[^A-Za-z0-9]/, 'Senha deve conter pelo menos um caractere especial');
+
 const loginSchema = z.object({
   email: z.string().email('Email inválido'),
-  password: z.string().min(6, 'Senha deve ter pelo menos 6 caracteres')
+  password: z.string().min(1, 'Senha é obrigatória')
 });
 
 const registerSchema = z.object({
   email: z.string().email('Email inválido'),
-  password: z.string().min(6, 'Senha deve ter pelo menos 6 caracteres'),
-  name: z.string().min(2, 'Nome deve ter pelo menos 2 caracteres'),
+  password: passwordSchema,
+  name: z.string().min(2, 'Nome deve ter pelo menos 2 caracteres').max(100),
   role: z.enum(['admin', 'gestor', 'analista', 'consulta']).optional()
 });
+
+async function isAccountLocked(email: string): Promise<boolean> {
+  const recent = await get<{ count: string }>(
+    `SELECT COUNT(*) as count FROM login_attempts
+     WHERE email = $1 AND success = FALSE AND attempted_at > NOW() - INTERVAL '${LOCKOUT_MINUTES} minutes'`,
+    [email]
+  );
+  return parseInt(recent?.count || '0') >= MAX_LOGIN_ATTEMPTS;
+}
+
+async function endUserSessions(userId: number, excludeTokenHash?: string) {
+  if (excludeTokenHash) {
+    await run('UPDATE active_sessions SET active = FALSE WHERE user_id = $1 AND token_hash != $2', [userId, excludeTokenHash]);
+  } else {
+    await run('UPDATE active_sessions SET active = FALSE WHERE user_id = $1', [userId]);
+  }
+}
+
+async function savePasswordHistory(userId: number, passwordHash: string) {
+  await run(
+    'INSERT INTO password_history (user_id, password_hash) VALUES ($1, $2)',
+    [userId, passwordHash]
+  );
+  await run(
+    `DELETE FROM password_history WHERE id IN (
+      SELECT id FROM password_history WHERE user_id = $1 ORDER BY created_at DESC OFFSET ${PASSWORD_HISTORY_LIMIT}
+    )`, [userId]
+  );
+}
+
+async function wasPasswordUsed(userId: number, newHash: string): Promise<boolean> {
+  const history = await all<{ password_hash: string }>(
+    'SELECT password_hash FROM password_history WHERE user_id = $1 ORDER BY created_at DESC',
+    [userId]
+  );
+  for (const h of history) {
+    if (await bcrypt.compare(newHash.replace(/^\$2[ab]\$\d+\$/, ''), h.password_hash)) {
+      return true;
+    }
+  }
+  return false;
+}
 
 router.post('/login', async (req: Request, res: Response) => {
   try {
     const { email, password } = loginSchema.parse(req.body);
+    const { ip_address, user_agent } = extractMeta(req);
     const user = await get<User>('SELECT * FROM users WHERE email = $1', [email]);
 
-    if (!user) {
+    if (user && await isAccountLocked(email)) {
+      await logAudit({
+        entity_type: 'auth', entity_id: email, action: 'login_locked',
+        user_name: email, details: { ip: ip_address }, ip_address, user_agent
+      });
+      return res.status(429).json({ error: 'Conta temporariamente bloqueada por muitas tentativas. Tente novamente em 15 minutos.' });
+    }
+
+    if (!user || user.active === false || !(await bcrypt.compare(password, user.password_hash))) {
+      await run(
+        'INSERT INTO login_attempts (email, ip_address, success) VALUES ($1, $2, FALSE)',
+        [email, ip_address]
+      );
+      await logAudit({
+        entity_type: 'auth', entity_id: email, action: 'login_failed',
+        user_name: email, details: { ip: ip_address }, ip_address, user_agent
+      });
       return res.status(401).json({ error: 'Credenciais inválidas' });
     }
 
-    if (user.active === false) {
-      return res.status(403).json({ error: 'Usuário desativado. Contate o administrador.' });
-    }
-
-    const validPassword = await bcrypt.compare(password, user.password_hash);
-    if (!validPassword) {
-      return res.status(401).json({ error: 'Credenciais inválidas' });
-    }
+    await run(
+      'INSERT INTO login_attempts (email, ip_address, success) VALUES ($1, $2, TRUE)',
+      [email, ip_address]
+    );
 
     let permissions: string[] = [];
     if (user.role === 'admin') {
@@ -53,18 +121,42 @@ router.post('/login', async (req: Request, res: Response) => {
     }
 
     const userResponse: UserResponse = {
-      id: user.id,
-      email: user.email,
-      name: user.name,
-      role: user.role,
-      permissions
+      id: user.id, email: user.email, name: user.name, role: user.role, permissions
     };
 
-    const token = jwt.sign({ id: user.id, email: user.email, name: user.name, role: user.role }, process.env.JWT_SECRET!, {
-      expiresIn: (process.env.JWT_EXPIRES_IN || '24h') as jwt.SignOptions['expiresIn']
+    const token = jwt.sign(
+      { id: user.id, email: user.email, name: user.name, role: user.role },
+      process.env.JWT_SECRET!,
+      { expiresIn: (process.env.JWT_EXPIRES_IN || '24h') as jwt.SignOptions['expiresIn'] }
+    );
+
+    const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+    let browser = 'Desconhecido', os = 'Desconhecido';
+    const ua = user_agent || '';
+    if (ua.includes('Chrome') && !ua.includes('Edg')) browser = 'Chrome';
+    else if (ua.includes('Firefox')) browser = 'Firefox';
+    else if (ua.includes('Safari') && !ua.includes('Chrome')) browser = 'Safari';
+    else if (ua.includes('Edg')) browser = 'Edge';
+    if (ua.includes('Windows NT')) os = 'Windows';
+    else if (ua.includes('Mac OS X')) os = 'macOS';
+    else if (ua.includes('Linux')) os = 'Linux';
+    else if (ua.includes('Android')) os = 'Android';
+    else if (ua.includes('iPhone') || ua.includes('iPad')) os = 'iOS';
+
+    await run(
+      `INSERT INTO active_sessions (user_id, token_hash, ip_address, user_agent, browser, os)
+       VALUES ($1, $2, $3, $4, $5, $6)
+       ON CONFLICT DO NOTHING`,
+      [user.id, tokenHash, ip_address, user_agent, browser, os]
+    );
+
+    await logAudit({
+      entity_type: 'auth', entity_id: String(user.id), action: 'login',
+      user_id: user.id, user_name: user.name,
+      details: { ip: ip_address, browser, os }, ip_address, user_agent
     });
 
-    res.json({ token, user: userResponse });
+    res.json({ token, user: userResponse, session: { browser, os, ip: ip_address } });
   } catch (error) {
     if (error instanceof z.ZodError) {
       return res.status(400).json({ error: 'Dados inválidos', details: error.errors });
@@ -74,19 +166,44 @@ router.post('/login', async (req: Request, res: Response) => {
   }
 });
 
+router.post('/logout', authenticateToken, async (req: Request, res: Response) => {
+  try {
+    const { ip_address, user_agent } = extractMeta(req);
+    const authHeader = req.headers['authorization'];
+    const token = authHeader?.split(' ')[1];
+    if (token) {
+      const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+      const decoded = jwt.decode(token) as { exp?: number };
+      const expiresAt = decoded?.exp ? new Date(decoded.exp * 1000) : new Date(Date.now() + 86400000);
+      await run(
+        'INSERT INTO token_blacklist (token_hash, expires_at) VALUES ($1, $2) ON CONFLICT DO NOTHING',
+        [tokenHash, expiresAt]
+      );
+      await run('UPDATE active_sessions SET active = FALSE WHERE token_hash = $1', [tokenHash]);
+    }
+    await logAudit({
+      entity_type: 'auth', entity_id: String(req.user!.id), action: 'logout',
+      user_id: req.user!.id, user_name: req.user!.name,
+      details: {}, ip_address, user_agent
+    });
+    res.json({ message: 'Sessão encerrada com sucesso' });
+  } catch (error) {
+    console.error('Logout error:', error);
+    res.status(500).json({ error: 'Erro interno do servidor' });
+  }
+});
+
 router.post('/register', authenticateToken, requirePermission('users.create'), async (req: Request, res: Response) => {
   try {
     if (req.user?.role !== 'admin') {
       return res.status(403).json({ error: 'Apenas administradores podem criar usuários' });
     }
-
+    const { ip_address, user_agent } = extractMeta(req);
     const { email, password, name, role } = registerSchema.parse(req.body);
     const existingUser = await get('SELECT id FROM users WHERE email = $1', [email]);
-
     if (existingUser) {
       return res.status(409).json({ error: 'Email já cadastrado' });
     }
-
     const passwordHash = await bcrypt.hash(password, 10);
     const result = await run(
       'INSERT INTO users (email, password_hash, name, role) VALUES ($1, $2, $3, $4) RETURNING id, email, name, role',
@@ -96,8 +213,7 @@ router.post('/register', authenticateToken, requirePermission('users.create'), a
     const registerUserId = result.rows[0].id;
     const registerRole = result.rows[0].role;
     const registerRolePerms = await all<{ permission_id: number }>(
-      'SELECT permission_id FROM role_permissions WHERE role = $1',
-      [registerRole]
+      'SELECT permission_id FROM role_permissions WHERE role = $1', [registerRole]
     );
     for (const rp of registerRolePerms) {
       await run(
@@ -106,10 +222,16 @@ router.post('/register', authenticateToken, requirePermission('users.create'), a
       );
     }
 
-    res.status(201).json({
-      message: 'Usuário criado com sucesso',
-      user: result.rows[0]
+    await savePasswordHistory(registerUserId, passwordHash);
+
+    await logAudit({
+      entity_type: 'user', entity_id: String(registerUserId), action: 'create',
+      user_id: req.user!.id, user_name: req.user!.name,
+      details: { target_email: email, target_role: registerRole },
+      ip_address, user_agent
     });
+
+    res.status(201).json({ message: 'Usuário criado com sucesso', user: result.rows[0] });
   } catch (error) {
     if (error instanceof z.ZodError) {
       return res.status(400).json({ error: 'Dados inválidos', details: error.errors });
@@ -124,11 +246,9 @@ router.get('/me', authenticateToken, async (req: Request, res: Response) => {
     'SELECT id, email, name, role, created_at FROM users WHERE id = $1',
     [req.user!.id]
   );
-
   if (!user) {
     return res.status(404).json({ error: 'Usuário não encontrado' });
   }
-
   let permissions: string[] = [];
   if (user.role === 'admin') {
     const allPerms = await all<{ key: string }>('SELECT key FROM permissions');
@@ -142,12 +262,12 @@ router.get('/me', authenticateToken, async (req: Request, res: Response) => {
     );
     permissions = userPerms.map(p => p.key);
   }
-
   res.json({ ...user, permissions });
 });
 
 router.put('/change-password', authenticateToken, async (req: Request, res: Response) => {
   try {
+    const { ip_address, user_agent } = extractMeta(req);
     const currentPassword = req.body.currentPassword || req.body.current_password;
     const newPassword = req.body.newPassword || req.body.new_password;
 
@@ -155,8 +275,9 @@ router.put('/change-password', authenticateToken, async (req: Request, res: Resp
       return res.status(400).json({ error: 'Senha atual e nova senha são obrigatórias' });
     }
 
-    if (newPassword.length < 6) {
-      return res.status(400).json({ error: 'Nova senha deve ter pelo menos 6 caracteres' });
+    const parsed = passwordSchema.safeParse(newPassword);
+    if (!parsed.success) {
+      return res.status(400).json({ error: parsed.error.errors[0].message });
     }
 
     const user = await get<User>('SELECT * FROM users WHERE id = $1', [req.user!.id]);
@@ -169,20 +290,34 @@ router.put('/change-password', authenticateToken, async (req: Request, res: Resp
       return res.status(401).json({ error: 'Senha atual incorreta' });
     }
 
+    const reused = await wasPasswordUsed(req.user!.id, newPassword);
+    if (reused) {
+      return res.status(400).json({ error: 'A nova senha não pode ser igual a nenhuma das últimas 5 senhas utilizadas.' });
+    }
+
     const newPasswordHash = await bcrypt.hash(newPassword, 10);
     await run(
       'UPDATE users SET password_hash = $1, updated_at = NOW() WHERE id = $2',
       [newPasswordHash, req.user!.id]
     );
 
-    res.json({ message: 'Senha alterada com sucesso' });
+    await savePasswordHistory(req.user!.id, newPasswordHash);
+
+    await run('UPDATE active_sessions SET active = FALSE WHERE user_id = $1 AND active = TRUE', [req.user!.id]);
+
+    await logAudit({
+      entity_type: 'auth', entity_id: String(req.user!.id), action: 'password_change',
+      user_id: req.user!.id, user_name: req.user!.name,
+      details: {}, ip_address, user_agent
+    });
+
+    res.json({ message: 'Senha alterada com sucesso. Todas as sessões foram encerradas.' });
   } catch (error) {
     console.error('Change password error:', error);
     res.status(500).json({ error: 'Erro interno do servidor' });
   }
 });
 
-// List users (admin and gestor can view; admin manages)
 router.get('/users', authenticateToken, requirePermission('users.view'), async (req: Request, res: Response) => {
   try {
     if (req.user?.role !== 'admin' && req.user?.role !== 'gestor') {
@@ -198,12 +333,12 @@ router.get('/users', authenticateToken, requirePermission('users.view'), async (
   }
 });
 
-// Create user (admin only)
 router.post('/users', authenticateToken, requirePermission('users.create'), async (req: Request, res: Response) => {
   try {
     if (req.user?.role !== 'admin') {
       return res.status(403).json({ error: 'Apenas administradores podem criar usuários' });
     }
+    const { ip_address, user_agent } = extractMeta(req);
     const { email, password, name, role } = registerSchema.parse(req.body);
     const existingUser = await get('SELECT id FROM users WHERE email = $1', [email]);
     if (existingUser) {
@@ -214,12 +349,10 @@ router.post('/users', authenticateToken, requirePermission('users.create'), asyn
       'INSERT INTO users (email, password_hash, name, role) VALUES ($1, $2, $3, $4) RETURNING id, email, name, role, active',
       [email, passwordHash, name, role || 'consulta']
     );
-
     const newUserId = result.rows[0].id;
     const newRole = result.rows[0].role;
     const rolePerms = await all<{ permission_id: number }>(
-      'SELECT permission_id FROM role_permissions WHERE role = $1',
-      [newRole]
+      'SELECT permission_id FROM role_permissions WHERE role = $1', [newRole]
     );
     for (const rp of rolePerms) {
       await run(
@@ -227,7 +360,13 @@ router.post('/users', authenticateToken, requirePermission('users.create'), asyn
         [newUserId, rp.permission_id]
       );
     }
-
+    await savePasswordHistory(newUserId, passwordHash);
+    await logAudit({
+      entity_type: 'user', entity_id: String(newUserId), action: 'create',
+      user_id: req.user!.id, user_name: req.user!.name,
+      details: { target_email: email, target_role: newRole },
+      ip_address, user_agent
+    });
     res.status(201).json({ message: 'Usuário criado com sucesso', user: result.rows[0] });
   } catch (error) {
     if (error instanceof z.ZodError) {
@@ -238,11 +377,10 @@ router.post('/users', authenticateToken, requirePermission('users.create'), asyn
   }
 });
 
-// Update user role/active (admin only)
 const updateUserSchema = z.object({
   role: z.enum(['admin', 'gestor', 'analista', 'consulta']).optional(),
   active: z.boolean().optional(),
-  name: z.string().min(2).optional()
+  name: z.string().min(2).max(100).optional()
 });
 
 router.put('/users/:id', authenticateToken, requirePermission('users.edit'), async (req: Request, res: Response) => {
@@ -250,6 +388,7 @@ router.put('/users/:id', authenticateToken, requirePermission('users.edit'), asy
     if (req.user?.role !== 'admin') {
       return res.status(403).json({ error: 'Apenas administradores podem editar usuários' });
     }
+    const { ip_address, user_agent } = extractMeta(req);
     const id = parseInt(req.params.id as string);
     if (id === req.user!.id) {
       return res.status(400).json({ error: 'Não é possível alterar a própria conta' });
@@ -274,9 +413,19 @@ router.put('/users/:id', authenticateToken, requirePermission('users.edit'), asy
     updates.push('updated_at = NOW()');
     values.push(id);
     await run(`UPDATE users SET ${updates.join(', ')} WHERE id = $${idx}`, values);
+
+    if (data.active === false) {
+      await run('UPDATE active_sessions SET active = FALSE WHERE user_id = $1', [id]);
+    }
+
     const updated = await get<UserResponse & { active: boolean }>(
       'SELECT id, email, name, role, active FROM users WHERE id = $1', [id]
     );
+    await logAudit({
+      entity_type: 'user', entity_id: String(id), action: 'update',
+      user_id: req.user!.id, user_name: req.user!.name,
+      details: { changes: data }, ip_address, user_agent
+    });
     res.json({ message: 'Usuário atualizado', user: updated });
   } catch (error) {
     if (error instanceof z.ZodError) {

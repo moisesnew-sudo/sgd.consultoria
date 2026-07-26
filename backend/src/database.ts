@@ -188,8 +188,146 @@ export async function initDatabase() {
     -- Add ano column to demands (idempotent)
     ALTER TABLE demands ADD COLUMN IF NOT EXISTS ano INTEGER DEFAULT EXTRACT(YEAR FROM NOW());
 
+    CREATE TABLE IF NOT EXISTS token_blacklist (
+      id SERIAL PRIMARY KEY,
+      token_hash TEXT NOT NULL,
+      expires_at TIMESTAMPTZ NOT NULL,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_token_blacklist_expires ON token_blacklist(expires_at);
+    CREATE INDEX IF NOT EXISTS idx_token_blacklist_hash ON token_blacklist(token_hash);
+
     CREATE INDEX IF NOT EXISTS idx_user_permissions_user_id ON user_permissions(user_id);
     CREATE INDEX IF NOT EXISTS idx_permissions_category ON permissions(category);
+
+    -- ============================================================
+    -- MÓDULO 1: Extended audit fields (idempotent)
+    -- ============================================================
+    ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS ip_address TEXT;
+    ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS user_agent TEXT;
+
+    -- ============================================================
+    -- MÓDULO 2: Demand versioning
+    -- ============================================================
+    CREATE TABLE IF NOT EXISTS demand_versions (
+      id SERIAL PRIMARY KEY,
+      demand_id TEXT NOT NULL REFERENCES demands(id) ON DELETE CASCADE,
+      version INTEGER NOT NULL,
+      snapshot JSONB NOT NULL,
+      changed_by INTEGER REFERENCES users(id),
+      changed_by_name TEXT NOT NULL,
+      ip_address TEXT,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    );
+    CREATE INDEX IF NOT EXISTS idx_demand_versions_demand_id ON demand_versions(demand_id);
+
+    -- ============================================================
+    -- MÓDULO 3: Password recovery
+    -- ============================================================
+    CREATE TABLE IF NOT EXISTS password_reset_tokens (
+      id SERIAL PRIMARY KEY,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      token_hash TEXT NOT NULL,
+      expires_at TIMESTAMPTZ NOT NULL,
+      used BOOLEAN DEFAULT FALSE,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    );
+    CREATE INDEX IF NOT EXISTS idx_password_reset_token_hash ON password_reset_tokens(token_hash);
+
+    -- ============================================================
+    -- MÓDULO 5 & 12: Active sessions & inactivity
+    -- ============================================================
+    CREATE TABLE IF NOT EXISTS active_sessions (
+      id SERIAL PRIMARY KEY,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      token_hash TEXT NOT NULL,
+      ip_address TEXT,
+      user_agent TEXT,
+      browser TEXT,
+      os TEXT,
+      last_activity TIMESTAMPTZ DEFAULT NOW(),
+      started_at TIMESTAMPTZ DEFAULT NOW(),
+      active BOOLEAN DEFAULT TRUE
+    );
+    CREATE INDEX IF NOT EXISTS idx_active_sessions_user_id ON active_sessions(user_id);
+    CREATE INDEX IF NOT EXISTS idx_active_sessions_token ON active_sessions(token_hash);
+
+    -- ============================================================
+    -- MÓDULO 12: Login attempts (account lockout)
+    -- ============================================================
+    CREATE TABLE IF NOT EXISTS login_attempts (
+      id SERIAL PRIMARY KEY,
+      email TEXT NOT NULL,
+      ip_address TEXT,
+      success BOOLEAN NOT NULL,
+      attempted_at TIMESTAMPTZ DEFAULT NOW()
+    );
+    CREATE INDEX IF NOT EXISTS idx_login_attempts_email ON login_attempts(email);
+    CREATE INDEX IF NOT EXISTS idx_login_attempts_ip ON login_attempts(ip_address);
+    CREATE INDEX IF NOT EXISTS idx_login_attempts_time ON login_attempts(attempted_at);
+
+    -- ============================================================
+    -- MÓDULO 12: Password history (prevent reuse)
+    -- ============================================================
+    CREATE TABLE IF NOT EXISTS password_history (
+      id SERIAL PRIMARY KEY,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      password_hash TEXT NOT NULL,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    );
+    CREATE INDEX IF NOT EXISTS idx_password_history_user_id ON password_history(user_id);
+
+    -- ============================================================
+    -- MÓDULO 7: Backup tracking
+    -- ============================================================
+    CREATE TABLE IF NOT EXISTS backups (
+      id SERIAL PRIMARY KEY,
+      filename TEXT NOT NULL,
+      file_path TEXT NOT NULL,
+      file_size BIGINT,
+      sha256_hash TEXT NOT NULL,
+      backup_type TEXT NOT NULL CHECK(backup_type IN ('daily', 'weekly', 'monthly', 'manual')),
+      status TEXT DEFAULT 'completed' CHECK(status IN ('completed', 'failed', 'restoring')),
+      created_by INTEGER REFERENCES users(id),
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    );
+    CREATE INDEX IF NOT EXISTS idx_backups_type ON backups(backup_type);
+    CREATE INDEX IF NOT EXISTS idx_backups_created ON backups(created_at);
+
+    -- ============================================================
+    -- MÓDULO 10: Export logs
+    -- ============================================================
+    CREATE TABLE IF NOT EXISTS export_logs (
+      id SERIAL PRIMARY KEY,
+      user_id INTEGER REFERENCES users(id),
+      user_name TEXT NOT NULL,
+      export_type TEXT NOT NULL CHECK(export_type IN ('pdf', 'excel')),
+      record_count INTEGER DEFAULT 0,
+      filters JSONB,
+      ip_address TEXT,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    );
+    CREATE INDEX IF NOT EXISTS idx_export_logs_user ON export_logs(user_id);
+    CREATE INDEX IF NOT EXISTS idx_export_logs_type ON export_logs(export_type);
+    CREATE INDEX IF NOT EXISTS idx_export_logs_created ON export_logs(created_at);
+
+    -- ============================================================
+    -- MÓDULO 9: System monitoring
+    -- ============================================================
+    CREATE TABLE IF NOT EXISTS monitoring_logs (
+      id SERIAL PRIMARY KEY,
+      server_cpu REAL,
+      server_memory REAL,
+      api_response_time REAL,
+      db_connection_count INTEGER,
+      active_users INTEGER,
+      total_demands INTEGER,
+      last_backup_at TIMESTAMPTZ,
+      integration_status TEXT,
+      recorded_at TIMESTAMPTZ DEFAULT NOW()
+    );
+    CREATE INDEX IF NOT EXISTS idx_monitoring_logs_recorded ON monitoring_logs(recorded_at);
   `);
 
   console.log('✅ Tabelas criadas/verificadas');

@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { z } from 'zod';
 import { get, all, run } from '../database.js';
-import { authenticateToken, requireRole, optionalAuth } from '../middleware/auth.js';
+import { authenticateToken, requireRole } from '../middleware/auth.js';
 
 const router = Router();
 
@@ -14,7 +14,7 @@ const municipalitySchema = z.object({
   region: z.enum(['Norte', 'Nordeste', 'Sudeste', 'Sul', 'Centro-Oeste']).optional()
 });
 
-router.get('/', optionalAuth, async (req: Request, res: Response) => {
+router.get('/', authenticateToken, async (req: Request, res: Response) => {
   try {
     const { uf, region, search } = req.query;
     let sql = 'SELECT * FROM municipalities WHERE 1=1';
@@ -37,7 +37,7 @@ router.get('/', optionalAuth, async (req: Request, res: Response) => {
   }
 });
 
-router.get('/:id', optionalAuth, async (req: Request, res: Response) => {
+router.get('/:id', authenticateToken, async (req: Request, res: Response) => {
   try {
     const municipality = await get('SELECT * FROM municipalities WHERE id = $1', [req.params.id]);
     if (!municipality) return res.status(404).json({ error: 'Município não encontrado' });
@@ -119,7 +119,7 @@ router.delete('/:id', authenticateToken, requireRole('admin'), async (req: Reque
   }
 });
 
-router.get('/stats/by-region', optionalAuth, async (req: Request, res: Response) => {
+router.get('/stats/by-region', authenticateToken, async (req: Request, res: Response) => {
   try {
     const stats = await all(`
       SELECT region, COUNT(*) as count, SUM(total_value) as total_value, AVG(hdi) as avg_hdi
