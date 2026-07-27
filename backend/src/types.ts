@@ -1,7 +1,12 @@
-export type DemandStatus = 'analise' | 'pendente' | 'concluido' | 'rejeitado';
-export type DemandPriority = 'baixa' | 'media' | 'alta' | 'urgente';
-export type UserRole = 'admin' | 'gestor' | 'analista' | 'consulta';
-export type Region = 'Norte' | 'Nordeste' | 'Sudeste' | 'Sul' | 'Centro-Oeste';
+export const DEMAND_STATUSES = ['analise', 'pendente', 'concluido', 'rejeitado'] as const;
+export const DEMAND_PRIORITIES = ['baixa', 'media', 'alta', 'urgente'] as const;
+export const USER_ROLES = ['admin', 'gestor', 'analista', 'consulta'] as const;
+export const REGIONS = ['Norte', 'Nordeste', 'Sudeste', 'Sul', 'Centro-Oeste'] as const;
+
+export type DemandStatus = (typeof DEMAND_STATUSES)[number];
+export type DemandPriority = (typeof DEMAND_PRIORITIES)[number];
+export type UserRole = (typeof USER_ROLES)[number];
+export type Region = (typeof REGIONS)[number];
 
 export interface User {
   id: number;

@@ -4,7 +4,7 @@ import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
 import { z } from 'zod';
 import { get, run, all } from '../database.js';
-import { User, UserResponse } from '../types.js';
+import { User, UserResponse, USER_ROLES } from '../types.js';
 import { authenticateToken, requirePermission } from '../middleware/auth.js';
 import { logAudit, extractMeta } from '../lib/audit.js';
 
@@ -30,7 +30,7 @@ const registerSchema = z.object({
   email: z.string().email('Email inválido'),
   password: passwordSchema,
   name: z.string().min(2, 'Nome deve ter pelo menos 2 caracteres').max(100),
-  role: z.enum(['admin', 'gestor', 'analista', 'consulta']).optional()
+  role: z.enum(USER_ROLES).optional()
 });
 
 async function isAccountLocked(email: string): Promise<boolean> {
@@ -378,7 +378,7 @@ router.post('/users', authenticateToken, requirePermission('users.create'), asyn
 });
 
 const updateUserSchema = z.object({
-  role: z.enum(['admin', 'gestor', 'analista', 'consulta']).optional(),
+  role: z.enum(USER_ROLES).optional(),
   active: z.boolean().optional(),
   name: z.string().min(2).max(100).optional()
 });

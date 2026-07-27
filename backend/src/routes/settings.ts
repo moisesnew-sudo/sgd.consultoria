@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { get, all, run } from '../database.js';
 import { authenticateToken, requireRole, requirePermission } from '../middleware/auth.js';
 import { logAudit, logExport, extractMeta } from '../lib/audit.js';
+import { buildUpdateQuery } from '../lib/helpers.js';
 
 const router = Router();
 
@@ -40,22 +41,9 @@ router.put('/', authenticateToken, requireRole('admin'), requirePermission('sett
     const data = settingsSchema.parse(req.body);
     await run(`INSERT INTO system_settings (id) VALUES (1) ON CONFLICT (id) DO NOTHING`);
 
-    const updates: string[] = [];
-    const values: any[] = [];
-    let idx = 1;
-
-    for (const [key, value] of Object.entries(data)) {
-      if (value !== undefined) {
-        const col = key.replace(/([A-Z])/g, '_$1').toLowerCase();
-        updates.push(`${col} = $${idx++}`);
-        values.push(value);
-      }
-    }
-
-    if (updates.length > 0) {
-      updates.push('updated_at = NOW()');
-      values.push(1);
-      await run(`UPDATE system_settings SET ${updates.join(', ')} WHERE id = $${idx}`, values);
+    const result = buildUpdateQuery('system_settings', data, 'id', 1);
+    if (result) {
+      await run(result.sql, result.values);
     }
 
     const updated = await get('SELECT * FROM system_settings WHERE id = 1');

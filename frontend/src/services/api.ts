@@ -200,7 +200,7 @@ export const logExport = async (exportType: 'pdf' | 'excel', recordCount: number
 
 // Audit API
 export const auditApi = {
-  list: (params?: { entity_type?: string; entity_id?: string; action?: string; user_id?: string; start_date?: string; end_date?: string; page?: number; limit?: number }) => {
+  list: async (params?: { entity_type?: string; entity_id?: string; action?: string; user_id?: string; start_date?: string; end_date?: string; page?: number; limit?: number }) => {
     const searchParams = new URLSearchParams();
     if (params) {
       Object.entries(params).forEach(([key, value]) => {
@@ -208,7 +208,8 @@ export const auditApi = {
       });
     }
     const qs = searchParams.toString();
-    return request<any>(`/audit${qs ? '?' + qs : ''}`);
+    const res = await request<any>(`/audit${qs ? '?' + qs : ''}`);
+    return Array.isArray(res) ? res : (res.data || []);
   },
   getDashboardStats: (params?: { start_date?: string; end_date?: string }) => {
     const searchParams = new URLSearchParams();

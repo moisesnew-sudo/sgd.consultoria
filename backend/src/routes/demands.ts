@@ -1,9 +1,10 @@
 import { Router, Request, Response } from 'express';
 import { z } from 'zod';
 import { get, all, run } from '../database.js';
-import { Demand, TimelineEvent, Attachment } from '../types.js';
+import { Demand, TimelineEvent, Attachment, DEMAND_STATUSES, DEMAND_PRIORITIES } from '../types.js';
 import { authenticateToken, requirePermission } from '../middleware/auth.js';
 import { logAudit, extractMeta } from '../lib/audit.js';
+import { addTimelineEvent, buildUpdateQuery } from '../lib/helpers.js';
 
 const router = Router();
 
@@ -11,8 +12,8 @@ const demandSchema = z.object({
   title: z.string().min(1, 'Título é obrigatório'),
   description: z.string().optional(),
   category: z.string().min(1, 'Categoria é obrigatória'),
-  status: z.enum(['analise', 'pendente', 'concluido', 'rejeitado']).optional(),
-  priority: z.enum(['baixa', 'media', 'alta', 'urgente']).optional(),
+  status: z.enum(DEMAND_STATUSES).optional(),
+  priority: z.enum(DEMAND_PRIORITIES).optional(),
   municipality: z.string().min(1, 'Município é obrigatório'),
   uf: z.string().length(2, 'UF deve ter 2 caracteres'),
   requested_value: z.number().optional(),
@@ -30,7 +31,7 @@ const demandSchema = z.object({
 const timelineEventSchema = z.object({
   title: z.string().min(1, 'Título é obrigatório'),
   description: z.string().optional(),
-  status_changed_to: z.enum(['analise', 'pendente', 'concluido', 'rejeitado']).optional()
+  status_changed_to: z.enum(DEMAND_STATUSES).optional(),
 });
 
 async function saveDemandVersion(demandId: string, snapshot: any, changedBy: number, changedByName: string, ipAddress?: string) {
@@ -170,11 +171,7 @@ router.post('/', authenticateToken, requirePermission('demands.create'), async (
        data.process_link || '', data.responsible_name || req.user!.name, data.responsible_email || req.user!.email,
        data.responsible_phone || '', data.notes || '', req.user!.id, now, now, anoVal]
     );
-    await run(
-      `INSERT INTO timeline_events (id, demand_id, title, description, user_name, status_changed_to, created_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-      [`ev-${Date.now()}`, id, 'Demanda Cadastrada', `Demanda criada por ${req.user!.name}`, req.user!.name, data.status || 'pendente', now]
-    );
+    await addTimelineEvent(id, 'Demanda Cadastrada', `Demanda criada por ${req.user!.name}`, req.user!.name, data.status || 'pendente');
     await run(
       'UPDATE municipalities SET demands_count = demands_count + 1, total_value = total_value + $1, updated_at = NOW() WHERE name = $2 AND uf = $3',
       [data.requested_value || 0, data.municipality, data.uf]
@@ -208,29 +205,14 @@ router.put('/:id', authenticateToken, requirePermission('demands.edit'), async (
     if (!existing) return res.status(404).json({ error: 'Demanda não encontrada' });
     await saveDemandVersion(req.params.id as string, existing, req.user!.id, req.user!.name, ip_address);
     const data = demandSchema.partial().parse(req.body);
-    const updates: string[] = [];
-    const values: any[] = [];
-    let idx = 1;
-    for (const [key, value] of Object.entries(data)) {
-      if (value !== undefined) {
-        const col = key.replace(/([A-Z])/g, '_$1').toLowerCase();
-        updates.push(`${col} = $${idx++}`);
-        values.push(value);
-      }
-    }
-    if (updates.length > 0) {
-      updates.push('updated_at = NOW()');
-      values.push(req.params.id as string);
-      await run(`UPDATE demands SET ${updates.join(', ')} WHERE id = $${idx}`, values);
+    const result = buildUpdateQuery('demands', data, 'id', req.params.id as string);
+    if (result) {
+      await run(result.sql, result.values);
       if (data.status && data.status !== existing.status) {
         const user = await get<{ name: string }>('SELECT name FROM users WHERE id = $1', [req.user!.id]);
-        await run(
-          `INSERT INTO timeline_events (id, demand_id, title, description, user_name, status_changed_to, created_at)
-           VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-          [`ev-${Date.now()}`, req.params.id as string, 'Status Alterado',
-           `Status alterado de "${existing.status}" para "${data.status}" por ${user?.name || req.user!.name}`,
-           user?.name || req.user!.name, data.status, new Date().toISOString()]
-        );
+        await addTimelineEvent(req.params.id as string, 'Status Alterado',
+          `Status alterado de "${existing.status}" para "${data.status}" por ${user?.name || req.user!.name}`,
+          user?.name || req.user!.name, data.status);
       }
     }
     const updated = await get<Demand>('SELECT * FROM demands WHERE id = $1', [req.params.id as string]);
@@ -287,13 +269,8 @@ router.post('/:id/timeline', authenticateToken, requirePermission('demands.edit'
     const demand = await get<Demand>('SELECT * FROM demands WHERE id = $1', [req.params.id as string]);
     if (!demand) return res.status(404).json({ error: 'Demanda não encontrada' });
     const data = timelineEventSchema.parse(req.body);
-    const eventId = `ev-${Date.now()}`;
-    const now = new Date().toISOString();
-    await run(
-      `INSERT INTO timeline_events (id, demand_id, title, description, user_name, status_changed_to, created_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-      [eventId, req.params.id as string, data.title, data.description || 'Nenhuma descrição informada.', req.user!.name, data.status_changed_to || null, now]
-    );
+    const eventId = await addTimelineEvent(req.params.id as string, data.title,
+      data.description || 'Nenhuma descrição informada.', req.user!.name, data.status_changed_to);
     if (data.status_changed_to) {
       await run('UPDATE demands SET status = $1, updated_at = NOW() WHERE id = $2', [data.status_changed_to, req.params.id as string]);
     }

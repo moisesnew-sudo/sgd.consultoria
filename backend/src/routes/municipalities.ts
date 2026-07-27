@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { z } from 'zod';
 import { get, all, run } from '../database.js';
+import { REGIONS } from '../types.js';
 import { authenticateToken, requireRole } from '../middleware/auth.js';
 
 const router = Router();
@@ -11,7 +12,7 @@ const municipalitySchema = z.object({
   schools_count: z.number().optional(),
   population: z.number().optional(),
   hdi: z.number().min(0).max(1).optional(),
-  region: z.enum(['Norte', 'Nordeste', 'Sudeste', 'Sul', 'Centro-Oeste']).optional()
+  region: z.enum(REGIONS).optional()
 });
 
 router.get('/', authenticateToken, async (req: Request, res: Response) => {

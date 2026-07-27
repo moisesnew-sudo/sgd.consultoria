@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { get, all, run } from '../database.js';
 import { authenticateToken, requireRole } from '../middleware/auth.js';
-import { extractMeta } from '../lib/audit.js';
+import { extractMeta, logExport } from '../lib/audit.js';
 
 const router = Router();
 
@@ -126,10 +126,7 @@ router.post('/log-export', authenticateToken, async (req: Request, res: Response
     if (!['pdf', 'excel'].includes(export_type)) {
       return res.status(400).json({ error: 'Tipo de exportação inválido' });
     }
-    await run(
-      'INSERT INTO export_logs (user_id, user_name, export_type, record_count, filters, ip_address) VALUES ($1, $2, $3, $4, $5, $6)',
-      [req.user!.id, req.user!.name, export_type, record_count || 0, filters ? JSON.stringify(filters) : null, ip_address]
-    );
+    await logExport(req, req.user!, export_type, record_count || 0, filters);
     res.json({ message: 'Exportação registrada' });
   } catch (error) {
     console.error('Log export error:', error);

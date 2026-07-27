@@ -3,7 +3,7 @@ import {
   BarChart3, Download, Filter, TrendingUp, AlertTriangle, CheckCircle2, Clock, FileText, Sparkles
 } from 'lucide-react';
 import { Demand, DemandStatus } from '../types';
-import { demandsApi, formatCurrency } from '../services/api';
+import { formatCurrency } from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
 import ExecutiveReport from './ExecutiveReport';
 

@@ -26,7 +26,7 @@ import {
   AlertTriangle
 } from 'lucide-react';
 import { Demand, DemandStatus, DemandPriority, TimelineEvent, PaginatedResponse } from '../types';
-import { demandsApi, formatCurrency, formatDate, ROLE_PERMISSIONS } from '../services/api';
+import { demandsApi, formatCurrency, formatDate } from '../services/api';
 import { formatCurrencyInput, parseCurrencyInput } from '../lib/currency';
 import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../contexts/ToastContext';

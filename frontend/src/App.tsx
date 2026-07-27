@@ -8,6 +8,7 @@ import { ToastProvider } from './contexts/ToastContext';
 import { Demand, MunicipalityData } from './types';
 import { demandsApi, municipalitiesApi } from './services/api';
 import { Skeleton } from './components/ui/Skeleton';
+import ErrorBoundary from './components/ui/ErrorBoundary';
 
 const DashboardView = lazy(() => import('./components/DashboardView'));
 const NewDemandView = lazy(() => import('./components/NewDemandView'));
@@ -169,22 +170,22 @@ function AppContent() {
       <main className="flex-1 min-w-0 lg:pl-72 pt-6 px-4 md:px-8 pb-12">
         <div className="max-w-7xl mx-auto py-8">
           {activeTab === 'dashboard' && (
-            <Suspense fallback={<ViewFallback />}>
+            <ErrorBoundary><Suspense fallback={<ViewFallback />}>
               <DashboardView
                 onNavigateToTab={handleNavigateToTab}
                 onSelectDemand={handleSelectDemandFromDashboard}
               />
-            </Suspense>
+            </Suspense></ErrorBoundary>
           )}
 
           {activeTab === 'new-demand' && (
-            <Suspense fallback={<ViewFallback />}>
+            <ErrorBoundary><Suspense fallback={<ViewFallback />}>
               <NewDemandView
                 municipalities={municipalities}
                 onAddDemand={handleAddDemand}
                 onNavigateToTab={handleNavigateToTab}
               />
-            </Suspense>
+            </Suspense></ErrorBoundary>
           )}
 
           {activeTab === 'demands' && (
@@ -206,81 +207,81 @@ function AppContent() {
           )}
 
           {activeTab === 'municipalities' && (
-            <Suspense fallback={<ViewFallback />}>
+            <ErrorBoundary><Suspense fallback={<ViewFallback />}>
               <MunicipalitiesView
                 municipalities={municipalities}
                 setMunicipalities={setMunicipalities}
               />
-            </Suspense>
+            </Suspense></ErrorBoundary>
           )}
 
           {activeTab === 'reports' && (
-            <Suspense fallback={<ViewFallback />}>
+            <ErrorBoundary><Suspense fallback={<ViewFallback />}>
               <ReportsView demands={demands} />
-            </Suspense>
+            </Suspense></ErrorBoundary>
           )}
 
           {activeTab === 'settings' && (
-            <Suspense fallback={<ViewFallback />}>
+            <ErrorBoundary><Suspense fallback={<ViewFallback />}>
               <SettingsView onBackToLogin={() => {
                 localStorage.removeItem('authToken');
                 window.location.reload();
               }} />
-            </Suspense>
+            </Suspense></ErrorBoundary>
           )}
 
           {activeTab === 'users' && (
-            <Suspense fallback={<ViewFallback />}>
+            <ErrorBoundary><Suspense fallback={<ViewFallback />}>
               <UsersView currentUser={user!} />
-            </Suspense>
+            </Suspense></ErrorBoundary>
           )}
 
           {activeTab === 'calendar' && (
-            <Suspense fallback={<ViewFallback />}>
+            <ErrorBoundary><Suspense fallback={<ViewFallback />}>
               <CalendarView />
-            </Suspense>
+            </Suspense></ErrorBoundary>
           )}
 
           {activeTab === 'audit' && (
-            <Suspense fallback={<ViewFallback />}>
+            <ErrorBoundary><Suspense fallback={<ViewFallback />}>
               <AuditView />
-            </Suspense>
+            </Suspense></ErrorBoundary>
           )}
 
           {activeTab === 'audit-dashboard' && (
-            <Suspense fallback={<ViewFallback />}>
+            <ErrorBoundary><Suspense fallback={<ViewFallback />}>
               <AuditDashboardView />
-            </Suspense>
+            </Suspense></ErrorBoundary>
           )}
 
           {activeTab === 'integrations' && (
-            <Suspense fallback={<ViewFallback />}>
+            <ErrorBoundary><Suspense fallback={<ViewFallback />}>
               <IntegrationView />
-            </Suspense>
+            </Suspense></ErrorBoundary>
           )}
 
           {activeTab === 'sessions' && (
-            <Suspense fallback={<ViewFallback />}>
+            <ErrorBoundary><Suspense fallback={<ViewFallback />}>
               <SessionsView />
-            </Suspense>
+            </Suspense></ErrorBoundary>
           )}
 
           {activeTab === 'backup' && (
-            <Suspense fallback={<ViewFallback />}>
+            <ErrorBoundary><Suspense fallback={<ViewFallback />}>
               <BackupManagementView />
-            </Suspense>
+            </Suspense></ErrorBoundary>
           )}
 
           {activeTab === 'monitoring' && (
-            <Suspense fallback={<ViewFallback />}>
+            <ErrorBoundary><Suspense fallback={<ViewFallback />}>
               <MonitoringView />
-            </Suspense>
+            </Suspense></ErrorBoundary>
           )}
 
           {activeTab === 'lgpd' && (
-            <Suspense fallback={<ViewFallback />}>
+            <ErrorBoundary><Suspense fallback={<ViewFallback />}>
               <LgpdView />
-            </Suspense>
+            </Suspense></ErrorBoundary>
           )}
         </div>
       </main>
