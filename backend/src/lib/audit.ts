@@ -13,20 +13,21 @@ export interface AuditEntry {
 
 function parseUserAgent(ua?: string): { browser: string; os: string } {
   if (!ua) return { browser: 'Desconhecido', os: 'Desconhecido' };
+  const u = ua.toLowerCase();
   let browser = 'Desconhecido';
   let os = 'Desconhecido';
 
-  if (ua.includes('Chrome') && !ua.includes('Edg')) browser = 'Chrome';
-  else if (ua.includes('Firefox')) browser = 'Firefox';
-  else if (ua.includes('Safari') && !ua.includes('Chrome')) browser = 'Safari';
-  else if (ua.includes('Edg')) browser = 'Edge';
-  else if (ua.includes('MSIE') || ua.includes('Trident')) browser = 'Internet Explorer';
+  if (u.includes('chrome') && !u.includes('edg')) browser = 'Chrome';
+  else if (u.includes('firefox')) browser = 'Firefox';
+  else if (u.includes('safari') && !u.includes('chrome')) browser = 'Safari';
+  else if (u.includes('edg')) browser = 'Edge';
+  else if (u.includes('msie') || u.includes('trident')) browser = 'Internet Explorer';
 
-  if (ua.includes('Windows NT')) os = 'Windows';
-  else if (ua.includes('Mac OS X')) os = 'macOS';
-  else if (ua.includes('Linux') && !ua.includes('Android')) os = 'Linux';
-  else if (ua.includes('Android')) os = 'Android';
-  else if (ua.includes('iPhone') || ua.includes('iPad')) os = 'iOS';
+  if (u.includes('windows nt')) os = 'Windows';
+  else if (u.includes('mac os x')) os = 'macOS';
+  else if (u.includes('linux') && !u.includes('android')) os = 'Linux';
+  else if (u.includes('android')) os = 'Android';
+  else if (u.includes('iphone') || u.includes('ipad')) os = 'iOS';
 
   return { browser, os };
 }

@@ -28,7 +28,7 @@ import backupsRoutes from './routes/backups.js';
 import monitoringRoutes from './routes/monitoring.js';
 import lgpdRoutes from './routes/lgpd.js';
 import { runSeed } from './seed.js';
-import { initDatabase } from './database.js';
+import { initDatabase, run } from './database.js';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -136,6 +136,12 @@ app.use((err: any, req: express.Request, res: express.Response, next: express.Ne
 async function start() {
   await initDatabase();
   await runSeed();
+
+  // Cleanup expired/inactive data
+  await run("DELETE FROM active_sessions WHERE active = FALSE AND last_activity < NOW() - INTERVAL '24 hours'");
+  await run("DELETE FROM login_attempts WHERE attempted_at < NOW() - INTERVAL '48 hours'");
+  await run("DELETE FROM token_blacklist WHERE expires_at < NOW()");
+  await run("UPDATE active_sessions SET active = FALSE WHERE active = TRUE AND last_activity < NOW() - INTERVAL '24 hours'");
   app.listen(PORT, () => {
     console.log(`
     🚀 SGD Backend Server Running
@@ -149,6 +155,8 @@ async function start() {
   });
 }
 
-start();
+if (process.env.NODE_ENV !== 'test') {
+  start();
+}
 
 export default app;

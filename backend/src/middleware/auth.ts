@@ -44,7 +44,7 @@ export const authenticateToken = async (req: Request, res: Response, next: NextF
     cleanupBlacklist();
     next();
   } catch (error) {
-    return res.status(403).json({ error: 'Token inválido ou expirado' });
+    return res.status(401).json({ error: 'Token inválido ou expirado' });
   }
 };
 
@@ -72,9 +72,15 @@ export const requirePermission = (permissionKey: string) => {
     }
     try {
       const result = await get<{ granted: boolean }>(
-        `SELECT up.granted FROM user_permissions up
-         JOIN permissions p ON p.id = up.permission_id
-         WHERE up.user_id = $1 AND p.key = $2 AND up.granted = TRUE`,
+        `SELECT TRUE as granted FROM (
+          SELECT up.granted FROM user_permissions up
+          JOIN permissions p ON p.id = up.permission_id
+          WHERE up.user_id = $1 AND p.key = $2 AND up.granted = TRUE
+          UNION
+          SELECT TRUE FROM role_permissions rp
+          JOIN permissions p ON p.id = rp.permission_id
+          WHERE rp.role = (SELECT role FROM users WHERE id = $1) AND p.key = $2
+        ) sub`,
         [req.user.id, permissionKey]
       );
       if (!result) {

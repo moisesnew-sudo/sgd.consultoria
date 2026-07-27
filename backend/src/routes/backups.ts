@@ -3,7 +3,7 @@ import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { get, all, run } from '../database.js';
+import { get, all, run, transaction } from '../database.js';
 import { authenticateToken, requireRole } from '../middleware/auth.js';
 import { logAudit, extractMeta } from '../lib/audit.js';
 
@@ -132,35 +132,37 @@ router.post('/:id/restore', authenticateToken, requireRole('admin'), async (req:
 
     const backupData = JSON.parse(fileContent);
     if (!backupData.data) return res.status(400).json({ error: 'Formato de backup inválido' });
-
-    await run('UPDATE active_sessions SET active = FALSE');
-    await run('DELETE FROM comments');
-    await run('DELETE FROM audit_logs');
-    await run('DELETE FROM attachments');
-    await run('DELETE FROM timeline_events');
-    await run('DELETE FROM demand_versions');
-    await run('DELETE FROM token_blacklist');
-    await run('DELETE FROM demands');
-    await run('DELETE FROM municipalities');
-    await run('DELETE FROM user_permissions');
-    await run('DELETE FROM role_permissions');
-    await run('DELETE FROM permissions');
-    await run('DELETE FROM users');
-    await run('DELETE FROM system_settings');
-
     const { data } = backupData;
-    for (const table of ['permissions', 'users', 'system_settings', 'municipalities', 'demands', 'timeline_events', 'attachments', 'comments', 'user_permissions', 'role_permissions', 'audit_logs']) {
-      if (data[table] && Array.isArray(data[table])) {
-        for (const row of data[table]) {
-          const cols = Object.keys(row);
-          const vals = Object.values(row);
-          const placeholders = cols.map((_, i) => `$${i + 1}`).join(', ');
-          try {
-            await run(`INSERT INTO ${table} (${cols.join(', ')}) VALUES (${placeholders}) ON CONFLICT DO NOTHING`, vals);
-          } catch { /* skip conflicts */ }
+
+    await transaction(async (client) => {
+      await client.query('UPDATE active_sessions SET active = FALSE');
+      await client.query('DELETE FROM comments');
+      await client.query('DELETE FROM audit_logs');
+      await client.query('DELETE FROM attachments');
+      await client.query('DELETE FROM timeline_events');
+      await client.query('DELETE FROM demand_versions');
+      await client.query('DELETE FROM token_blacklist');
+      await client.query('DELETE FROM demands');
+      await client.query('DELETE FROM municipalities');
+      await client.query('DELETE FROM user_permissions');
+      await client.query('DELETE FROM role_permissions');
+      await client.query('DELETE FROM permissions');
+      await client.query('DELETE FROM users');
+      await client.query('DELETE FROM system_settings');
+
+      for (const table of ['permissions', 'users', 'system_settings', 'municipalities', 'demands', 'timeline_events', 'attachments', 'comments', 'user_permissions', 'role_permissions', 'audit_logs']) {
+        if (data[table] && Array.isArray(data[table])) {
+          for (const row of data[table]) {
+            const cols = Object.keys(row);
+            const vals = Object.values(row);
+            const placeholders = cols.map((_, i) => `$${i + 1}`).join(', ');
+            try {
+              await client.query(`INSERT INTO ${table} (${cols.join(', ')}) VALUES (${placeholders}) ON CONFLICT DO NOTHING`, vals);
+            } catch { /* skip conflicts */ }
+          }
         }
       }
-    }
+    });
 
     await logAudit({
       entity_type: 'backup', entity_id: String(req.params.id), action: 'backup_restored',

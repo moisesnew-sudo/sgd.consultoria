@@ -1,4 +1,4 @@
-import pg from 'pg';
+import pg, { PoolClient } from 'pg';
 import dotenv from 'dotenv';
 
 dotenv.config();
@@ -39,6 +39,21 @@ export async function all<T = any>(sql: string, params?: any[]): Promise<T[]> {
 export async function run(sql: string, params?: any[]) {
   const result = await pool.query(sql, params);
   return result;
+}
+
+export async function transaction<T>(fn: (client: PoolClient) => Promise<T>): Promise<T> {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const result = await fn(client);
+    await client.query('COMMIT');
+    return result;
+  } catch (e) {
+    await client.query('ROLLBACK');
+    throw e;
+  } finally {
+    client.release();
+  }
 }
 
 export async function initDatabase() {

@@ -36,69 +36,78 @@ router.get('/', authenticateToken, requireRole('admin'), async (req: Request, re
 router.get('/dashboard-stats', authenticateToken, requireRole('admin'), async (req: Request, res: Response) => {
   try {
     const { start_date, end_date } = req.query;
-    const dateFilter = start_date && end_date
-      ? ` AND created_at >= '${start_date}' AND created_at <= '${end_date}'`
-      : '';
 
-    const totalLogins = await get<{ count: string }>(
-      `SELECT COUNT(*) as count FROM audit_logs WHERE action = 'login'${dateFilter}`
-    );
-    const failedLogins = await get<{ count: string }>(
-      `SELECT COUNT(*) as count FROM audit_logs WHERE action IN ('login_failed', 'login_locked')${dateFilter}`
-    );
-    const activeUsers = await get<{ count: string }>(
-      "SELECT COUNT(*) as count FROM users WHERE active = TRUE"
-    );
-    const activeSessions = await get<{ count: string }>(
-      "SELECT COUNT(*) as count FROM active_sessions WHERE active = TRUE AND last_activity > NOW() - INTERVAL '30 minutes'"
-    );
-    const pdfExports = await get<{ count: string }>(
-      `SELECT COUNT(*) as count FROM export_logs WHERE export_type = 'pdf'${dateFilter.replace('created_at', 'export_logs.created_at')}`
-    );
-    const excelExports = await get<{ count: string }>(
-      `SELECT COUNT(*) as count FROM export_logs WHERE export_type = 'excel'${dateFilter.replace('created_at', 'export_logs.created_at')}`
-    );
-    const demandsCreated = await get<{ count: string }>(
-      `SELECT COUNT(*) as count FROM audit_logs WHERE action = 'create' AND entity_type = 'demand'${dateFilter}`
-    );
-    const demandsUpdated = await get<{ count: string }>(
-      `SELECT COUNT(*) as count FROM audit_logs WHERE action = 'update' AND entity_type = 'demand'${dateFilter}`
-    );
-    const demandsDeleted = await get<{ count: string }>(
-      `SELECT COUNT(*) as count FROM audit_logs WHERE action = 'delete' AND entity_type = 'demand'${dateFilter}`
-    );
-    const permChanges = await get<{ count: string }>(
-      `SELECT COUNT(*) as count FROM audit_logs WHERE action LIKE 'permission%'${dateFilter}`
-    );
-    const userChanges = await get<{ count: string }>(
-      `SELECT COUNT(*) as count FROM audit_logs WHERE action IN ('create', 'update') AND entity_type = 'user'${dateFilter}`
-    );
+    const dp = (() => {
+      const params: any[] = [];
+      let clause = '';
+      if (start_date) { clause += ` AND created_at >= $${params.length + 1}`; params.push(start_date); }
+      if (end_date) { clause += ` AND created_at <= $${params.length + 1}`; params.push(end_date); }
+      return { clause, params } as const;
+    })();
 
-    const loginsByDay = await all<{ day: string; count: string }>(
-      `SELECT DATE(created_at) as day, COUNT(*) as count FROM audit_logs WHERE action = 'login'${dateFilter ? dateFilter.replace('created_at', 'audit_logs.created_at') : ''} GROUP BY day ORDER BY day DESC LIMIT 30`
-    );
-    const changesByUser = await all<{ user_name: string; count: string }>(
-      `SELECT user_name, COUNT(*) as count FROM audit_logs WHERE action IN ('create', 'update', 'delete') ${dateFilter} GROUP BY user_name ORDER BY count DESC LIMIT 10`
-    );
-    const demandsModified = await all<{ day: string; count: string }>(
-      `SELECT DATE(created_at) as day, COUNT(*) as count FROM audit_logs WHERE entity_type = 'demand'${dateFilter ? dateFilter.replace('created_at', 'audit_logs.created_at') : ''} GROUP BY day ORDER BY day DESC LIMIT 30`
-    );
-    const exportsDone = await all<{ day: string; count: string }>(
-      `SELECT DATE(created_at) as day, COUNT(*) as count FROM export_logs${dateFilter ? ` WHERE created_at >= '${start_date}' AND created_at <= '${end_date}'` : ''} GROUP BY day ORDER BY day DESC LIMIT 30`
-    );
+    const [totalLogins, failedLogins, activeUsers, activeSessions, pdfExports, excelExports, demandsCreated, demandsUpdated, demandsDeleted, permChanges, userChanges] = await Promise.all([
+      get<{ count: string }>("SELECT COUNT(*) as count FROM audit_logs WHERE action = 'login'" + dp.clause, dp.params).then(r => parseInt(r?.count || '0')),
+      get<{ count: string }>("SELECT COUNT(*) as count FROM audit_logs WHERE action IN ('login_failed', 'login_locked')" + dp.clause, dp.params).then(r => parseInt(r?.count || '0')),
+      get<{ count: string }>("SELECT COUNT(*) as count FROM users WHERE active = TRUE"),
+      get<{ count: string }>("SELECT COUNT(*) as count FROM active_sessions WHERE active = TRUE AND last_activity > NOW() - INTERVAL '30 minutes'"),
+      (async () => {
+        const p: any[] = ['pdf'];
+        let sql = "SELECT COUNT(*) as count FROM export_logs WHERE export_type = $1";
+        if (start_date) { sql += ` AND created_at >= $${p.length + 1}`; p.push(start_date); }
+        if (end_date) { sql += ` AND created_at <= $${p.length + 1}`; p.push(end_date); }
+        const r = await get<{ count: string }>(sql, p); return parseInt(r?.count || '0');
+      })(),
+      (async () => {
+        const p: any[] = ['excel'];
+        let sql = "SELECT COUNT(*) as count FROM export_logs WHERE export_type = $1";
+        if (start_date) { sql += ` AND created_at >= $${p.length + 1}`; p.push(start_date); }
+        if (end_date) { sql += ` AND created_at <= $${p.length + 1}`; p.push(end_date); }
+        const r = await get<{ count: string }>(sql, p); return parseInt(r?.count || '0');
+      })(),
+      get<{ count: string }>("SELECT COUNT(*) as count FROM audit_logs WHERE action = 'create' AND entity_type = 'demand'" + dp.clause, dp.params).then(r => parseInt(r?.count || '0')),
+      get<{ count: string }>("SELECT COUNT(*) as count FROM audit_logs WHERE action = 'update' AND entity_type = 'demand'" + dp.clause, dp.params).then(r => parseInt(r?.count || '0')),
+      get<{ count: string }>("SELECT COUNT(*) as count FROM audit_logs WHERE action = 'delete' AND entity_type = 'demand'" + dp.clause, dp.params).then(r => parseInt(r?.count || '0')),
+      get<{ count: string }>("SELECT COUNT(*) as count FROM audit_logs WHERE action LIKE 'permission%'" + dp.clause, dp.params).then(r => parseInt(r?.count || '0')),
+      get<{ count: string }>("SELECT COUNT(*) as count FROM audit_logs WHERE action IN ('create', 'update') AND entity_type = 'user'" + dp.clause, dp.params).then(r => parseInt(r?.count || '0')),
+    ]);
+
+    const [loginsByDay, changesByUser, demandsModified, exportsDone] = await Promise.all([
+      all<{ day: string; count: string }>(
+        "SELECT DATE(created_at) as day, COUNT(*) as count FROM audit_logs WHERE action = 'login'" + dp.clause.replace(/created_at/g, 'audit_logs.created_at') + ' GROUP BY day ORDER BY day DESC LIMIT 30',
+        dp.params
+      ),
+      all<{ user_name: string; count: string }>(
+        "SELECT user_name, COUNT(*) as count FROM audit_logs WHERE action IN ('create', 'update', 'delete')" + dp.clause + ' GROUP BY user_name ORDER BY count DESC LIMIT 10',
+        dp.params
+      ),
+      all<{ day: string; count: string }>(
+        "SELECT DATE(audit_logs.created_at) as day, COUNT(*) as count FROM audit_logs WHERE entity_type = 'demand'" + dp.clause.replace(/created_at/g, 'audit_logs.created_at') + ' GROUP BY day ORDER BY day DESC LIMIT 30',
+        dp.params
+      ),
+      (async () => {
+        const p: any[] = [];
+        let sql = 'SELECT DATE(created_at) as day, COUNT(*) as count FROM export_logs';
+        const wheres: string[] = [];
+        if (start_date) { wheres.push(`created_at >= $${p.length + 1}`); p.push(start_date); }
+        if (end_date) { wheres.push(`created_at <= $${p.length + 1}`); p.push(end_date); }
+        if (wheres.length) sql += ' WHERE ' + wheres.join(' AND ');
+        sql += ' GROUP BY day ORDER BY day DESC LIMIT 30';
+        return all<{ day: string; count: string }>(sql, p);
+      })(),
+    ]);
 
     res.json({
-      total_logins: parseInt(totalLogins?.count || '0'),
-      failed_logins: parseInt(failedLogins?.count || '0'),
+      total_logins: totalLogins,
+      failed_logins: failedLogins,
       active_users: parseInt(activeUsers?.count || '0'),
       active_sessions: parseInt(activeSessions?.count || '0'),
-      pdf_exports: parseInt(pdfExports?.count || '0'),
-      excel_exports: parseInt(excelExports?.count || '0'),
-      demands_created: parseInt(demandsCreated?.count || '0'),
-      demands_updated: parseInt(demandsUpdated?.count || '0'),
-      demands_deleted: parseInt(demandsDeleted?.count || '0'),
-      permission_changes: parseInt(permChanges?.count || '0'),
-      user_changes: parseInt(userChanges?.count || '0'),
+      pdf_exports: pdfExports,
+      excel_exports: excelExports,
+      demands_created: demandsCreated,
+      demands_updated: demandsUpdated,
+      demands_deleted: demandsDeleted,
+      permission_changes: permChanges,
+      user_changes: userChanges,
       logins_by_day: loginsByDay,
       changes_by_user: changesByUser,
       demands_modified: demandsModified,
