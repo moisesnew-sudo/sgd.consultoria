@@ -11,7 +11,7 @@ import {
   UserPermission
 } from '../types';
 
-const API_BASE = import.meta.env.VITE_API_URL || 'https://sgd-consultoria.onrender.com/api';
+const API_BASE = import.meta.env.VITE_API_URL || 'https://sgd-consultoria.onrender.com';
 
 class ApiError extends Error {
   constructor(public status: number, message: string) {
@@ -29,7 +29,7 @@ async function request<T>(endpoint: string, options?: RequestInit): Promise<T> {
     ...options?.headers,
   };
 
-  const response = await fetch(`${API_BASE}${endpoint}`, {
+  const response = await fetch(`${API_BASE}/api${endpoint}`, {
     ...options,
     headers,
   });
@@ -248,7 +248,7 @@ export const backupsApi = {
   list: () => request<any[]>('/backups'),
   create: (type: string = 'manual') =>
     request<any>('/backups', { method: 'POST', body: JSON.stringify({ type }) }),
-  download: (id: number) => `${API_BASE}/backups/${id}/download`,
+  download: (id: number) => `${API_BASE}/api/backups/${id}/download`,
   verify: (id: number) => request<{ valid: boolean; stored_hash: string; computed_hash: string; filename: string }>(`/backups/${id}/verify`, { method: 'POST' }),
   restore: (id: number) => request<{ message: string }>(`/backups/${id}/restore`, { method: 'POST' }),
 };
