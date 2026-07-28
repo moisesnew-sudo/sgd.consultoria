@@ -11,12 +11,12 @@ interface CardProps {
 
 export function Card({ children, className = '', title, subtitle, icon, action }: CardProps) {
   return (
-    <div className={`bg-white dark:bg-[#111a2e] border border-slate-100 dark:border-slate-700/50 rounded-2xl shadow-sm hover:shadow-md transition-shadow ${className}`}>
+    <div className={`bg-white dark:bg-[#0f1f3a] border border-slate-100 dark:border-slate-700/50 rounded-2xl shadow-sm hover:shadow-md transition-all duration-200 ${className}`}>
       {(title || action) && (
         <div className="flex items-start justify-between gap-3 px-5 pt-5 pb-3 border-b border-slate-100 dark:border-slate-700/50">
           <div className="flex items-start gap-3 min-w-0">
             {icon && (
-              <div className="shrink-0 w-9 h-9 rounded-xl bg-brand-50 dark:bg-brand-900/40 text-brand-600 dark:text-brand-300 flex items-center justify-center">
+              <div className="shrink-0 w-9 h-9 rounded-xl bg-gov-50 dark:bg-gov-900/40 text-gov-700 dark:text-gov-300 flex items-center justify-center">
                 {icon}
               </div>
             )}
@@ -38,12 +38,13 @@ interface KpiProps {
   value: string;
   hint?: string;
   icon: React.ReactNode;
-  accent?: 'brand' | 'green' | 'amber' | 'rose' | 'blue';
+  accent?: 'gov' | 'green' | 'amber' | 'rose' | 'blue' | 'brand';
   trend?: { value: string; positive?: boolean };
 }
 
 const accentMap: Record<NonNullable<KpiProps['accent']>, string> = {
-  brand: 'bg-brand-50 dark:bg-brand-900/40 text-brand-600 dark:text-brand-300',
+  gov: 'bg-gov-50 dark:bg-gov-900/40 text-gov-700 dark:text-gov-300',
+  brand: 'bg-gov-50 dark:bg-gov-900/40 text-gov-700 dark:text-gov-300',
   green: 'bg-green-50 dark:bg-green-900/30 text-green-600 dark:text-green-300',
   amber: 'bg-amber-50 dark:bg-amber-900/30 text-amber-600 dark:text-amber-300',
   rose: 'bg-rose-50 dark:bg-rose-900/30 text-rose-600 dark:text-rose-300',
@@ -52,7 +53,7 @@ const accentMap: Record<NonNullable<KpiProps['accent']>, string> = {
 
 export function Kpi({ label, value, hint, icon, accent = 'brand', trend }: KpiProps) {
   return (
-    <div className="group bg-white dark:bg-[#111a2e] border border-slate-100 dark:border-slate-700/50 rounded-2xl p-5 shadow-sm hover:shadow-md transition-all hover:-translate-y-0.5">
+    <div className="group bg-white dark:bg-[#0f1f3a] border border-slate-100 dark:border-slate-700/50 rounded-2xl p-5 shadow-sm hover:shadow-md transition-all hover:-translate-y-0.5 duration-200">
       <div className="flex items-start justify-between">
         <div className={`w-11 h-11 rounded-xl flex items-center justify-center ${accentMap[accent]}`}>
           {icon}

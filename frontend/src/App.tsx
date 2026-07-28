@@ -1,5 +1,6 @@
 import React, { useState, useEffect, Suspense, lazy } from 'react';
 import Sidebar from './components/Sidebar';
+import { Header } from './components/ui/Header';
 import DemandsView from './components/DemandsView';
 import LoginView from './components/LoginView';
 import ResetPasswordView from './components/ResetPasswordView';
@@ -130,9 +131,12 @@ function AppContent() {
   // Show loading state
   if (authLoading || isLoading) {
     return (
-      <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center gap-3">
-        <div className="w-10 h-10 border-4 border-slate-900 border-t-brand-500 rounded-full animate-spin"></div>
-        <p className="text-xs font-semibold text-slate-500 font-mono">CGASI.SE • Carregando...</p>
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 dark:from-[#0a1628] dark:to-[#0b1120] flex flex-col items-center justify-center gap-4">
+        <div className="w-12 h-12 border-[3px] border-gov-200 dark:border-gov-800 border-t-gov-700 dark:border-t-gov-500 rounded-full animate-spin" />
+        <div className="text-center">
+          <p className="text-base font-extrabold tracking-tight text-gov-900 dark:text-white">SGD Brasil</p>
+          <p className="text-xs font-semibold text-slate-400 dark:text-slate-500 mt-0.5">Carregando...</p>
+        </div>
       </div>
     );
   }
@@ -140,13 +144,13 @@ function AppContent() {
   // Show error state
   if (error) {
     return (
-      <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center gap-4 p-8">
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 dark:from-[#0a1628] dark:to-[#0b1120] flex flex-col items-center justify-center gap-4 p-8">
         <div className="text-center space-y-3">
-          <h2 className="text-xl font-bold text-slate-800">Erro ao inicializar o sistema</h2>
+          <h2 className="text-xl font-extrabold text-slate-800 dark:text-white">Erro ao inicializar o sistema</h2>
           <p className="text-sm text-slate-500">{error}</p>
           <button
             onClick={loadData}
-            className="px-6 py-2 bg-slate-900 text-white rounded-lg text-sm font-semibold hover:bg-slate-800"
+            className="px-6 py-2.5 rounded-xl bg-gov-700 hover:bg-gov-800 text-white text-sm font-bold transition-colors shadow-sm"
           >
             Tentar novamente
           </button>
@@ -156,8 +160,8 @@ function AppContent() {
   }
 
   const content = (
-    <div className="min-h-screen bg-slate-50 flex text-slate-800 font-sans" id="sgm-shell">
-      <div className="fixed top-0 left-0 right-0 h-1 bg-brand-700 z-50" />
+    <div className="min-h-screen flex text-slate-800 font-sans" id="sgm-shell">
+      <div className="fixed top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-gov-700 via-gov-500 to-gov-700 z-50" />
 
       <Sidebar
         activeTab={activeTab}
@@ -167,8 +171,14 @@ function AppContent() {
         pendingCount={pendingTriageCount}
       />
 
-      <main className="flex-1 min-w-0 lg:pl-72 pt-6 px-4 md:px-8 pb-12">
-        <div className="max-w-7xl mx-auto py-8">
+      <div className="flex-1 flex flex-col min-w-0 lg:pl-72">
+        <Header
+          onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
+          isSidebarOpen={isSidebarOpen}
+          pendingCount={pendingTriageCount}
+        />
+        <main className="flex-1 px-4 md:px-8 pb-12 pt-4">
+          <div className="max-w-7xl mx-auto">
           {activeTab === 'dashboard' && (
             <ErrorBoundary><Suspense fallback={<ViewFallback />}>
               <DashboardView
@@ -285,6 +295,7 @@ function AppContent() {
           )}
         </div>
       </main>
+      </div>
     </div>
   );
 

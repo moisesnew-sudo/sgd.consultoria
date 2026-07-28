@@ -8,6 +8,7 @@ import {
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme, ThemeMode } from '../contexts/ThemeContext';
 import { ROLE_LABELS } from '../services/api';
+import { LogoSymbol } from './ui/Logo';
 
 interface SidebarProps {
   activeTab: string;
@@ -80,7 +81,7 @@ export default function Sidebar({ activeTab, setActiveTab, isOpen, setIsOpen, pe
     <>
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="lg:hidden fixed top-4 left-4 z-50 p-2.5 rounded-xl bg-gov-green text-white shadow-lg focus:outline-none focus:ring-2 focus:ring-yellow-400 hover:bg-gov-green-dark transition-colors"
+        className="lg:hidden fixed top-4 left-4 z-50 p-2.5 rounded-xl bg-gov-700 text-white shadow-lg focus:outline-none focus:ring-2 focus:ring-gold hover:bg-gov-800 transition-colors"
         aria-label={isOpen ? 'Fechar menu' : 'Abrir menu'}
       >
         {isOpen ? <X size={22} /> : <Menu size={22} />}
@@ -91,39 +92,49 @@ export default function Sidebar({ activeTab, setActiveTab, isOpen, setIsOpen, pe
       )}
 
       <aside
-        className={`fixed inset-y-0 left-0 z-40 w-72 bg-gov-green text-slate-100 flex flex-col shadow-2xl transition-transform duration-300 ease-out transform lg:translate-x-0 ${
+        className={`fixed inset-y-0 left-0 z-40 w-72 bg-gov-900 dark:bg-[#0a1628] text-slate-100 flex flex-col shadow-2xl transition-transform duration-300 ease-out transform lg:translate-x-0 ${
           isOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
-        <div className="p-5 border-b border-slate-800/80 shrink-0">
+        <div className="p-5 border-b border-white/5 shrink-0">
           <div className="flex items-start gap-3">
-            <div className="w-11 h-11 mt-0.5 bg-gradient-to-br from-brand-500 to-brand-700 rounded-xl flex items-center justify-center shadow-lg border border-white/10 shrink-0">
-              <Briefcase className="text-white" size={22} />
-            </div>
-            <div>
-              <h1 className="text-[18px] lg:text-[20px] font-bold tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-brand-400 to-brand-200 leading-tight">
-                CGASI.SE
-              </h1>
-              <p
-                className="text-[12px] lg:text-[13px] font-medium leading-[1.4] text-slate-300 mt-1"
-                title="COORDENAÇÃO GERAL DE ARTICULAÇÃO E SUPERVISÃO INSTITUCIONAL DA SECRETARIA EXECUTIVA / MAPA"
-              >
-                COORDENAÇÃO GERAL DE ARTICULAÇÃO E SUPERVISÃO INSTITUCIONAL DA SECRETARIA EXECUTIVA / MAPA
+            <LogoSymbol size={44} className="shrink-0" />
+            <div className="min-w-0">
+              <div className="flex items-baseline gap-1.5">
+                <h1 className="text-lg font-extrabold tracking-tight text-white leading-none">
+                  SGD
+                </h1>
+                <h1 className="text-lg font-bold tracking-tight text-gov-400 leading-none">
+                  Brasil
+                </h1>
+              </div>
+              <p className="text-[10px] font-semibold text-slate-400 leading-tight mt-0.5">
+                Sistema Inteligente de Gestão de Demandas
               </p>
+              <div className="mt-1.5 pt-1.5 border-t border-white/5">
+                <p className="text-[9px] font-bold text-slate-300 leading-tight">
+                  CGASI.SE
+                </p>
+                <p className="text-[8px] font-medium text-slate-400 leading-tight">
+                  Coordenação Geral de Articulação e Supervisão Institucional
+                </p>
+                <p className="text-[7px] font-semibold text-slate-500 mt-0.5 tracking-wider uppercase">
+                  Secretaria Executiva • MAPA
+                </p>
+              </div>
             </div>
           </div>
           {isAuthenticated && user && (
-            <div className="mt-4 pt-3 border-t border-slate-800/60 flex items-center gap-2">
-              <div className="w-7 h-7 rounded-full bg-gradient-to-br from-brand-500 to-brand-800 flex items-center justify-center text-[11px] font-bold text-brand-200 shrink-0">
+            <div className="mt-4 pt-3 border-t border-white/5 flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-gov-500 to-gov-800 flex items-center justify-center text-xs font-bold text-white shrink-0 shadow-lg">
                 {user.name.charAt(0).toUpperCase()}
               </div>
-              <div className="flex-1">
-                <p className="text-[11px] font-semibold text-slate-100">{user.name}</p>
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-semibold text-slate-100 truncate">{user.name}</p>
                 <span className={`inline-block px-1.5 py-0.5 text-[7px] font-bold rounded mt-0.5 uppercase tracking-wider ${
-                  user.role === 'admin' ? 'bg-brand-500/20 text-brand-300' :
-                  user.role === 'gestor' ? 'bg-blue-500/20 text-blue-300' :
-                  user.role === 'analista' ? 'bg-emerald-500/20 text-emerald-300' :
-                  'bg-yellow-500/20 text-yellow-400'
+                  user.role === 'admin' || user.role === 'administrador' ? 'bg-gov-700/30 text-gov-300' :
+                  user.role === 'gestor' || user.role === 'diretor' ? 'bg-blue-500/20 text-blue-300' :
+                  'bg-amber-500/20 text-amber-300'
                 }`}>
                   {ROLE_LABELS[user.role]}
                 </span>
@@ -140,22 +151,22 @@ export default function Sidebar({ activeTab, setActiveTab, isOpen, setIsOpen, pe
               <button
                 key={item.id}
                 onClick={() => handleNav(item.id)}
-                className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-sm font-medium transition-all group focus:outline-none focus:ring-2 focus:ring-yellow-400/60 ${
+                className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-sm font-medium transition-all group focus:outline-none focus:ring-2 focus:ring-gold/60 ${
                   isActive
-                    ? 'bg-gradient-to-r from-brand-700/90 to-brand-800/80 text-white shadow-sm border-l-[3px] border-yellow-400'
-                    : 'text-slate-300 hover:bg-slate-800/50 hover:text-white'
+                    ? 'bg-gov-700/40 text-white shadow-sm border-l-[3px] border-gold'
+                    : 'text-slate-400 hover:bg-white/5 hover:text-slate-200'
                 }`}
                 aria-current={isActive ? 'page' : undefined}
               >
                 <span className="flex items-center gap-3 min-w-0">
                   <Icon
                     size={19}
-                    className={`shrink-0 ${isActive ? 'text-yellow-400' : 'text-slate-400 group-hover:text-slate-200'}`}
+                    className={`shrink-0 ${isActive ? 'text-gold' : 'text-slate-500 group-hover:text-slate-300'}`}
                   />
                   <span className="truncate">{item.label}</span>
                 </span>
                 {item.badge !== null && (
-                  <span className="shrink-0 bg-yellow-400 text-blue-950 font-bold text-[10px] px-2 py-0.5 rounded-full animate-pulse shadow-sm ml-2">
+                  <span className="shrink-0 bg-gold text-gov-900 font-bold text-[10px] px-2 py-0.5 rounded-full animate-pulse shadow-sm ml-2">
                     {item.badge}
                   </span>
                 )}
@@ -165,17 +176,17 @@ export default function Sidebar({ activeTab, setActiveTab, isOpen, setIsOpen, pe
         </nav>
 
         <div className="px-3 pb-3 shrink-0">
-          <div className="flex items-center justify-between gap-1 bg-slate-800/60 border border-slate-700/60 rounded-xl p-1">
+          <div className="flex items-center justify-between gap-1 bg-black/20 border border-white/5 rounded-xl p-1">
             {themeOptions.map((opt) => (
               <button
                 key={opt.mode}
                 onClick={() => setTheme(opt.mode)}
                 title={`Tema ${opt.label}`}
                 aria-label={`Tema ${opt.label}`}
-                className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-[9px] font-bold transition-all focus:outline-none focus:ring-2 focus:ring-yellow-400/60 ${
+                className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-[9px] font-bold transition-all focus:outline-none focus:ring-2 focus:ring-gold/60 ${
                   theme === opt.mode
-                    ? 'bg-yellow-400 text-blue-950 shadow-sm'
-                    : 'text-slate-400 hover:bg-slate-700/60 hover:text-white'
+                    ? 'bg-gold text-gov-900 shadow-sm'
+                    : 'text-slate-500 hover:bg-white/5 hover:text-slate-300'
                 }`}
               >
                 {opt.icon}
@@ -189,7 +200,7 @@ export default function Sidebar({ activeTab, setActiveTab, isOpen, setIsOpen, pe
           <div className="px-3 pb-4 shrink-0">
             <button
               onClick={handleLogout}
-              className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border border-slate-700/60 text-slate-400 hover:text-red-400 hover:border-red-800/40 hover:bg-red-950/20 text-[11px] font-bold transition-all focus:outline-none focus:ring-2 focus:ring-red-400/60 cursor-pointer"
+              className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border border-white/5 text-slate-500 hover:text-red-400 hover:border-red-800/40 hover:bg-red-950/20 text-[11px] font-bold transition-all focus:outline-none focus:ring-2 focus:ring-red-400/60 cursor-pointer"
             >
               <LogOut size={14} />
               Sair do Sistema
@@ -201,7 +212,7 @@ export default function Sidebar({ activeTab, setActiveTab, isOpen, setIsOpen, pe
           <div className="px-3 pb-4 shrink-0">
             <button
               onClick={() => handleNav('login')}
-              className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-gradient-to-r from-brand-600 to-brand-700 hover:from-brand-700 hover:to-brand-800 text-white text-[11px] font-bold transition-all shadow-md focus:outline-none focus:ring-2 focus:ring-yellow-400/60 cursor-pointer"
+              className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-gov-700 hover:bg-gov-800 text-white text-[11px] font-bold transition-all shadow-md focus:outline-none focus:ring-2 focus:ring-gold/60 cursor-pointer"
             >
               <ShieldCheck size={14} />
               Acessar o Sistema

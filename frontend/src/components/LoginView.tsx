@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
-import { Briefcase, Lock, User, Eye, EyeOff, ShieldCheck, ArrowRight, AlertCircle, Sun, Moon, MonitorSmartphone } from 'lucide-react';
+import { Lock, User, Eye, EyeOff, ShieldCheck, ArrowRight, AlertCircle, Sun, Moon, MonitorSmartphone } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme, ThemeMode } from '../contexts/ThemeContext';
+import { LogoSymbol } from './ui/Logo';
 
 interface LoginViewProps {
   onNavigateToTab: (tab: string) => void;
@@ -58,9 +59,9 @@ export default function LoginView({ onNavigateToTab }: LoginViewProps) {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-[#0b1120] flex flex-col justify-center py-12 sm:px-6 lg:px-8 relative overflow-hidden font-sans transition-colors">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 dark:from-[#0a1628] dark:to-[#0b1120] flex flex-col justify-center py-12 sm:px-6 lg:px-8 relative overflow-hidden font-sans transition-colors">
       {/* Top corporate accent border */}
-      <div className="fixed top-0 left-0 right-0 h-1 bg-brand-700 z-50" />
+      <div className="fixed top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-gov-700 via-gov-500 to-gov-700 z-50" />
 
       {/* Theme toggle */}
       <button
@@ -69,7 +70,7 @@ export default function LoginView({ onNavigateToTab }: LoginViewProps) {
           const idx = themeCycle.indexOf(theme);
           setTheme(themeCycle[(idx + 1) % themeCycle.length]);
         }}
-        className="fixed top-4 right-4 z-50 flex items-center gap-2 px-3 py-2 rounded-xl bg-white dark:bg-[#111a2e] border border-slate-200 dark:border-slate-700 shadow-sm text-slate-600 dark:text-slate-200 hover:text-slate-900 dark:hover:text-white transition-colors"
+        className="fixed top-4 right-4 z-50 flex items-center gap-2 px-3 py-2 rounded-xl bg-white/80 dark:bg-[#0f1f3a]/80 backdrop-blur-xl border border-slate-200 dark:border-slate-700 shadow-sm text-slate-600 dark:text-slate-200 hover:text-slate-900 dark:hover:text-white transition-colors"
         aria-label={`Tema ${themeMeta[theme].label}`}
         title={`Tema: ${themeMeta[theme].label} (clique para alternar)`}
       >
@@ -78,33 +79,44 @@ export default function LoginView({ onNavigateToTab }: LoginViewProps) {
       </button>
 
       {/* Decorative subtle background elements */}
-      <div className="absolute top-[-10%] left-[-10%] w-[400px] h-[400px] bg-brand-50 dark:bg-brand-950/30 rounded-full blur-3xl pointer-events-none" />
-      <div className="absolute bottom-[-10%] right-[-10%] w-[500px] h-[500px] bg-slate-100 dark:bg-slate-800/30 rounded-full blur-3xl pointer-events-none" />
+      <div className="absolute top-[-10%] left-[-10%] w-[400px] h-[400px] bg-gov-50 dark:bg-gov-900/20 rounded-full blur-3xl pointer-events-none" />
+      <div className="absolute bottom-[-10%] right-[-10%] w-[500px] h-[500px] bg-slate-100 dark:bg-slate-800/20 rounded-full blur-3xl pointer-events-none" />
+      <div className="absolute top-[40%] right-[20%] w-[200px] h-[200px] bg-gov-100/30 dark:bg-gov-800/10 rounded-full blur-3xl pointer-events-none" />
 
       <div className="sm:mx-auto sm:w-full sm:max-w-md relative z-10">
         <div className="flex flex-col items-center">
-          {/* Corporate Logo Badge */}
-          <div className="relative w-16 h-16 bg-gradient-to-tr from-brand-700 to-brand-900 dark:from-brand-600 dark:to-brand-800 rounded-2xl flex items-center justify-center shadow-xl border border-white/10">
-            <Briefcase className="text-brand-200" size={28} />
+          <LogoSymbol size={72} className="animate-fade-in-up" />
+          <div className="mt-5 flex items-baseline gap-2 animate-fade-in-up">
+            <h1 className="text-2xl font-extrabold tracking-tight text-gov-900 dark:text-white">
+              SGD
+            </h1>
+            <h1 className="text-2xl font-bold tracking-tight text-gov-700 dark:text-gov-400">
+              Brasil
+            </h1>
           </div>
-
-          <h1 className="mt-6 text-center text-2xl font-black text-slate-900 dark:text-white uppercase tracking-wider">
-            CGASI.SE
-          </h1>
-          <p className="mt-1 text-center text-xs text-slate-500 dark:text-slate-400 font-bold uppercase tracking-widest">
-            COORDENAÇÃO GERAL DE ARTICULAÇÃO E SUPERVISÃO INSTITUCIONAL DA SECRETÁRIA EXECUTIVA/ MAPA
+          <p className="mt-0.5 text-center text-xs font-semibold text-slate-400 dark:text-slate-500 animate-fade-in-up">
+            Sistema Inteligente de Gestão de Demandas
           </p>
-          <div className="mt-2 inline-flex items-center gap-1.5 px-3 py-1 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-full text-[10px] text-slate-600 dark:text-slate-300 font-bold uppercase tracking-wider">
-            <ShieldCheck size={12} className="text-slate-500 dark:text-slate-400" />
+          <div className="mt-4 text-center animate-fade-in-up">
+            <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400">CGASI.SE</p>
+            <p className="text-[9px] font-medium text-slate-400 dark:text-slate-500 leading-tight mt-0.5">
+              Coordenação Geral de Articulação e Supervisão Institucional
+            </p>
+            <p className="text-[8px] font-semibold text-slate-400 dark:text-slate-500 mt-1 tracking-wider uppercase">
+              Secretaria Executiva • MAPA
+            </p>
+          </div>
+          <div className="mt-3 inline-flex items-center gap-1.5 px-3 py-1 bg-gov-50 dark:bg-gov-900/30 border border-gov-100 dark:border-gov-800/30 rounded-full text-[9px] text-gov-700 dark:text-gov-300 font-bold uppercase tracking-wider animate-fade-in-up">
+            <ShieldCheck size={10} />
             Gestão de Demandas
           </div>
         </div>
       </div>
 
       <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md relative z-10 px-4 sm:px-0">
-        <div className="bg-white dark:bg-[#111a2e] py-8 px-6 shadow-2xl border border-slate-100/80 dark:border-slate-700/50 rounded-3xl sm:px-10 space-y-6">
+        <div className="bg-white/80 dark:bg-[#0f1f3a]/80 backdrop-blur-xl py-8 px-6 shadow-glass border border-white/50 dark:border-slate-700/30 rounded-3xl sm:px-10 space-y-6 animate-fade-in-up">
           <div className="space-y-1">
-            <h2 className="text-lg font-black text-slate-800 dark:text-white">
+            <h2 className="text-lg font-extrabold text-gov-900 dark:text-white">
               Identificação do Consultor
             </h2>
             <p className="text-xs text-slate-400 dark:text-slate-400">
@@ -136,7 +148,7 @@ export default function LoginView({ onNavigateToTab }: LoginViewProps) {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="seu@email.gov.br"
-                  className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-900/60 text-sm text-slate-800 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-600 focus:border-transparent transition-all"
+                  className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-900/60 text-sm text-slate-800 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-gov-600 focus:border-transparent transition-all"
                 />
               </div>
             </div>
@@ -148,7 +160,7 @@ export default function LoginView({ onNavigateToTab }: LoginViewProps) {
                   Senha de Acesso *
                 </label>
                 <button type="button" onClick={() => onNavigateToTab('reset-password')}
-                  className="text-[10px] font-bold text-brand-600 hover:text-brand-700 dark:text-brand-400 underline underline-offset-2">
+                  className="text-[10px] font-bold text-gov-700 hover:text-gov-800 dark:text-gov-400 underline underline-offset-2">
                   Esqueci minha senha
                 </button>
               </div>
@@ -164,7 +176,7 @@ export default function LoginView({ onNavigateToTab }: LoginViewProps) {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="Sua senha de acesso"
-                  className="w-full pl-10 pr-10 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-900/60 text-sm text-slate-800 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-600 focus:border-transparent transition-all"
+                  className="w-full pl-10 pr-10 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-900/60 text-sm text-slate-800 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-gov-600 focus:border-transparent transition-all"
                 />
                 <button
                   type="button"
@@ -184,7 +196,7 @@ export default function LoginView({ onNavigateToTab }: LoginViewProps) {
                 name="remember-me"
                 type="checkbox"
                 defaultChecked
-                  className="h-4 w-4 text-brand-600 focus:ring-brand-500 border-slate-300 rounded-sm"
+                  className="h-4 w-4 text-gov-600 focus:ring-gov-500 border-slate-300 rounded-sm"
               />
               <label htmlFor="remember-me" className="ml-2 block text-xs font-semibold text-slate-600 cursor-pointer">
                 Manter conectado neste terminal
@@ -196,7 +208,7 @@ export default function LoginView({ onNavigateToTab }: LoginViewProps) {
               <button
                 type="submit"
                 disabled={isLoading}
-                className="w-full py-3 px-4 rounded-xl bg-gradient-to-r from-brand-700 to-brand-800 text-white font-bold text-xs uppercase tracking-wider hover:opacity-95 shadow-md flex items-center justify-center gap-2 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full py-3 px-4 rounded-xl bg-gov-700 hover:bg-gov-800 text-white font-bold text-xs uppercase tracking-wider shadow-md flex items-center justify-center gap-2 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {isLoading ? (
                   <>
