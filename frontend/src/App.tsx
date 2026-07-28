@@ -134,7 +134,10 @@ function AppContent() {
       <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 dark:from-[#0a1628] dark:to-[#0b1120] flex flex-col items-center justify-center gap-4">
         <div className="w-12 h-12 border-[3px] border-gov-200 dark:border-gov-800 border-t-gov-700 dark:border-t-gov-500 rounded-full animate-spin" />
         <div className="text-center">
-          <p className="text-base font-extrabold tracking-tight text-gov-900 dark:text-white">SGD Brasil</p>
+          <div className="flex items-baseline gap-1 justify-center">
+            <p className="text-base font-extrabold tracking-tight text-gov-900 dark:text-white">CGASI</p>
+            <p className="text-base font-bold tracking-tight text-gov-500 dark:text-gold">.SE</p>
+          </div>
           <p className="text-xs font-semibold text-slate-400 dark:text-slate-500 mt-0.5">Carregando...</p>
         </div>
       </div>

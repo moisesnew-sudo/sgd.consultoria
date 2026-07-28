@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Menu, X, Sun, Moon, MonitorSmartphone, LogOut, User, ChevronDown } from 'lucide-react';
+import { Menu, X, Sun, Moon, MonitorSmartphone, LogOut, ChevronDown } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useTheme, ThemeMode } from '../../contexts/ThemeContext';
 import { ROLE_LABELS } from '../../services/api';
-import { LogoHorizontal } from './Logo';
+import { LogoSymbol } from './Logo';
 
 interface HeaderProps {
   onToggleSidebar: () => void;
@@ -70,7 +70,22 @@ export function Header({ onToggleSidebar, isSidebarOpen, pendingCount }: HeaderP
           >
             {isSidebarOpen ? <X size={20} /> : <Menu size={20} />}
           </button>
-          <LogoHorizontal size={30} className="animate-fade-in-up" />
+          <div className="flex items-center gap-2.5 animate-fade-in-up">
+            <LogoSymbol size={32} />
+            <div className="hidden sm:block">
+              <div className="flex items-baseline gap-1">
+                <span className="text-sm font-extrabold tracking-tight text-gov-900 dark:text-white leading-none">
+                  CGASI
+                </span>
+                <span className="text-sm font-bold tracking-tight text-gov-500 dark:text-gold leading-none">
+                  .SE
+                </span>
+              </div>
+              <p className="text-[9px] font-semibold text-slate-400 dark:text-slate-500 tracking-tight leading-tight -mt-0.5">
+                Coordenação Geral de Articulação e Supervisão Institucional
+              </p>
+            </div>
+          </div>
         </div>
 
         {/* Right side */}

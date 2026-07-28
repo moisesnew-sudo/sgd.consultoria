@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Lock, User, Eye, EyeOff, ShieldCheck, ArrowRight, AlertCircle, Sun, Moon, MonitorSmartphone } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme, ThemeMode } from '../contexts/ThemeContext';
-import { LogoSymbol } from './ui/Logo';
+import { LogoSymbol, LogoFull } from './ui/Logo';
 
 interface LoginViewProps {
   onNavigateToTab: (tab: string) => void;
@@ -85,28 +85,32 @@ export default function LoginView({ onNavigateToTab }: LoginViewProps) {
 
       <div className="sm:mx-auto sm:w-full sm:max-w-md relative z-10">
         <div className="flex flex-col items-center">
-          <LogoSymbol size={72} className="animate-fade-in-up" />
-          <div className="mt-5 flex items-baseline gap-2 animate-fade-in-up">
-            <h1 className="text-2xl font-extrabold tracking-tight text-gov-900 dark:text-white">
-              SGD
-            </h1>
-            <h1 className="text-2xl font-bold tracking-tight text-gov-700 dark:text-gov-400">
-              Brasil
-            </h1>
+          <div className="animate-fade-in-up">
+            <LogoSymbol size={72} />
           </div>
-          <p className="mt-0.5 text-center text-xs font-semibold text-slate-400 dark:text-slate-500 animate-fade-in-up">
-            Sistema Inteligente de Gestão de Demandas
-          </p>
-          <div className="mt-4 text-center animate-fade-in-up">
-            <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400">CGASI.SE</p>
-            <p className="text-[9px] font-medium text-slate-400 dark:text-slate-500 leading-tight mt-0.5">
-              Coordenação Geral de Articulação e Supervisão Institucional
+          <div className="mt-5 flex flex-col items-center animate-fade-in-up">
+            <div className="flex items-baseline gap-1.5">
+              <h1 className="text-2xl font-extrabold tracking-tight text-gov-900 dark:text-white">
+                CGASI
+              </h1>
+              <h1 className="text-2xl font-bold tracking-tight text-gov-500 dark:text-gold">
+                .SE
+              </h1>
+            </div>
+            <p className="mt-1 text-xs font-semibold text-slate-500 dark:text-slate-400 tracking-wide leading-tight text-center">
+              COORDENAÇÃO GERAL DE
             </p>
-            <p className="text-[8px] font-semibold text-slate-400 dark:text-slate-500 mt-1 tracking-wider uppercase">
-              Secretaria Executiva • MAPA
+            <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 tracking-wide leading-tight text-center">
+              ARTICULAÇÃO E SUPERVISÃO
+            </p>
+            <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 tracking-wide leading-tight text-center">
+              INSTITUCIONAL DA SECRETARIA EXECUTIVA
+            </p>
+            <p className="mt-1 text-xs font-extrabold text-gov-500 dark:text-gold tracking-wider text-center">
+              MAPA
             </p>
           </div>
-          <div className="mt-3 inline-flex items-center gap-1.5 px-3 py-1 bg-gov-50 dark:bg-gov-900/30 border border-gov-100 dark:border-gov-800/30 rounded-full text-[9px] text-gov-700 dark:text-gov-300 font-bold uppercase tracking-wider animate-fade-in-up">
+          <div className="mt-4 inline-flex items-center gap-1.5 px-3 py-1 bg-gov-50 dark:bg-gov-900/30 border border-gov-100 dark:border-gov-800/30 rounded-full text-[9px] text-gov-700 dark:text-gov-300 font-bold uppercase tracking-wider animate-fade-in-up">
             <ShieldCheck size={10} />
             Gestão de Demandas
           </div>

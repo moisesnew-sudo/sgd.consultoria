@@ -8,7 +8,7 @@ import {
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme, ThemeMode } from '../contexts/ThemeContext';
 import { ROLE_LABELS } from '../services/api';
-import { LogoSymbol } from './ui/Logo';
+import { LogoFull } from './ui/Logo';
 
 interface SidebarProps {
   activeTab: string;
@@ -96,34 +96,8 @@ export default function Sidebar({ activeTab, setActiveTab, isOpen, setIsOpen, pe
           isOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
-        <div className="p-5 border-b border-white/5 shrink-0">
-          <div className="flex items-start gap-3">
-            <LogoSymbol size={44} className="shrink-0" />
-            <div className="min-w-0">
-              <div className="flex items-baseline gap-1.5">
-                <h1 className="text-lg font-extrabold tracking-tight text-white leading-none">
-                  SGD
-                </h1>
-                <h1 className="text-lg font-bold tracking-tight text-gov-400 leading-none">
-                  Brasil
-                </h1>
-              </div>
-              <p className="text-[10px] font-semibold text-slate-400 leading-tight mt-0.5">
-                Sistema Inteligente de Gestão de Demandas
-              </p>
-              <div className="mt-1.5 pt-1.5 border-t border-white/5">
-                <p className="text-[9px] font-bold text-slate-300 leading-tight">
-                  CGASI.SE
-                </p>
-                <p className="text-[8px] font-medium text-slate-400 leading-tight">
-                  Coordenação Geral de Articulação e Supervisão Institucional
-                </p>
-                <p className="text-[7px] font-semibold text-slate-500 mt-0.5 tracking-wider uppercase">
-                  Secretaria Executiva • MAPA
-                </p>
-              </div>
-            </div>
-          </div>
+        <div className="p-4 border-b border-white/5 shrink-0">
+          <LogoFull />
           {isAuthenticated && user && (
             <div className="mt-4 pt-3 border-t border-white/5 flex items-center gap-2.5">
               <div className="w-8 h-8 rounded-full bg-gradient-to-br from-gov-500 to-gov-800 flex items-center justify-center text-xs font-bold text-white shrink-0 shadow-lg">
