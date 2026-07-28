@@ -182,37 +182,52 @@ export default function ImportExportBar({ rows, filters, onImported }: ImportExp
     const organsSet = new Set(rows.map(d => d.organ).filter(Boolean));
     const ufsSet = new Set(rows.map(d => d.uf));
 
-    const primaryColor: [number, number, number] = [46, 125, 50];
-    const lightBg: [number, number, number] = [245, 250, 245];
-    const filterBg: [number, number, number] = [248, 250, 252];
+    const primaryColor: [number, number, number] = [15, 81, 50];
+    const secondaryColor: [number, number, number] = [25, 135, 84];
+    const accentColor: [number, number, number] = [32, 201, 151];
+    const goldColor: [number, number, number] = [244, 180, 0];
+    const lightBg: [number, number, number] = [248, 249, 250];
+    const surfaceColor: [number, number, number] = [255, 255, 255];
+    const textPrimary: [number, number, number] = [33, 37, 41];
+    const textSecondary: [number, number, number] = [108, 117, 125];
+    const borderColor: [number, number, number] = [222, 226, 230];
 
     function addHeader(y: number) {
-      doc.setFontSize(18);
+      doc.setFontSize(20);
       doc.setFont('helvetica', 'bold');
       doc.setTextColor(...primaryColor);
       doc.text('CGASI.SE', pageW / 2, y, { align: 'center' });
 
-      doc.setFontSize(9);
+      doc.setFontSize(8);
       doc.setFont('helvetica', 'normal');
-      doc.setTextColor(100, 116, 139);
+      doc.setTextColor(...textSecondary);
       doc.text(
         'COORDENAÇÃO GERAL DE ARTICULAÇÃO E SUPERVISÃO INSTITUCIONAL DA SECRETARIA EXECUTIVA / MAPA',
         pageW / 2, y + 6, { align: 'center' }
       );
 
+      doc.setDrawColor(...goldColor);
+      doc.setLineWidth(0.6);
+      doc.line(margin, y + 9, pageW - margin, y + 9);
       doc.setDrawColor(...primaryColor);
-      doc.setLineWidth(0.8);
-      doc.line(margin, y + 10, pageW - margin, y + 10);
+      doc.setLineWidth(0.3);
+      doc.line(margin, y + 9.8, pageW - margin, y + 9.8);
     }
 
     function addFooter(pageNum: number, totalPages: number) {
+      doc.setDrawColor(...borderColor);
+      doc.setLineWidth(0.3);
+      doc.line(margin, 202, pageW - margin, 202);
       doc.setFontSize(7);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(...primaryColor);
+      doc.text('CGASI.SE', margin, 206);
       doc.setFont('helvetica', 'normal');
-      doc.setTextColor(148, 163, 184);
-      doc.text('Sistema CGASI.SE', margin, 204);
-      doc.text('Relatório emitido automaticamente', margin, 208);
-      doc.text(`${dateStr} ${timeStr}`, margin, 212);
-      doc.text(`Página ${pageNum} de ${totalPages}`, pageW - margin, 204, { align: 'right' });
+      doc.setTextColor(...textSecondary);
+      doc.text('Sistema de Gestão de Demandas', margin, 210);
+      doc.text(`${dateStr} ${timeStr}`, margin, 214);
+      doc.setTextColor(...textSecondary);
+      doc.text(`Página ${pageNum} de ${totalPages}`, pageW - margin, 206, { align: 'right' });
     }
 
     addHeader(12);
@@ -221,9 +236,13 @@ export default function ImportExportBar({ rows, filters, onImported }: ImportExp
     const infoBoxH = 38;
     const colW = usableW / 4;
 
-    doc.setDrawColor(226, 232, 240);
-    doc.setFillColor(...filterBg);
-    doc.roundedRect(margin, infoY, usableW, infoBoxH, 2, 2, 'FD');
+    doc.setDrawColor(...borderColor);
+    doc.setFillColor(...lightBg);
+    doc.roundedRect(margin, infoY, usableW, infoBoxH, 3, 3, 'FD');
+
+    doc.setDrawColor(...goldColor);
+    doc.setLineWidth(2);
+    doc.line(margin, infoY, margin, infoY + infoBoxH);
 
     const infoItems = [
       ['Emissão', `${dateStr} ${timeStr}`],
@@ -236,15 +255,15 @@ export default function ImportExportBar({ rows, filters, onImported }: ImportExp
     ];
 
     infoItems.forEach(([label, value], i) => {
-      const x = margin + (i % 4) * colW + 4;
+      const x = margin + (i % 4) * colW + 6;
       const yPos = infoY + 6 + Math.floor(i / 4) * 15;
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(6.5);
-      doc.setTextColor(148, 163, 184);
+      doc.setTextColor(...textSecondary);
       doc.text(label.toUpperCase(), x, yPos);
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(8.5);
-      doc.setTextColor(15, 23, 42);
+      doc.setTextColor(...textPrimary);
       doc.text(value, x, yPos + 5);
     });
 
@@ -274,30 +293,34 @@ export default function ImportExportBar({ rows, filters, onImported }: ImportExp
       filterLines.push(['Período', 'Todos']);
     }
 
-    doc.setDrawColor(...primaryColor);
-    doc.setFillColor(...filterBg);
+    doc.setDrawColor(...borderColor);
+    doc.setFillColor(...lightBg);
     const filterBoxH = 22 + Math.ceil(filterLines.length / 2) * 10;
-    doc.roundedRect(margin, cursorY, usableW, filterBoxH, 2, 2, 'FD');
+    doc.roundedRect(margin, cursorY, usableW, filterBoxH, 3, 3, 'FD');
+
+    doc.setDrawColor(...accentColor);
+    doc.setLineWidth(2);
+    doc.line(margin, cursorY, margin, cursorY + filterBoxH);
 
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(7);
-    doc.setTextColor(...primaryColor);
-    doc.text('FILTROS APLICADOS', margin + 4, cursorY + 6);
+    doc.setTextColor(...secondaryColor);
+    doc.text('FILTROS APLICADOS', margin + 6, cursorY + 6);
 
     const halfCol = usableW / 2;
     filterLines.forEach(([label, value], i) => {
       const colIdx = i % 2;
       const rowIdx = Math.floor(i / 2);
-      const x = margin + colIdx * halfCol + 4;
+      const x = margin + colIdx * halfCol + 6;
       const y = cursorY + 14 + rowIdx * 10;
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(6.5);
-      doc.setTextColor(148, 163, 184);
+      doc.setTextColor(...textSecondary);
       doc.text(label + ':', x, y);
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(7);
-      doc.setTextColor(15, 23, 42);
-      doc.text(value, x + 20, y);
+      doc.setTextColor(...textPrimary);
+      doc.text(value, x + 22, y);
     });
 
     cursorY += filterBoxH + 10;
@@ -305,10 +328,14 @@ export default function ImportExportBar({ rows, filters, onImported }: ImportExp
     // TABLE TITLE
     doc.setFontSize(14);
     doc.setFont('helvetica', 'bold');
-    doc.setTextColor(15, 23, 42);
+    doc.setTextColor(...primaryColor);
     doc.text('RELATÓRIO DE DEMANDAS', pageW / 2, cursorY, { align: 'center' });
 
-    cursorY += 8;
+    doc.setDrawColor(...goldColor);
+    doc.setLineWidth(0.5);
+    doc.line(pageW / 2 - 40, cursorY + 1.5, pageW / 2 + 40, cursorY + 1.5);
+
+    cursorY += 10;
 
     const columns = [
       { header: 'Município', dataKey: 'municipality' },
@@ -342,9 +369,9 @@ export default function ImportExportBar({ rows, filters, onImported }: ImportExp
       styles: {
         fontSize: 7,
         cellPadding: 2.5,
-        lineColor: [226, 232, 240],
+        lineColor: borderColor,
         lineWidth: 0.3,
-        textColor: [51, 65, 85],
+        textColor: textPrimary,
         valign: 'middle',
       },
       headStyles: {
@@ -355,7 +382,7 @@ export default function ImportExportBar({ rows, filters, onImported }: ImportExp
         halign: 'center',
       },
       alternateRowStyles: {
-        fillColor: lightBg,
+        fillColor: [248, 249, 250],
       },
       columnStyles: {
         0: { cellWidth: 'auto' },
@@ -364,7 +391,7 @@ export default function ImportExportBar({ rows, filters, onImported }: ImportExp
         3: { cellWidth: 12, halign: 'center' },
         4: { cellWidth: 'auto' },
         5: { cellWidth: 'auto' },
-        6: { cellWidth: 28, halign: 'right', fontStyle: 'bold' },
+        6: { cellWidth: 28, halign: 'right', fontStyle: 'bold', textColor: primaryColor },
         7: { cellWidth: 20, halign: 'center' },
         8: { cellWidth: 18, halign: 'center' },
       },
@@ -382,13 +409,19 @@ export default function ImportExportBar({ rows, filters, onImported }: ImportExp
     const finalPages = (doc as any).internal?.getNumberOfPages?.() || 1;
     for (let i = 1; i <= finalPages; i++) {
       doc.setPage(i);
+      doc.setDrawColor(...borderColor);
+      doc.setLineWidth(0.3);
+      doc.line(margin, 202, pageW - margin, 202);
       doc.setFontSize(7);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(...primaryColor);
+      doc.text('CGASI.SE', margin, 206);
       doc.setFont('helvetica', 'normal');
-      doc.setTextColor(148, 163, 184);
-      doc.text('Sistema CGASI.SE', margin, 204);
-      doc.text('Relatório emitido automaticamente', margin, 208);
-      doc.text(`${dateStr} ${timeStr}`, margin, 212);
-      doc.text(`Página ${i} de ${finalPages}`, pageW - margin, 204, { align: 'right' });
+      doc.setTextColor(...textSecondary);
+      doc.text('Sistema de Gestão de Demandas', margin, 210);
+      doc.text(`${dateStr} ${timeStr}`, margin, 214);
+      doc.setTextColor(...textSecondary);
+      doc.text(`Página ${i} de ${finalPages}`, pageW - margin, 206, { align: 'right' });
     }
 
     doc.save(`sgd-demandas-${now.toISOString().slice(0, 10)}.pdf`);
