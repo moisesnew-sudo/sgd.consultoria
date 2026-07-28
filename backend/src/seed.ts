@@ -150,6 +150,44 @@ export async function runSeed() {
 
   console.log('✅ Permissões e perfis sincronizados');
 
+  // Seed new roles (idempotent)
+  const NEW_USERS: { email: string; password: string; name: string; role: string }[] = [
+    { email: 'diretor@sgd.gov.br', password: 'Diretor2026!', name: 'Diretor SGD', role: 'diretor' },
+    { email: 'tecnico@sgd.gov.br', password: 'Tecnico2026!', name: 'Técnico SGD', role: 'tecnico' },
+    { email: 'parceiro@sgd.gov.br', password: 'Parceiro2026!', name: 'Parceiro SGD', role: 'parceiro' },
+    { email: 'cliente@sgd.gov.br', password: 'Cliente2026!', name: 'Cliente SGD', role: 'cliente' },
+    { email: 'visitante@sgd.gov.br', password: 'Visitante2026!', name: 'Visitante', role: 'visitante' },
+  ];
+
+  for (const nu of NEW_USERS) {
+    const existing = await get('SELECT id FROM users WHERE email = $1', [nu.email]);
+    if (!existing) {
+      const pw = await bcrypt.hash(nu.password, 10);
+      await run(
+        'INSERT INTO users (email, password_hash, name, role) VALUES ($1, $2, $3, $4)',
+        [nu.email, pw, nu.name, nu.role]
+      );
+    }
+  }
+
+  const newRolePerms: Record<string, number[]> = {
+    administrador: adminPerms,
+    diretor: gestorPerms,
+    tecnico: analistaPerms,
+    parceiro: ['dashboard.view', 'demands.view', 'reports.view'].filter(k => permMap[k]).map(k => permMap[k]),
+    cliente: ['dashboard.view', 'demands.view'].filter(k => permMap[k]).map(k => permMap[k]),
+    visitante: ['dashboard.view'].filter(k => permMap[k]).map(k => permMap[k]),
+  };
+
+  for (const [role, permIds] of Object.entries(newRolePerms)) {
+    for (const permId of permIds) {
+      await run(
+        'INSERT INTO role_permissions (role, permission_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',
+        [role, permId]
+      );
+    }
+  }
+
   const existingSettings = await get('SELECT id FROM system_settings WHERE id = 1');
   if (!existingSettings) {
     await run(
@@ -160,10 +198,15 @@ export async function runSeed() {
 
   console.log('\n🎉 Seed concluído com sucesso!');
   console.log('\n📋 Credenciais de acesso:');
-  console.log('   Admin:    admin@sgd.gov.br / Admin2026!');
-  console.log('   Gestor:   gestor@sgd.gov.br / Gestor2026!');
-  console.log('   Analista: analista@sgd.gov.br / Analista2026!');
-  console.log('   Consulta: consulta@sgd.gov.br / Visitante2026!');
+  console.log('   Admin:      admin@sgd.gov.br / Admin2026!');
+  console.log('   Gestor:     gestor@sgd.gov.br / Gestor2026!');
+  console.log('   Analista:   analista@sgd.gov.br / Analista2026!');
+  console.log('   Consulta:   consulta@sgd.gov.br / Visitante2026!');
+  console.log('   Diretor:    diretor@sgd.gov.br / Diretor2026!');
+  console.log('   Técnico:    tecnico@sgd.gov.br / Tecnico2026!');
+  console.log('   Parceiro:   parceiro@sgd.gov.br / Parceiro2026!');
+  console.log('   Cliente:    cliente@sgd.gov.br / Cliente2026!');
+  console.log('   Visitante:  visitante@sgd.gov.br / Visitante2026!');
 }
 
 if (process.argv[1] && process.argv[1].includes('seed')) {

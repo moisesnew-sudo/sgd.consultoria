@@ -10,11 +10,17 @@ interface UsersViewProps {
   currentUser: User;
 }
 
-const ROLE_STYLES: Record<UserRole, string> = {
+const ROLE_STYLES: Record<string, string> = {
   admin: 'bg-brand-100 text-brand-700 dark:bg-brand-900/40 dark:text-brand-300',
   gestor: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300',
   analista: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300',
   consulta: 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300',
+  administrador: 'bg-brand-100 text-brand-700 dark:bg-brand-900/40 dark:text-brand-300',
+  diretor: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300',
+  tecnico: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300',
+  parceiro: 'bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300',
+  cliente: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300',
+  visitante: 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300',
 };
 
 export default function UsersView({ currentUser }: UsersViewProps) {

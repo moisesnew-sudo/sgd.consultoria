@@ -13,6 +13,9 @@ import {
 
 const API_BASE = import.meta.env.VITE_API_URL || 'https://sgd-consultoria.onrender.com';
 
+let isRefreshing = false;
+let refreshQueue: Array<{ resolve: (token: string) => void; reject: (error: any) => void }> = [];
+
 class ApiError extends Error {
   constructor(public status: number, message: string) {
     super(message);
@@ -20,19 +23,75 @@ class ApiError extends Error {
   }
 }
 
+async function refreshAccessToken(): Promise<string> {
+  const refreshToken = localStorage.getItem('sgd_refresh_token');
+  if (!refreshToken) throw new ApiError(401, 'Sem refresh token');
+
+  const response = await fetch(`${API_BASE}/api/auth/refresh`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ refreshToken }),
+  });
+
+  if (!response.ok) throw new ApiError(401, 'Refresh token inválido');
+
+  const data = await response.json();
+  localStorage.setItem('sgd_token', data.token);
+  if (data.refreshToken) {
+    localStorage.setItem('sgd_refresh_token', data.refreshToken);
+  }
+  return data.token;
+}
+
+function buildHeaders(token?: string): Record<string, string> {
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  if (token) headers['Authorization'] = `Bearer ${token}`;
+  return headers;
+}
+
 async function request<T>(endpoint: string, options?: RequestInit): Promise<T> {
   const token = localStorage.getItem('sgd_token');
-  
-  const headers: HeadersInit = {
-    'Content-Type': 'application/json',
-    ...(token && { Authorization: `Bearer ${token}` }),
-    ...options?.headers,
-  };
+  const headers = buildHeaders(token || undefined);
 
-  const response = await fetch(`${API_BASE}/api${endpoint}`, {
+  let response = await fetch(`${API_BASE}/api${endpoint}`, {
     ...options,
-    headers,
+    headers: { ...headers, ...(options?.headers as Record<string, string> || {}) },
   });
+
+  if (response.status === 401 && !endpoint.includes('/auth/')) {
+    if (!isRefreshing) {
+      isRefreshing = true;
+      try {
+        const newToken = await refreshAccessToken();
+        isRefreshing = false;
+        refreshQueue.forEach(q => q.resolve(newToken));
+        refreshQueue = [];
+
+        const retryHeaders = buildHeaders(newToken);
+        response = await fetch(`${API_BASE}/api${endpoint}`, {
+          ...options,
+          headers: { ...retryHeaders, ...(options?.headers as Record<string, string> || {}) },
+        });
+      } catch (err) {
+        isRefreshing = false;
+        refreshQueue.forEach(q => q.reject(err));
+        refreshQueue = [];
+        localStorage.removeItem('sgd_token');
+        localStorage.removeItem('sgd_refresh_token');
+        localStorage.removeItem('sgd_user');
+        throw new ApiError(401, 'Sessão expirada. Faça login novamente.');
+      }
+    } else {
+      const newToken = await new Promise<string>((resolve, reject) => {
+        refreshQueue.push({ resolve, reject });
+      });
+      const queuedHeaders = buildHeaders(newToken);
+      response = await fetch(`${API_BASE}/api${endpoint}`, {
+        ...options,
+        headers: { ...queuedHeaders, ...(options?.headers as Record<string, string> || {}) },
+      });
+    }
+  }
 
   if (!response.ok) {
     const error = await response.json().catch(() => ({ error: 'Erro desconhecido' }));
@@ -45,20 +104,26 @@ async function request<T>(endpoint: string, options?: RequestInit): Promise<T> {
 // Auth API
 export const authApi = {
   login: async (email: string, password: string) => {
-    const data = await request<{ token: string; user: User }>('/auth/login', {
+    const data = await request<{ token: string; refreshToken: string; user: User }>('/auth/login', {
       method: 'POST',
       body: JSON.stringify({ email, password }),
     });
     localStorage.setItem('sgd_token', data.token);
+    if (data.refreshToken) localStorage.setItem('sgd_refresh_token', data.refreshToken);
     localStorage.setItem('sgd_user', JSON.stringify(data.user));
     return data;
   },
 
   logout: async () => {
+    const refreshToken = localStorage.getItem('sgd_refresh_token');
     try {
-      await request<{ message: string }>('/auth/logout', { method: 'POST' });
+      await request<{ message: string }>('/auth/logout', {
+        method: 'POST',
+        body: JSON.stringify({ refreshToken }),
+      });
     } catch { /* ignore */ }
     localStorage.removeItem('sgd_token');
+    localStorage.removeItem('sgd_refresh_token');
     localStorage.removeItem('sgd_user');
   },
 
@@ -99,6 +164,12 @@ export const ROLE_LABELS: Record<UserRole, string> = {
   gestor: 'Gestor',
   analista: 'Analista',
   consulta: 'Consulta',
+  administrador: 'Administrador',
+  diretor: 'Diretor',
+  tecnico: 'Técnico',
+  parceiro: 'Parceiro',
+  cliente: 'Cliente',
+  visitante: 'Visitante',
 };
 
 export const ROLE_PERMISSIONS: Record<UserRole, {
@@ -113,6 +184,12 @@ export const ROLE_PERMISSIONS: Record<UserRole, {
   gestor:   { canCreate: true, canEdit: true, canDelete: true,  canManageUsers: false, canViewUsers: true,  canManageSettings: false },
   analista: { canCreate: true, canEdit: true, canDelete: false, canManageUsers: false, canViewUsers: false, canManageSettings: false },
   consulta: { canCreate: false, canEdit: false, canDelete: false, canManageUsers: false, canViewUsers: false, canManageSettings: false },
+  administrador: { canCreate: true, canEdit: true, canDelete: true,  canManageUsers: true,  canViewUsers: true,  canManageSettings: true },
+  diretor:   { canCreate: true, canEdit: true, canDelete: true,  canManageUsers: false, canViewUsers: true,  canManageSettings: false },
+  tecnico:   { canCreate: true, canEdit: true, canDelete: false, canManageUsers: false, canViewUsers: false, canManageSettings: false },
+  parceiro:  { canCreate: false, canEdit: false, canDelete: false, canManageUsers: false, canViewUsers: false, canManageSettings: false },
+  cliente:   { canCreate: false, canEdit: false, canDelete: false, canManageUsers: false, canViewUsers: false, canManageSettings: false },
+  visitante: { canCreate: false, canEdit: false, canDelete: false, canManageUsers: false, canViewUsers: false, canManageSettings: false },
 };
 
 // Normalize a demand so numeric fields from PostgreSQL (returned as strings)

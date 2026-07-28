@@ -1,6 +1,6 @@
 export type DemandStatus = 'analise' | 'pendente' | 'concluido' | 'rejeitado';
 export type DemandPriority = 'baixa' | 'media' | 'alta' | 'urgente';
-export type UserRole = 'admin' | 'gestor' | 'analista' | 'consulta';
+export type UserRole = 'admin' | 'gestor' | 'analista' | 'consulta' | 'administrador' | 'diretor' | 'tecnico' | 'parceiro' | 'cliente' | 'visitante';
 export type Region = 'Norte' | 'Nordeste' | 'Sudeste' | 'Sul' | 'Centro-Oeste';
 
 export interface User {

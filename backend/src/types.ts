@@ -1,12 +1,29 @@
 export const DEMAND_STATUSES = ['analise', 'pendente', 'concluido', 'rejeitado'] as const;
 export const DEMAND_PRIORITIES = ['baixa', 'media', 'alta', 'urgente'] as const;
-export const USER_ROLES = ['admin', 'gestor', 'analista', 'consulta'] as const;
+export const USER_ROLES = ['admin', 'gestor', 'analista', 'consulta', 'administrador', 'diretor', 'tecnico', 'parceiro', 'cliente', 'visitante'] as const;
 export const REGIONS = ['Norte', 'Nordeste', 'Sudeste', 'Sul', 'Centro-Oeste'] as const;
 
 export type DemandStatus = (typeof DEMAND_STATUSES)[number];
 export type DemandPriority = (typeof DEMAND_PRIORITIES)[number];
 export type UserRole = (typeof USER_ROLES)[number];
 export type Region = (typeof REGIONS)[number];
+
+export interface TokenPair {
+  accessToken: string;
+  refreshToken: string;
+  expiresIn: number;
+}
+
+export interface RefreshToken {
+  id: number;
+  user_id: number;
+  token_hash: string;
+  family: string;
+  expires_at: string;
+  revoked: boolean;
+  created_at: string;
+  replaced_by?: string;
+}
 
 export interface User {
   id: number;

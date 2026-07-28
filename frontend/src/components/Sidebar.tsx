@@ -56,7 +56,7 @@ export default function Sidebar({ activeTab, setActiveTab, isOpen, setIsOpen, pe
     ...(isAuthenticated && canManageUsers ? [
       { id: 'backup', label: 'Backups', icon: HardDrive, badge: null }
     ] : []),
-    ...(isAuthenticated && user?.role === 'admin' ? [
+    ...(isAuthenticated && (user?.role === 'admin' || user?.role === 'administrador') ? [
       { id: 'audit-dashboard', label: 'Auditoria', icon: Activity, badge: null },
       { id: 'audit', label: 'Logs', icon: ScrollText, badge: null },
       { id: 'sessions', label: 'Sessões', icon: LogIn, badge: null },

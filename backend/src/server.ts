@@ -2,6 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
+import compression from 'compression';
 import dotenv from 'dotenv';
 import { fileURLToPath } from 'url';
 import path from 'path';
@@ -54,13 +55,38 @@ app.use(helmet({
   referrerPolicy: { policy: 'strict-origin-when-cross-origin' }
 }));
 
-// CORS configuration
+// Compression
+app.use(compression());
+
+// CORS configuration with origin validation
+const allowedOrigins = (process.env.CORS_ORIGIN || 'http://localhost:3000').split(',').map(s => s.trim());
 app.use(cors({
-  origin: process.env.CORS_ORIGIN || 'http://localhost:3000',
+  origin: (origin, callback) => {
+    if (!origin || allowedOrigins.includes(origin) || process.env.NODE_ENV !== 'production') {
+      callback(null, true);
+    } else {
+      callback(new Error('Origem não permitida pelo CORS'));
+    }
+  },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
-  allowedHeaders: ['Content-Type', 'Authorization']
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-CSRF-Token'],
+  exposedHeaders: ['X-Request-Id']
 }));
+
+// Origin/Referer validation for sensitive endpoints
+app.use('/api/auth', (req, res, next) => {
+  if (process.env.NODE_ENV === 'production' && req.method !== 'GET') {
+    const origin = req.headers['origin'] || req.headers['referer'] || '';
+    if (typeof origin === 'string' && origin.length > 0) {
+      const valid = allowedOrigins.some(o => origin.startsWith(o));
+      if (!valid) {
+        return res.status(403).json({ error: 'Requisição rejeitada: origem inválida' });
+      }
+    }
+  }
+  next();
+});
 
 // Per-endpoint rate limiters
 const authLimiter = rateLimit({
@@ -141,6 +167,7 @@ async function start() {
   await run("DELETE FROM active_sessions WHERE active = FALSE AND last_activity < NOW() - INTERVAL '24 hours'");
   await run("DELETE FROM login_attempts WHERE attempted_at < NOW() - INTERVAL '48 hours'");
   await run("DELETE FROM token_blacklist WHERE expires_at < NOW()");
+  await run("DELETE FROM refresh_tokens WHERE expires_at < NOW() OR (revoked = TRUE AND created_at < NOW() - INTERVAL '24 hours')");
   await run("UPDATE active_sessions SET active = FALSE WHERE active = TRUE AND last_activity < NOW() - INTERVAL '24 hours'");
   app.listen(PORT, () => {
     console.log(`

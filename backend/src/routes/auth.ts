@@ -5,7 +5,7 @@ import crypto from 'crypto';
 import { z } from 'zod';
 import { get, run, all } from '../database.js';
 import { User, UserResponse, USER_ROLES } from '../types.js';
-import { authenticateToken, requirePermission } from '../middleware/auth.js';
+import { authenticateToken, authenticateRefreshToken, requirePermission, signAccessToken, signRefreshToken } from '../middleware/auth.js';
 import { logAudit, extractMeta } from '../lib/audit.js';
 
 const router = Router();
@@ -124,13 +124,12 @@ router.post('/login', async (req: Request, res: Response) => {
       id: user.id, email: user.email, name: user.name, role: user.role, permissions
     };
 
-    const token = jwt.sign(
-      { id: user.id, email: user.email, name: user.name, role: user.role },
-      process.env.JWT_SECRET!,
-      { expiresIn: (process.env.JWT_EXPIRES_IN || '24h') as jwt.SignOptions['expiresIn'] }
-    );
+    const accessToken = signAccessToken(user);
+    const refreshFamily = crypto.randomBytes(16).toString('hex');
+    const refreshToken = signRefreshToken(user.id, refreshFamily);
+    const refreshHash = crypto.createHash('sha256').update(refreshToken).digest('hex');
 
-    const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+    const accessHash = crypto.createHash('sha256').update(accessToken).digest('hex');
     let browser = 'Desconhecido', os = 'Desconhecido';
     const ua = user_agent || '';
     if (ua.includes('Chrome') && !ua.includes('Edg')) browser = 'Chrome';
@@ -147,7 +146,13 @@ router.post('/login', async (req: Request, res: Response) => {
       `INSERT INTO active_sessions (user_id, token_hash, ip_address, user_agent, browser, os)
        VALUES ($1, $2, $3, $4, $5, $6)
        ON CONFLICT DO NOTHING`,
-      [user.id, tokenHash, ip_address, user_agent, browser, os]
+      [user.id, accessHash, ip_address, user_agent, browser, os]
+    );
+
+    const refreshExpiry = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+    await run(
+      'INSERT INTO refresh_tokens (user_id, token_hash, family, expires_at) VALUES ($1, $2, $3, $4)',
+      [user.id, refreshHash, refreshFamily, refreshExpiry]
     );
 
     await logAudit({
@@ -156,13 +161,47 @@ router.post('/login', async (req: Request, res: Response) => {
       details: { ip: ip_address, browser, os }, ip_address, user_agent
     });
 
-    res.json({ token, user: userResponse, session: { browser, os, ip: ip_address } });
+    res.json({ token: accessToken, refreshToken, user: userResponse, session: { browser, os, ip: ip_address } });
   } catch (error) {
     if (error instanceof z.ZodError) {
       return res.status(400).json({ error: 'Dados inválidos', details: error.errors });
     }
     console.error('Login error:', error);
     res.status(500).json({ error: 'Erro interno do servidor' });
+  }
+});
+
+router.post('/refresh', authenticateRefreshToken, async (req: Request, res: Response) => {
+  try {
+    const { ip_address, user_agent } = extractMeta(req);
+    const oldRefreshToken = req.body.refreshToken;
+    const oldHash = crypto.createHash('sha256').update(oldRefreshToken).digest('hex');
+
+    const user = await get<User>('SELECT * FROM users WHERE id = $1 AND active = TRUE AND deleted_at IS NULL', [req.user!.id]);
+    if (!user) return res.status(401).json({ error: 'Usuário não encontrado' });
+
+    const newAccessToken = signAccessToken(user);
+    const newRefreshToken = signRefreshToken(user.id, req.refreshFamily!);
+    const newRefreshHash = crypto.createHash('sha256').update(newRefreshToken).digest('hex');
+
+    const refreshExpiry = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+    await run(
+      'INSERT INTO refresh_tokens (user_id, token_hash, family, expires_at, replaced_by) VALUES ($1, $2, $3, $4, $5)',
+      [user.id, newRefreshHash, req.refreshFamily!, refreshExpiry, null]
+    );
+
+    await run('UPDATE refresh_tokens SET revoked = TRUE, replaced_by = $1 WHERE token_hash = $2', [newRefreshHash, oldHash]);
+
+    await logAudit({
+      entity_type: 'auth', entity_id: String(user.id), action: 'token_refresh',
+      user_id: user.id, user_name: user.name,
+      details: { ip: ip_address }, ip_address, user_agent
+    });
+
+    res.json({ token: newAccessToken, refreshToken: newRefreshToken });
+  } catch (error) {
+    console.error('Refresh error:', error);
+    res.status(500).json({ error: 'Erro ao renovar token' });
   }
 });
 
@@ -181,6 +220,15 @@ router.post('/logout', authenticateToken, async (req: Request, res: Response) =>
       );
       await run('UPDATE active_sessions SET active = FALSE WHERE token_hash = $1', [tokenHash]);
     }
+
+    const { refreshToken } = req.body;
+    if (refreshToken) {
+      const refreshHash = crypto.createHash('sha256').update(refreshToken).digest('hex');
+      await run('UPDATE refresh_tokens SET revoked = TRUE WHERE token_hash = $1', [refreshHash]);
+    }
+
+    await run('UPDATE refresh_tokens SET revoked = TRUE WHERE user_id = $1', [req.user!.id]);
+
     await logAudit({
       entity_type: 'auth', entity_id: String(req.user!.id), action: 'logout',
       user_id: req.user!.id, user_name: req.user!.name,
@@ -195,20 +243,20 @@ router.post('/logout', authenticateToken, async (req: Request, res: Response) =>
 
 router.post('/register', authenticateToken, requirePermission('users.create'), async (req: Request, res: Response) => {
   try {
-    if (req.user?.role !== 'admin') {
-      return res.status(403).json({ error: 'Apenas administradores podem criar usuários' });
-    }
-    const { ip_address, user_agent } = extractMeta(req);
-    const { email, password, name, role } = registerSchema.parse(req.body);
-    const existingUser = await get('SELECT id FROM users WHERE email = $1', [email]);
-    if (existingUser) {
-      return res.status(409).json({ error: 'Email já cadastrado' });
-    }
-    const passwordHash = await bcrypt.hash(password, 10);
-    const result = await run(
-      'INSERT INTO users (email, password_hash, name, role) VALUES ($1, $2, $3, $4) RETURNING id, email, name, role',
-      [email, passwordHash, name, role || 'consulta']
-    );
+      if (req.user?.role !== 'admin' && req.user?.role !== 'administrador') {
+        return res.status(403).json({ error: 'Apenas administradores podem criar usuários' });
+      }
+      const { ip_address, user_agent } = extractMeta(req);
+      const { email, password, name, role } = registerSchema.parse(req.body);
+      const existingUser = await get('SELECT id FROM users WHERE email = $1', [email]);
+      if (existingUser) {
+        return res.status(409).json({ error: 'Email já cadastrado' });
+      }
+      const passwordHash = await bcrypt.hash(password, 10);
+      const result = await run(
+        'INSERT INTO users (email, password_hash, name, role) VALUES ($1, $2, $3, $4) RETURNING id, email, name, role',
+        [email, passwordHash, name, role || 'consulta']
+      );
 
     const registerUserId = result.rows[0].id;
     const registerRole = result.rows[0].role;
@@ -320,9 +368,9 @@ router.put('/change-password', authenticateToken, async (req: Request, res: Resp
 
 router.get('/users', authenticateToken, requirePermission('users.view'), async (req: Request, res: Response) => {
   try {
-    if (req.user?.role !== 'admin' && req.user?.role !== 'gestor') {
-      return res.status(403).json({ error: 'Permissão insuficiente' });
-    }
+      if (req.user?.role !== 'admin' && req.user?.role !== 'administrador' && req.user?.role !== 'gestor' && req.user?.role !== 'diretor') {
+        return res.status(403).json({ error: 'Permissão insuficiente' });
+      }
     const users = await all<UserResponse & { active: boolean; created_at: string }>(
       'SELECT id, email, name, role, active, created_at FROM users ORDER BY name'
     );
@@ -335,7 +383,7 @@ router.get('/users', authenticateToken, requirePermission('users.view'), async (
 
 router.post('/users', authenticateToken, requirePermission('users.create'), async (req: Request, res: Response) => {
   try {
-    if (req.user?.role !== 'admin') {
+    if (req.user?.role !== 'admin' && req.user?.role !== 'administrador') {
       return res.status(403).json({ error: 'Apenas administradores podem criar usuários' });
     }
     const { ip_address, user_agent } = extractMeta(req);
@@ -385,7 +433,7 @@ const updateUserSchema = z.object({
 
 router.put('/users/:id', authenticateToken, requirePermission('users.edit'), async (req: Request, res: Response) => {
   try {
-    if (req.user?.role !== 'admin') {
+    if (req.user?.role !== 'admin' && req.user?.role !== 'administrador') {
       return res.status(403).json({ error: 'Apenas administradores podem editar usuários' });
     }
     const { ip_address, user_agent } = extractMeta(req);
@@ -398,8 +446,8 @@ router.put('/users/:id', authenticateToken, requirePermission('users.edit'), asy
     if (!existing) {
       return res.status(404).json({ error: 'Usuário não encontrado' });
     }
-    if (existing.role === 'admin' && data.role && data.role !== 'admin') {
-      const adminCount = await get<{ count: string }>("SELECT COUNT(*) as count FROM users WHERE role = 'admin' AND active = TRUE");
+    if ((existing.role === 'admin' || existing.role === 'administrador') && data.role && data.role !== 'admin' && data.role !== 'administrador') {
+      const adminCount = await get<{ count: string }>("SELECT COUNT(*) as count FROM users WHERE (role = 'admin' OR role = 'administrador') AND active = TRUE");
       if (parseInt(adminCount?.count || '0') <= 1) {
         return res.status(400).json({ error: 'Deve haver ao menos um administrador ativo' });
       }

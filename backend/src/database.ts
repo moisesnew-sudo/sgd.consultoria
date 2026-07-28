@@ -63,7 +63,7 @@ export async function initDatabase() {
       email TEXT UNIQUE NOT NULL,
       password_hash TEXT NOT NULL,
       name TEXT NOT NULL,
-      role TEXT DEFAULT 'consulta' CHECK(role IN ('admin', 'gestor', 'analista', 'consulta')),
+      role TEXT DEFAULT 'consulta' CHECK(role IN ('admin', 'gestor', 'analista', 'consulta', 'administrador', 'diretor', 'tecnico', 'parceiro', 'cliente', 'visitante')),
       active BOOLEAN DEFAULT TRUE,
       created_at TIMESTAMPTZ DEFAULT NOW(),
       updated_at TIMESTAMPTZ DEFAULT NOW()
@@ -181,7 +181,7 @@ export async function initDatabase() {
     );
 
     CREATE TABLE IF NOT EXISTS role_permissions (
-      role TEXT NOT NULL CHECK(role IN ('admin', 'gestor', 'analista', 'consulta')),
+      role TEXT NOT NULL CHECK(role IN ('admin', 'gestor', 'analista', 'consulta', 'administrador', 'diretor', 'tecnico', 'parceiro', 'cliente', 'visitante')),
       permission_id INTEGER NOT NULL REFERENCES permissions(id) ON DELETE CASCADE,
       PRIMARY KEY (role, permission_id)
     );
@@ -196,9 +196,14 @@ export async function initDatabase() {
     -- Migrate role constraint for existing databases (idempotent)
     ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_check;
     ALTER TABLE users ADD CONSTRAINT users_role_check
-      CHECK(role IN ('admin', 'gestor', 'analista', 'consulta'));
+      CHECK(role IN ('admin', 'gestor', 'analista', 'consulta', 'administrador', 'diretor', 'tecnico', 'parceiro', 'cliente', 'visitante'));
     ALTER TABLE users ALTER COLUMN role SET DEFAULT 'consulta';
     ALTER TABLE users ADD COLUMN IF NOT EXISTS active BOOLEAN DEFAULT TRUE;
+
+    -- Expand role_permissions check constraint (idempotent)
+    ALTER TABLE role_permissions DROP CONSTRAINT IF EXISTS role_permissions_role_check;
+    ALTER TABLE role_permissions ADD CONSTRAINT role_permissions_role_check
+      CHECK(role IN ('admin', 'gestor', 'analista', 'consulta', 'administrador', 'diretor', 'tecnico', 'parceiro', 'cliente', 'visitante'));
 
     -- Add ano column to demands (idempotent)
     ALTER TABLE demands ADD COLUMN IF NOT EXISTS ano INTEGER DEFAULT EXTRACT(YEAR FROM NOW());
@@ -292,6 +297,31 @@ export async function initDatabase() {
       created_at TIMESTAMPTZ DEFAULT NOW()
     );
     CREATE INDEX IF NOT EXISTS idx_password_history_user_id ON password_history(user_id);
+
+    -- ============================================================
+    -- MÓDULO 1.1: Refresh tokens for JWT rotation
+    -- ============================================================
+    CREATE TABLE IF NOT EXISTS refresh_tokens (
+      id SERIAL PRIMARY KEY,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      token_hash TEXT NOT NULL,
+      family TEXT NOT NULL DEFAULT '',
+      expires_at TIMESTAMPTZ NOT NULL,
+      revoked BOOLEAN DEFAULT FALSE,
+      created_at TIMESTAMPTZ DEFAULT NOW(),
+      replaced_by TEXT
+    );
+    CREATE INDEX IF NOT EXISTS idx_refresh_tokens_hash ON refresh_tokens(token_hash);
+    CREATE INDEX IF NOT EXISTS idx_refresh_tokens_user ON refresh_tokens(user_id);
+    CREATE INDEX IF NOT EXISTS idx_refresh_tokens_expires ON refresh_tokens(expires_at);
+
+    -- ============================================================
+    -- Soft delete columns (idempotent)
+    -- ============================================================
+    ALTER TABLE demands ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;
+    ALTER TABLE municipalities ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;
+    ALTER TABLE comments ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;
 
     -- ============================================================
     -- MÓDULO 7: Backup tracking

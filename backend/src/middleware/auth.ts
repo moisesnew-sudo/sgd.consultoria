@@ -2,12 +2,17 @@ import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
 import { UserResponse } from '../types.js';
-import { get } from '../database.js';
+import { get, run } from '../database.js';
+
+const ACCESS_TOKEN_EXPIRY = '15m';
+const REFRESH_TOKEN_EXPIRY_DAYS = 7;
 
 declare global {
   namespace Express {
     interface Request {
       user?: UserResponse;
+      refreshTokenId?: number;
+      refreshFamily?: string;
     }
   }
 }
@@ -67,7 +72,7 @@ export const requirePermission = (permissionKey: string) => {
     if (!req.user) {
       return res.status(401).json({ error: 'Usuário não autenticado' });
     }
-    if (req.user.role === 'admin') {
+    if (req.user.role === 'admin' || req.user.role === 'administrador') {
       return next();
     }
     try {
@@ -92,6 +97,75 @@ export const requirePermission = (permissionKey: string) => {
       return res.status(500).json({ error: 'Erro ao verificar permissão' });
     }
   };
+};
+
+export function signAccessToken(user: { id: number; email: string; name: string; role: string }): string {
+  return jwt.sign(
+    { id: user.id, email: user.email, name: user.name, role: user.role },
+    process.env.JWT_SECRET!,
+    { expiresIn: ACCESS_TOKEN_EXPIRY }
+  );
+}
+
+export function signRefreshToken(userId: number, family: string): string {
+  const payload = { userId, family, type: 'refresh' };
+  return jwt.sign(payload, process.env.JWT_SECRET! + '_refresh', {
+    expiresIn: `${REFRESH_TOKEN_EXPIRY_DAYS}d`
+  });
+}
+
+export function getTokenExpiry(secondsFromNow: number): Date {
+  return new Date(Date.now() + secondsFromNow * 1000);
+}
+
+export const authenticateRefreshToken = async (req: Request, res: Response, next: NextFunction) => {
+  const { refreshToken } = req.body;
+  if (!refreshToken) {
+    return res.status(401).json({ error: 'Refresh token não fornecido' });
+  }
+
+  try {
+    const decoded = jwt.verify(refreshToken, process.env.JWT_SECRET! + '_refresh') as { userId: number; family: string };
+    const tokenHash = crypto.createHash('sha256').update(refreshToken).digest('hex');
+
+    const stored = await get<{ id: number; revoked: boolean; user_id: number; family: string; replaced_by: string | null }>(
+      'SELECT id, revoked, user_id, family, replaced_by FROM refresh_tokens WHERE token_hash = $1',
+      [tokenHash]
+    );
+
+    if (!stored || stored.revoked) {
+      if (stored?.replaced_by) {
+        const replacement = await get<{ id: number }>('SELECT id FROM refresh_tokens WHERE token_hash = $1', [stored.replaced_by]);
+        if (!replacement) {
+          await run('UPDATE refresh_tokens SET revoked = TRUE WHERE user_id = $1 AND family = $2', [decoded.userId, decoded.family]);
+        }
+      }
+      return res.status(401).json({ error: 'Refresh token inválido ou revogado' });
+    }
+
+    const user = await get<{ id: number; email: string; name: string; role: string }>(
+      'SELECT id, email, name, role FROM users WHERE id = $1 AND active = TRUE AND deleted_at IS NULL',
+      [stored.user_id]
+    );
+    if (!user) {
+      return res.status(401).json({ error: 'Usuário não encontrado ou inativo' });
+    }
+
+    req.user = { id: user.id, email: user.email, name: user.name, role: user.role as UserResponse['role'] };
+    req.refreshTokenId = stored.id;
+    req.refreshFamily = stored.family;
+    next();
+  } catch (error) {
+    return res.status(401).json({ error: 'Refresh token inválido ou expirado' });
+  }
+};
+
+export const requireAdmin = (req: Request, res: Response, next: NextFunction) => {
+  if (!req.user) return res.status(401).json({ error: 'Usuário não autenticado' });
+  if (req.user.role !== 'admin' && req.user.role !== 'administrador') {
+    return res.status(403).json({ error: 'Acesso restrito a administradores' });
+  }
+  next();
 };
 
 export const optionalAuth = (req: Request, res: Response, next: NextFunction) => {
