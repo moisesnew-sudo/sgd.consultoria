@@ -11,7 +11,7 @@ router.get('/health', authenticateToken, async (req: Request, res: Response) => 
     await get('SELECT 1');
     const dbTime = Date.now() - start;
 
-    const totalDemands = await get<{ count: string }>('SELECT COUNT(*) as count FROM demands');
+    const totalDemands = await get<{ count: string }>('SELECT COUNT(*) as count FROM demands WHERE deleted_at IS NULL');
     const activeUsers = await get<{ count: string }>(
       "SELECT COUNT(*) as count FROM active_sessions WHERE active = TRUE AND last_activity > NOW() - INTERVAL '30 minutes'"
     );
@@ -82,7 +82,7 @@ router.post('/snapshot', authenticateToken, requireRole('admin'), async (req: Re
     const activeUsers = await get<{ count: string }>(
       "SELECT COUNT(*) as count FROM active_sessions WHERE active = TRUE AND last_activity > NOW() - INTERVAL '30 minutes'"
     );
-    const totalDemands = await get<{ count: string }>('SELECT COUNT(*) as count FROM demands');
+    const totalDemands = await get<{ count: string }>('SELECT COUNT(*) as count FROM demands WHERE deleted_at IS NULL');
     const lastBackup = await get<{ created_at: string }>(
       "SELECT created_at FROM backups WHERE status = 'completed' ORDER BY created_at DESC LIMIT 1"
     );

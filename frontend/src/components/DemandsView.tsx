@@ -113,6 +113,42 @@ export default function DemandsView({
   const [commentLoading, setCommentLoading] = useState(false);
   const [isEditingNotes, setIsEditingNotes] = useState(false);
 
+  // Upload state
+  const [uploadingAttachments, setUploadingAttachments] = useState(false);
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
+
+  const handleUploadFiles = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || !detailedDemand) return;
+    setUploadingAttachments(true);
+    try {
+      const uploaded = await demandsApi.uploadAttachments(detailedDemand.id, Array.from(files));
+      setDetailedDemand({
+        ...detailedDemand,
+        attachments: [...(detailedDemand.attachments || []), ...uploaded]
+      });
+      toast('success', 'Upload concluído', `${uploaded.length} arquivo(s) anexado(s)`);
+    } catch (error: any) {
+      toast('error', 'Erro no upload', error?.message || 'Erro ao enviar arquivos');
+    } finally {
+      setUploadingAttachments(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
+  const handleDeleteAttachment = async (attachmentId: number) => {
+    try {
+      await demandsApi.deleteAttachment(attachmentId);
+      setDetailedDemand({
+        ...detailedDemand!,
+        attachments: (detailedDemand!.attachments || []).filter(a => a.id !== attachmentId)
+      });
+      toast('success', 'Anexo removido');
+    } catch (error: any) {
+      toast('error', 'Erro ao remover', error?.message || 'Erro ao remover anexo');
+    }
+  };
+
   // Edit demand state
   const [isEditingDemand, setIsEditingDemand] = useState(false);
   const [detailTab, setDetailTab] = useState('timeline');
@@ -1274,24 +1310,51 @@ export default function DemandsView({
                       <Paperclip size={14} /> Documentos Anexos
                     </h4>
                     
-                    {(detailedDemand.attachments || []).length === 0 ? (
+                    {(detailedDemand.attachments || []).length === 0 && !canEdit ? (
                       <p className="text-[10px] text-slate-400 italic bg-slate-50 p-3 rounded-xl border border-dashed border-slate-200">
                         Nenhum anexo enviado.
                       </p>
                     ) : (
                       <div className="space-y-1.5">
-                        {(detailedDemand.attachments || []).map((file, idx) => (
-                          <div 
-                            key={idx} 
+                        {(detailedDemand.attachments || []).map((file) => (
+                          <div key={file.id || file.name}
                             className="flex items-center justify-between p-2.5 bg-slate-50 border border-slate-100 rounded-xl hover:bg-slate-100 transition-colors text-[11px] font-mono text-slate-600"
                           >
-                            <span className="truncate max-w-[180px] font-semibold text-slate-800 flex items-center gap-1.5">
-                              <FileText size={12} className="text-blue-600" />
-                              {file.name}
-                            </span>
-                            <span className="text-[9px] text-slate-400 whitespace-nowrap">{file.size}</span>
+                            <a href={file.id ? demandsApi.getAttachmentUrl(file.id) : '#'}
+                              target={file.id ? '_blank' : undefined}
+                              rel="noopener noreferrer"
+                              className="truncate max-w-[160px] font-semibold text-slate-800 flex items-center gap-1.5 hover:text-blue-700"
+                            >
+                              <FileText size={12} className="text-blue-600 shrink-0" />
+                              <span className="truncate">{file.name}</span>
+                            </a>
+                            <div className="flex items-center gap-2 shrink-0">
+                              <span className="text-[9px] text-slate-400">{file.size}</span>
+                              {canEdit && file.id && (
+                                <button onClick={() => handleDeleteAttachment(file.id!)}
+                                  className="text-red-400 hover:text-red-600 p-0.5">
+                                  <Trash2 size={11} />
+                                </button>
+                              )}
+                            </div>
                           </div>
                         ))}
+                        {canEdit && (
+                          <div className="pt-1">
+                            <input type="file" multiple ref={fileInputRef}
+                              onChange={handleUploadFiles} className="hidden" accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.png,.jpg,.jpeg,.gif,.svg,.txt,.csv,.zip,.rar" />
+                            <button onClick={() => fileInputRef.current?.click()}
+                              disabled={uploadingAttachments}
+                              className="w-full text-[10px] font-bold text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 border border-dashed border-blue-200 rounded-xl py-2 transition-colors flex items-center justify-center gap-1"
+                            >
+                              {uploadingAttachments ? (
+                                <><Loader2 size={12} className="animate-spin" /> Enviando...</>
+                              ) : (
+                                <><Plus size={12} /> Adicionar arquivos</>
+                              )}
+                            </button>
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>

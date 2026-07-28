@@ -76,7 +76,7 @@ router.put('/user/:id', authenticateToken, async (req: Request, res: Response) =
       return res.status(400).json({ error: 'Formato de permissões inválido' });
     }
 
-    const targetUser = await get<UserResponse>('SELECT id, name, email FROM users WHERE id = $1', [userId]);
+    const targetUser = await get<UserResponse>('SELECT id, name, email FROM users WHERE id = $1 AND deleted_at IS NULL', [userId]);
     if (!targetUser) {
       return res.status(404).json({ error: 'Usuário não encontrado' });
     }

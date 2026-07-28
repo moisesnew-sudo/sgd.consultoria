@@ -18,7 +18,7 @@ const municipalitySchema = z.object({
 router.get('/', authenticateToken, async (req: Request, res: Response) => {
   try {
     const { uf, region, search } = req.query;
-    let sql = 'SELECT * FROM municipalities WHERE 1=1';
+    let sql = 'SELECT * FROM municipalities WHERE deleted_at IS NULL';
     const params: any[] = [];
 
     if (uf && uf !== 'all') { sql += ' AND uf = $' + (params.length + 1); params.push(uf); }
@@ -40,11 +40,11 @@ router.get('/', authenticateToken, async (req: Request, res: Response) => {
 
 router.get('/:id', authenticateToken, async (req: Request, res: Response) => {
   try {
-    const municipality = await get('SELECT * FROM municipalities WHERE id = $1', [req.params.id]);
+    const municipality = await get('SELECT * FROM municipalities WHERE id = $1 AND deleted_at IS NULL', [req.params.id]);
     if (!municipality) return res.status(404).json({ error: 'Município não encontrado' });
 
     const demands = await all(
-      'SELECT * FROM demands WHERE municipality = (SELECT name FROM municipalities WHERE id = $1) AND uf = (SELECT uf FROM municipalities WHERE id = $1)',
+      'SELECT * FROM demands WHERE municipality = (SELECT name FROM municipalities WHERE id = $1) AND uf = (SELECT uf FROM municipalities WHERE id = $1) AND deleted_at IS NULL',
       [req.params.id]
     );
 
@@ -78,7 +78,7 @@ router.post('/', authenticateToken, requireRole('admin'), async (req: Request, r
 
 router.put('/:id', authenticateToken, requireRole('admin'), async (req: Request, res: Response) => {
   try {
-    const existing = await get('SELECT * FROM municipalities WHERE id = $1', [req.params.id]);
+    const existing = await get('SELECT * FROM municipalities WHERE id = $1 AND deleted_at IS NULL', [req.params.id]);
     if (!existing) return res.status(404).json({ error: 'Município não encontrado' });
 
     const data = municipalitySchema.partial().parse(req.body);
@@ -100,11 +100,11 @@ router.put('/:id', authenticateToken, requireRole('admin'), async (req: Request,
 
 router.delete('/:id', authenticateToken, requireRole('admin'), async (req: Request, res: Response) => {
   try {
-    const municipality = await get('SELECT * FROM municipalities WHERE id = $1', [req.params.id]);
+    const municipality = await get('SELECT * FROM municipalities WHERE id = $1 AND deleted_at IS NULL', [req.params.id]);
     if (!municipality) return res.status(404).json({ error: 'Município não encontrado' });
 
     const demandsCount = await get<{ count: string }>(
-      'SELECT COUNT(*) as count FROM demands WHERE municipality = (SELECT name FROM municipalities WHERE id = $1)',
+      'SELECT COUNT(*) as count FROM demands WHERE municipality = (SELECT name FROM municipalities WHERE id = $1) AND deleted_at IS NULL',
       [req.params.id]
     );
 
@@ -112,11 +112,23 @@ router.delete('/:id', authenticateToken, requireRole('admin'), async (req: Reque
       return res.status(400).json({ error: 'Não é possível remover município com demandas vinculadas' });
     }
 
-    await run('DELETE FROM municipalities WHERE id = $1', [req.params.id]);
+    await run('UPDATE municipalities SET deleted_at = NOW() WHERE id = $1', [req.params.id]);
     res.json({ message: 'Município removido com sucesso' });
   } catch (error) {
     console.error('Delete municipality error:', error);
     res.status(500).json({ error: 'Erro ao remover município' });
+  }
+});
+
+router.post('/:id/restore', authenticateToken, requireRole('admin'), async (req: Request, res: Response) => {
+  try {
+    const municipality = await get('SELECT * FROM municipalities WHERE id = $1 AND deleted_at IS NOT NULL', [req.params.id]);
+    if (!municipality) return res.status(404).json({ error: 'Município não encontrado ou não excluído' });
+    await run('UPDATE municipalities SET deleted_at = NULL WHERE id = $1', [req.params.id]);
+    res.json({ message: 'Município restaurado com sucesso' });
+  } catch (error) {
+    console.error('Restore municipality error:', error);
+    res.status(500).json({ error: 'Erro ao restaurar município' });
   }
 });
 

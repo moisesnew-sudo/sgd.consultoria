@@ -13,7 +13,7 @@ const commentSchema = z.object({
 router.get('/:id/comments', authenticateToken, async (req: Request, res: Response) => {
   try {
     const comments = await all(
-      'SELECT * FROM comments WHERE demand_id = $1 ORDER BY created_at ASC',
+      'SELECT * FROM comments WHERE demand_id = $1 AND deleted_at IS NULL ORDER BY created_at ASC',
       [req.params.id as string]
     );
     res.json(comments);

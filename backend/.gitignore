@@ -6,3 +6,4 @@ dist/
 *.db-journal
 .DS_Store
 *.log
+uploads/

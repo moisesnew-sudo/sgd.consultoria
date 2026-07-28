@@ -73,6 +73,12 @@ export interface Attachment {
   size: string;
   type: string;
   file_path?: string;
+  uploaded_by?: number;
+  mime_type?: string;
+  file_size?: number;
+  file_hash?: string;
+  created_at?: string;
+  deleted_at?: string | null;
 }
 
 export interface Demand {

@@ -317,11 +317,32 @@ export async function initDatabase() {
 
     -- ============================================================
     -- Soft delete columns (idempotent)
-    -- ============================================================
     ALTER TABLE demands ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;
+    ALTER TABLE demands ADD COLUMN IF NOT EXISTS deleted_by INTEGER REFERENCES users(id);
     ALTER TABLE municipalities ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;
     ALTER TABLE users ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;
     ALTER TABLE comments ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;
+    ALTER TABLE attachments ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;
+    ALTER TABLE attachments ADD COLUMN IF NOT EXISTS uploaded_by INTEGER REFERENCES users(id);
+    ALTER TABLE attachments ADD COLUMN IF NOT EXISTS mime_type TEXT;
+    ALTER TABLE attachments ADD COLUMN IF NOT EXISTS file_size BIGINT DEFAULT 0;
+    ALTER TABLE attachments ADD COLUMN IF NOT EXISTS file_hash TEXT;
+    CREATE INDEX IF NOT EXISTS idx_attachments_hash ON attachments(file_hash);
+
+    -- ============================================================
+    -- Multi-tenant preparation (idempotent)
+    -- ============================================================
+    ALTER TABLE demands ADD COLUMN IF NOT EXISTS tenant_id INTEGER DEFAULT 1;
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS tenant_id INTEGER DEFAULT 1;
+    ALTER TABLE municipalities ADD COLUMN IF NOT EXISTS tenant_id INTEGER DEFAULT 1;
+    ALTER TABLE timeline_events ADD COLUMN IF NOT EXISTS tenant_id INTEGER DEFAULT 1;
+    ALTER TABLE comments ADD COLUMN IF NOT EXISTS tenant_id INTEGER DEFAULT 1;
+    ALTER TABLE attachments ADD COLUMN IF NOT EXISTS tenant_id INTEGER DEFAULT 1;
+    ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS tenant_id INTEGER DEFAULT 1;
+
+    CREATE INDEX IF NOT EXISTS idx_demands_tenant ON demands(tenant_id);
+    CREATE INDEX IF NOT EXISTS idx_users_tenant ON users(tenant_id);
+    CREATE INDEX IF NOT EXISTS idx_demands_deleted ON demands(deleted_at);
 
     -- ============================================================
     -- MÓDULO 7: Backup tracking

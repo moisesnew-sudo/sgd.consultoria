@@ -58,8 +58,14 @@ export interface Attachment {
   id?: number;
   demand_id: string;
   name: string;
-  size: string;
-  type: string;
+  size?: string;
+  type?: string;
+  file_size?: number;
+  mime_type?: string;
+  file_hash?: string;
+  file_path?: string;
+  uploaded_by?: number;
+  created_at?: string;
 }
 
 export interface Demand {

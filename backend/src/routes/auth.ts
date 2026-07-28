@@ -79,7 +79,7 @@ router.post('/login', async (req: Request, res: Response) => {
   try {
     const { email, password } = loginSchema.parse(req.body);
     const { ip_address, user_agent } = extractMeta(req);
-    const user = await get<User>('SELECT * FROM users WHERE email = $1', [email]);
+    const user = await get<User>('SELECT * FROM users WHERE email = $1 AND deleted_at IS NULL', [email]);
 
     if (user && await isAccountLocked(email)) {
       await logAudit({
@@ -291,7 +291,7 @@ router.post('/register', authenticateToken, requirePermission('users.create'), a
 
 router.get('/me', authenticateToken, async (req: Request, res: Response) => {
   const user = await get<UserResponse & { created_at: string }>(
-    'SELECT id, email, name, role, created_at FROM users WHERE id = $1',
+    'SELECT id, email, name, role, created_at FROM users WHERE id = $1 AND deleted_at IS NULL',
     [req.user!.id]
   );
   if (!user) {
@@ -328,7 +328,7 @@ router.put('/change-password', authenticateToken, async (req: Request, res: Resp
       return res.status(400).json({ error: parsed.error.errors[0].message });
     }
 
-    const user = await get<User>('SELECT * FROM users WHERE id = $1', [req.user!.id]);
+    const user = await get<User>('SELECT * FROM users WHERE id = $1 AND deleted_at IS NULL', [req.user!.id]);
     if (!user) {
       return res.status(404).json({ error: 'Usuário não encontrado' });
     }
@@ -371,8 +371,8 @@ router.get('/users', authenticateToken, requirePermission('users.view'), async (
       if (req.user?.role !== 'admin' && req.user?.role !== 'administrador' && req.user?.role !== 'gestor' && req.user?.role !== 'diretor') {
         return res.status(403).json({ error: 'Permissão insuficiente' });
       }
-    const users = await all<UserResponse & { active: boolean; created_at: string }>(
-      'SELECT id, email, name, role, active, created_at FROM users ORDER BY name'
+    const users = await all<UserResponse & { active: boolean; created_at: string; deleted_at: string | null }>(
+      'SELECT id, email, name, role, active, created_at, deleted_at FROM users WHERE deleted_at IS NULL ORDER BY name'
     );
     res.json(users);
   } catch (error) {
@@ -442,12 +442,12 @@ router.put('/users/:id', authenticateToken, requirePermission('users.edit'), asy
       return res.status(400).json({ error: 'Não é possível alterar a própria conta' });
     }
     const data = updateUserSchema.parse(req.body);
-    const existing = await get<User>('SELECT id, role FROM users WHERE id = $1', [id]);
+    const existing = await get<User>('SELECT id, role FROM users WHERE id = $1 AND deleted_at IS NULL', [id]);
     if (!existing) {
       return res.status(404).json({ error: 'Usuário não encontrado' });
     }
     if ((existing.role === 'admin' || existing.role === 'administrador') && data.role && data.role !== 'admin' && data.role !== 'administrador') {
-      const adminCount = await get<{ count: string }>("SELECT COUNT(*) as count FROM users WHERE (role = 'admin' OR role = 'administrador') AND active = TRUE");
+      const adminCount = await get<{ count: string }>("SELECT COUNT(*) as count FROM users WHERE (role = 'admin' OR role = 'administrador') AND active = TRUE AND deleted_at IS NULL");
       if (parseInt(adminCount?.count || '0') <= 1) {
         return res.status(400).json({ error: 'Deve haver ao menos um administrador ativo' });
       }
@@ -467,7 +467,7 @@ router.put('/users/:id', authenticateToken, requirePermission('users.edit'), asy
     }
 
     const updated = await get<UserResponse & { active: boolean }>(
-      'SELECT id, email, name, role, active FROM users WHERE id = $1', [id]
+      'SELECT id, email, name, role, active FROM users WHERE id = $1 AND deleted_at IS NULL', [id]
     );
     await logAudit({
       entity_type: 'user', entity_id: String(id), action: 'update',

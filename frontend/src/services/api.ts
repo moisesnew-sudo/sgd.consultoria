@@ -8,7 +8,8 @@ import {
   DashboardStats,
   TimelineEvent,
   PermissionCategory,
-  UserPermission
+  UserPermission,
+  Attachment
 } from '../types';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'https://sgd-consultoria.onrender.com';
@@ -203,6 +204,49 @@ function normalizeDemand(d: any): Demand {
 }
 
 // Demands API
+async function uploadRequest<T>(endpoint: string, formData: FormData): Promise<T> {
+  const token = localStorage.getItem('sgd_token');
+  const headers: Record<string, string> = {};
+  if (token) headers['Authorization'] = `Bearer ${token}`;
+
+  let response = await fetch(`${API_BASE}/api${endpoint}`, {
+    method: 'POST',
+    headers,
+    body: formData,
+  });
+
+  if (response.status === 401 && !isRefreshing) {
+    isRefreshing = true;
+    try {
+      const newToken = await refreshAccessToken();
+      isRefreshing = false;
+      headers['Authorization'] = `Bearer ${newToken}`;
+      response = await fetch(`${API_BASE}/api${endpoint}`, {
+        method: 'POST',
+        headers,
+        body: formData,
+      });
+      refreshQueue.forEach(({ resolve }) => resolve(newToken));
+      refreshQueue = [];
+    } catch (error) {
+      isRefreshing = false;
+      refreshQueue.forEach(({ reject }) => reject(error));
+      refreshQueue = [];
+      localStorage.removeItem('sgd_token');
+      localStorage.removeItem('sgd_refresh_token');
+      window.location.href = '/login';
+      throw error;
+    }
+  }
+
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({ error: 'Erro desconhecido' }));
+    throw new ApiError(response.status, err.error || 'Erro na requisição');
+  }
+
+  return response.json();
+}
+
 export const demandsApi = {
   getAll: async (params?: {
     status?: string;
@@ -263,6 +307,17 @@ export const demandsApi = {
       method: 'POST',
       body: JSON.stringify({ body }),
     }),
+
+  uploadAttachments: (demandId: string, files: File[]) => {
+    const formData = new FormData();
+    files.forEach(f => formData.append('files', f));
+    return uploadRequest<Attachment[]>(`/demands/${demandId}/attachments`, formData);
+  },
+
+  getAttachmentUrl: (id: number) => `${API_BASE}/api/attachments/${id}`,
+
+  deleteAttachment: (id: number) =>
+    request<{ message: string }>(`/attachments/${id}`, { method: 'DELETE' }),
 };
 
 // Export logging

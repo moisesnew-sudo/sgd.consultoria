@@ -6,8 +6,8 @@ const router = Router();
 
 router.get('/dashboard', authenticateToken, requireRole('admin'), async (req: Request, res: Response) => {
   try {
-    const totalUsers = await get<{ count: string }>('SELECT COUNT(*) as count FROM users');
-    const activeUsers = await get<{ count: string }>("SELECT COUNT(*) as count FROM users WHERE active = TRUE");
+    const totalUsers = await get<{ count: string }>('SELECT COUNT(*) as count FROM users WHERE deleted_at IS NULL');
+    const activeUsers = await get<{ count: string }>("SELECT COUNT(*) as count FROM users WHERE active = TRUE AND deleted_at IS NULL");
     const totalAuditLogs = await get<{ count: string }>('SELECT COUNT(*) as count FROM audit_logs');
     const totalBackups = await get<{ count: string }>("SELECT COUNT(*) as count FROM backups WHERE status = 'completed'");
     const lastBackup = await get<{ created_at: string; file_size: number }>(
@@ -25,7 +25,7 @@ router.get('/dashboard', authenticateToken, requireRole('admin'), async (req: Re
     );
 
     const usersByRole = await all<{ role: string; count: string }>(
-      'SELECT role, COUNT(*) as count FROM users GROUP BY role ORDER BY count DESC'
+      'SELECT role, COUNT(*) as count FROM users WHERE deleted_at IS NULL GROUP BY role ORDER BY count DESC'
     );
     const permissionsCount = await get<{ count: string }>('SELECT COUNT(*) as count FROM permissions');
     const userPermissionsCount = await get<{ count: string }>('SELECT COUNT(*) as count FROM user_permissions');

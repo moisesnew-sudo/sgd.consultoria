@@ -25,7 +25,7 @@ router.post('/request', async (req: Request, res: Response) => {
   const { ip_address, user_agent } = extractMeta(req);
   try {
     const { email } = requestResetSchema.parse(req.body);
-    const user = await get<{ id: number; name: string }>('SELECT id, name FROM users WHERE email = $1', [email]);
+    const user = await get<{ id: number; name: string }>('SELECT id, name FROM users WHERE email = $1 AND deleted_at IS NULL', [email]);
 
     const response = { message: 'Se o email estiver cadastrado, você receberá um link para redefinir sua senha.' };
 

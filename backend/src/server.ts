@@ -28,6 +28,7 @@ import sessionsRoutes from './routes/sessions.js';
 import backupsRoutes from './routes/backups.js';
 import monitoringRoutes from './routes/monitoring.js';
 import lgpdRoutes from './routes/lgpd.js';
+import uploadRoutes from './routes/upload.js';
 import { runSeed } from './seed.js';
 import { initDatabase, run } from './database.js';
 
@@ -126,6 +127,7 @@ app.use('/api/sessions', sessionsRoutes);
 app.use('/api/backups', backupsRoutes);
 app.use('/api/monitoring', monitoringRoutes);
 app.use('/api/lgpd', lgpdRoutes);
+app.use('/api', uploadRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {
