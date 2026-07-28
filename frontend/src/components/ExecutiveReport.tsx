@@ -34,14 +34,14 @@ export default function ExecutiveReport({ demands, filters, onClose }: Props) {
     <div style={{
       position: 'fixed', inset: 0, zIndex: 70,
       display: 'flex', alignItems: 'center', justifyContent: 'center',
-      background: 'linear-gradient(135deg, #0f172a, #1e1b4b, #0f172a)'
+      background: 'linear-gradient(135deg, #0F5132, #198754, #0F5132)'
     }}>
       <div style={{ textAlign: 'center' }}>
         <div style={{ position: 'relative', width: 80, height: 80, margin: '0 auto 24px' }}>
           <div style={{
             width: 80, height: 80,
-            border: '3px solid rgba(129,140,248,0.2)',
-            borderTopColor: '#818cf8',
+            border: '3px solid rgba(32,201,151,0.2)',
+            borderTopColor: '#20C997',
             borderRadius: '50%',
             animation: 'rspin 1s linear infinite'
           }} />
@@ -49,7 +49,7 @@ export default function ExecutiveReport({ demands, filters, onClose }: Props) {
             position: 'absolute', inset: 0,
             display: 'flex', alignItems: 'center', justifyContent: 'center'
           }}>
-            <Sparkles size={28} color="#a5b4fc" />
+            <Sparkles size={28} color="#F4B400" />
           </div>
         </div>
         <p style={{ color: 'white', fontSize: 18, fontWeight: 600, letterSpacing: '0.025em' }}>{msg}</p>

@@ -2,9 +2,9 @@ import { Demand } from '../../types';
 
 export const SL: Record<string, string> = { pendente: 'Pendente', analise: 'Em Análise', concluido: 'Concluído', rejeitado: 'Rejeitado' };
 export const PL: Record<string, string> = { baixa: 'Baixa', media: 'Média', alta: 'Alta', urgente: 'Urgente' };
-export const SC: Record<string, string> = { pendente: '#f59e0b', analise: '#3b5bdb', concluido: '#10b981', rejeitado: '#f43f5e' };
-export const PC: Record<string, string> = { baixa: '#94a3b8', media: '#3b82f6', alta: '#f59e0b', urgente: '#f43f5e' };
-export const UC = ['#3b5bdb', '#4f46e5', '#6366f1', '#818cf8', '#93b4fd', '#a5b4fc', '#7c3aed', '#6d28d9'];
+export const SC: Record<string, string> = { pendente: '#F4B400', analise: '#0d6efd', concluido: '#20C997', rejeitado: '#dc3545' };
+export const PC: Record<string, string> = { baixa: '#6C757D', media: '#0d6efd', alta: '#F4B400', urgente: '#dc3545' };
+export const UC = ['#0F5132', '#198754', '#20C997', '#F4B400', '#0d6efd', '#6f42c1', '#dc3545', '#fd7e14'];
 
 export const fmt = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 export const fc = (v: number) => {
