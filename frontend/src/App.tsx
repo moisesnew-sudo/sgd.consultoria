@@ -1,4 +1,4 @@
-import React, { useState, useEffect, Suspense, lazy } from 'react';
+import React, { useState, useEffect, Suspense, lazy, useCallback } from 'react';
 import Sidebar from './components/Sidebar';
 import { Header } from './components/ui/Header';
 import DemandsView from './components/DemandsView';
@@ -25,7 +25,7 @@ const SessionsView = lazy(() => import('./components/SessionsView'));
 const BackupManagementView = lazy(() => import('./components/BackupManagementView'));
 const MonitoringView = lazy(() => import('./components/MonitoringView'));
 const LgpdView = lazy(() => import('./components/LgpdView'));
-const InactivityWrapper = lazy(() => import('./components/InactivityWrapper').then(m => ({ default: m.default })));
+const InactivityWrapper = lazy(() => import('./components/InactivityWrapper'));
 
 function ViewFallback() {
   return (
@@ -67,14 +67,7 @@ function AppContent() {
   const [selectedDemandFromDashboard, setSelectedDemandFromDashboard] = useState<Demand | null>(null);
   const [showResetPassword, setShowResetPassword] = useState(false);
 
-  // Load data on mount (only when authenticated)
-  useEffect(() => {
-    if (isAuthenticated) {
-      loadData();
-    }
-  }, [isAuthenticated]);
-
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     try {
       setIsLoading(true);
       setError(null);
@@ -87,12 +80,17 @@ function AppContent() {
       setDemands(demandsData.data);
       setMunicipalities(municipalitiesData);
     } catch (err: any) {
-      console.error('Error loading data:', err);
-      setError(err.message || 'Erro ao carregar dados');
+      setError(err?.message || 'Erro ao carregar dados');
     } finally {
       setIsLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      loadData();
+    }
+  }, [isAuthenticated, loadData]);
 
   const handleAddDemand = (newDemand: Demand) => {
     setDemands(prev => [newDemand, ...prev]);
@@ -237,7 +235,7 @@ function AppContent() {
           {activeTab === 'settings' && (
             <ErrorBoundary><Suspense fallback={<ViewFallback />}>
               <SettingsView onBackToLogin={() => {
-                localStorage.removeItem('authToken');
+                localStorage.removeItem('sgd_token');
                 window.location.reload();
               }} />
             </Suspense></ErrorBoundary>

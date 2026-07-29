@@ -36,8 +36,8 @@ const registerSchema = z.object({
 async function isAccountLocked(email: string): Promise<boolean> {
   const recent = await get<{ count: string }>(
     `SELECT COUNT(*) as count FROM login_attempts
-     WHERE email = $1 AND success = FALSE AND attempted_at > NOW() - INTERVAL '${LOCKOUT_MINUTES} minutes'`,
-    [email]
+     WHERE email = $1 AND success = FALSE AND attempted_at > NOW() - $2 * INTERVAL '1 minute'`,
+    [email, LOCKOUT_MINUTES]
   );
   return parseInt(recent?.count || '0') >= MAX_LOGIN_ATTEMPTS;
 }
@@ -57,8 +57,8 @@ async function savePasswordHistory(userId: number, passwordHash: string) {
   );
   await run(
     `DELETE FROM password_history WHERE id IN (
-      SELECT id FROM password_history WHERE user_id = $1 ORDER BY created_at DESC OFFSET ${PASSWORD_HISTORY_LIMIT}
-    )`, [userId]
+      SELECT id FROM password_history WHERE user_id = $1 ORDER BY created_at DESC OFFSET $2
+    )`, [userId, PASSWORD_HISTORY_LIMIT]
   );
 }
 
@@ -226,8 +226,6 @@ router.post('/logout', authenticateToken, async (req: Request, res: Response) =>
       const refreshHash = crypto.createHash('sha256').update(refreshToken).digest('hex');
       await run('UPDATE refresh_tokens SET revoked = TRUE WHERE token_hash = $1', [refreshHash]);
     }
-
-    await run('UPDATE refresh_tokens SET revoked = TRUE WHERE user_id = $1', [req.user!.id]);
 
     await logAudit({
       entity_type: 'auth', entity_id: String(req.user!.id), action: 'logout',
