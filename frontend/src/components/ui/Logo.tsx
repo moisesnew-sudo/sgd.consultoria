@@ -7,14 +7,14 @@ interface LogoProps {
 const LOGO_PATH = '/logo.jpg';
 
 export function LogoSymbol({ size = 56, className = '' }: { size?: number; className?: string }) {
+  const maxW = size * 2.5;
   return (
     <img
       src={LOGO_PATH}
       alt="MAPA"
-      width={size}
       height={size}
-      className={`shrink-0 object-contain ${className}`}
-      style={{ borderRadius: size * 0.18 }}
+      className={`shrink-0 object-contain w-auto ${className}`}
+      style={{ borderRadius: Math.max(4, size * 0.1), maxWidth: maxW }}
     />
   );
 }
