@@ -1,4 +1,5 @@
 import { 
+  Comment,
   Demand, 
   MunicipalityData, 
   SystemSettings, 
@@ -215,27 +216,39 @@ async function uploadRequest<T>(endpoint: string, formData: FormData): Promise<T
     body: formData,
   });
 
-  if (response.status === 401 && !isRefreshing) {
-    isRefreshing = true;
-    try {
-      const newToken = await refreshAccessToken();
-      isRefreshing = false;
+  if (response.status === 401) {
+    if (!isRefreshing) {
+      isRefreshing = true;
+      try {
+        const newToken = await refreshAccessToken();
+        isRefreshing = false;
+        headers['Authorization'] = `Bearer ${newToken}`;
+        response = await fetch(`${API_BASE}/api${endpoint}`, {
+          method: 'POST',
+          headers,
+          body: formData,
+        });
+        refreshQueue.forEach(({ resolve }) => resolve(newToken));
+        refreshQueue = [];
+      } catch (error) {
+        isRefreshing = false;
+        refreshQueue.forEach(({ reject }) => reject(error));
+        refreshQueue = [];
+        localStorage.removeItem('sgd_token');
+        localStorage.removeItem('sgd_refresh_token');
+        window.location.href = '/login';
+        throw error;
+      }
+    } else {
+      const newToken = await new Promise<string>((resolve, reject) => {
+        refreshQueue.push({ resolve, reject });
+      });
       headers['Authorization'] = `Bearer ${newToken}`;
       response = await fetch(`${API_BASE}/api${endpoint}`, {
         method: 'POST',
         headers,
         body: formData,
       });
-      refreshQueue.forEach(({ resolve }) => resolve(newToken));
-      refreshQueue = [];
-    } catch (error) {
-      isRefreshing = false;
-      refreshQueue.forEach(({ reject }) => reject(error));
-      refreshQueue = [];
-      localStorage.removeItem('sgd_token');
-      localStorage.removeItem('sgd_refresh_token');
-      window.location.href = '/login';
-      throw error;
     }
   }
 
@@ -298,12 +311,12 @@ export const demandsApi = {
 
   getDashboardStats: () => request<DashboardStats>('/demands/stats/dashboard'),
 
-  getCalendarEvents: () => request<any[]>('/demands/calendar/events'),
+  getCalendarEvents: () => request<Record<string, any>[]>('/demands/calendar/events'),
 
-  listComments: (demandId: string) => request<any[]>(`/demands/${demandId}/comments`),
+  listComments: (demandId: string) => request<Comment[]>(`/demands/${demandId}/comments`),
 
   addComment: (demandId: string, body: string) =>
-    request<any>(`/demands/${demandId}/comments`, {
+    request<Comment>(`/demands/${demandId}/comments`, {
       method: 'POST',
       body: JSON.stringify({ body }),
     }),
