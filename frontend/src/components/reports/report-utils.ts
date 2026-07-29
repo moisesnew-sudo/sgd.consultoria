@@ -59,7 +59,7 @@ export function computeMetrics(demands: Demand[]): RM {
   const ts = Object.entries(byStatus).sort((a, b) => b[1] - a[1])[0];
   const tp = Object.entries(byPriority).sort((a, b) => b[1] - a[1])[0];
   return {
-    total, totalValue: totalV, approvedValue: byStatus.analise || 0, concludedValue: concV, rejectedValue: rejV,
+    total, totalValue: totalV, approvedValue: concV, concludedValue: concV, rejectedValue: rejV,
     byStatus, byPriority, byUf, byMun, byYear, municipalities: Object.keys(byMun).length, states: Object.keys(byUf).length, organs: Object.keys(byOrgan).length,
     avgTime: times.length > 0 ? times.reduce((a, b) => a + b, 0) / times.length : 0, concludedCount: byStatus.concluido || 0,
     maxD: { title: maxT, value: maxV }, minD: { title: minT, value: minV === Infinity ? 0 : minV },
