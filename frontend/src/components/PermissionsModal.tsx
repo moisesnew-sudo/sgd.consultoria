@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { X, ShieldCheck, Loader2, Save } from 'lucide-react';
+import { X, ShieldCheck, Loader2 } from 'lucide-react';
 import { PermissionCategory, UserPermission } from '../types';
 import { permissionsApi } from '../services/api';
 import { useToast } from '../contexts/ToastContext';
@@ -16,7 +16,7 @@ export default function PermissionsModal({ userId, userName, onClose, onSaved }:
   const [categories, setCategories] = useState<PermissionCategory[]>([]);
   const [userPerms, setUserPerms] = useState<UserPermission[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
+  const [savingId, setSavingId] = useState<number | null>(null);
 
   useEffect(() => {
     loadData();
@@ -43,33 +43,33 @@ export default function PermissionsModal({ userId, userName, onClose, onSaved }:
     return found ? found.granted : false;
   };
 
-  const togglePermission = (permissionId: number) => {
-    setUserPerms(prev => {
-      const exists = prev.find(p => p.permission_id === permissionId);
-      if (exists) {
-        return prev.map(p =>
-          p.permission_id === permissionId ? { ...p, granted: !p.granted } : p
-        );
-      }
-      return [...prev, { permission_id: permissionId, key: '', granted: true }];
-    });
-  };
+  const toggleAndSave = async (permissionId: number) => {
+    if (savingId === permissionId) return;
+    setSavingId(permissionId);
 
-  const handleSave = async () => {
-    setSaving(true);
+    const newGranted = !isGranted(permissionId);
+
     try {
-      const permsToSend = userPerms.map(p => ({
+      const newPerms: UserPermission[] = userPerms.some(p => p.permission_id === permissionId)
+        ? userPerms.map(p => p.permission_id === permissionId ? { ...p, granted: newGranted } : p)
+        : [...userPerms, { permission_id: permissionId, key: '', granted: newGranted }];
+
+      setUserPerms(newPerms);
+
+      const permsToSend = newPerms.map(p => ({
         permission_id: p.permission_id,
         granted: p.granted,
       }));
+
       await permissionsApi.updateUserPermissions(userId, permsToSend);
-      toast('success', 'Permissões atualizadas com sucesso');
       onSaved();
-      onClose();
     } catch (e: any) {
-      toast('error', 'Erro ao salvar permissões', e?.message || 'Não foi possível salvar');
+      setUserPerms(prev => prev.map(p =>
+        p.permission_id === permissionId ? { ...p, granted: !p.granted } : p
+      ));
+      toast('error', 'Erro ao salvar', e?.message || 'Não foi possível salvar');
     } finally {
-      setSaving(false);
+      setSavingId(null);
     }
   };
 
@@ -115,67 +115,55 @@ export default function PermissionsModal({ userId, userName, onClose, onSaved }:
                   </p>
                 </div>
                 <div className="space-y-2">
-                  {cat.permissions.map((perm) => (
-                    <label
-                      key={perm.id}
-                      className="flex items-center justify-between p-3 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-700/30 hover:bg-slate-100 dark:hover:bg-slate-800/60 transition-colors cursor-pointer"
-                    >
-                      <div className="flex-1 min-w-0">
-                        <span className="text-sm font-semibold text-slate-700 dark:text-slate-200">
-                          {perm.name}
-                        </span>
-                        {perm.description && (
-                          <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-0.5">
-                            {perm.description}
-                          </p>
-                        )}
-                      </div>
-                      <div className="relative ml-3">
-                        <input
-                          type="checkbox"
-                          checked={isGranted(perm.id)}
-                          onChange={() => togglePermission(perm.id)}
-                          className="sr-only peer"
-                          id={`perm-${perm.id}`}
-                        />
-                        <div
-                          onClick={() => togglePermission(perm.id)}
-                          className={`w-11 h-6 rounded-full transition-colors cursor-pointer ${
-                            isGranted(perm.id)
-                              ? 'bg-brand-600'
-                              : 'bg-slate-300 dark:bg-slate-600'
-                          }`}
-                        >
-                          <div
-                            className={`w-5 h-5 bg-white rounded-full shadow-sm transition-transform mt-0.5 ${
-                              isGranted(perm.id) ? 'translate-x-[22px]' : 'translate-x-[2px]'
-                            }`}
-                          />
+                  {cat.permissions.map((perm) => {
+                    const isSaving = savingId === perm.id;
+                    const granted = isGranted(perm.id);
+                    return (
+                      <label
+                        key={perm.id}
+                        className={`flex items-center justify-between p-3 rounded-xl border transition-colors cursor-pointer ${
+                          isSaving
+                            ? 'bg-slate-50 dark:bg-slate-800/60 border-slate-200 dark:border-slate-700'
+                            : granted
+                              ? 'bg-brand-50/60 dark:bg-brand-900/15 border-brand-200 dark:border-brand-800/40'
+                              : 'bg-slate-50 dark:bg-slate-800/40 border-slate-100 dark:border-slate-700/30 hover:bg-slate-100 dark:hover:bg-slate-800/60'
+                        }`}
+                      >
+                        <div className="flex-1 min-w-0">
+                          <span className="text-sm font-semibold text-slate-700 dark:text-slate-200">
+                            {perm.name}
+                          </span>
+                          {perm.description && (
+                            <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-0.5">
+                              {perm.description}
+                            </p>
+                          )}
                         </div>
-                      </div>
-                    </label>
-                  ))}
+                        <div className="relative ml-3">
+                          {isSaving ? (
+                            <Loader2 size={20} className="animate-spin text-brand-600" />
+                          ) : (
+                            <div
+                              onClick={() => toggleAndSave(perm.id)}
+                              className={`w-11 h-6 rounded-full transition-colors cursor-pointer ${
+                                granted ? 'bg-brand-600' : 'bg-slate-300 dark:bg-slate-600'
+                              }`}
+                            >
+                              <div
+                                className={`w-5 h-5 bg-white rounded-full shadow-sm transition-transform mt-0.5 ${
+                                  granted ? 'translate-x-[22px]' : 'translate-x-[2px]'
+                                }`}
+                              />
+                            </div>
+                          )}
+                        </div>
+                      </label>
+                    );
+                  })}
                 </div>
               </div>
             ))
           )}
-        </div>
-
-        <div className="flex items-center justify-end gap-3 p-6 border-t border-slate-100 dark:border-slate-700/50">
-          <button
-            onClick={onClose}
-            className="px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 font-bold text-xs uppercase tracking-wider hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
-          >
-            Cancelar
-          </button>
-          <button
-            onClick={handleSave}
-            disabled={saving || isLoading}
-            className="px-4 py-2.5 rounded-xl bg-brand-600 hover:bg-brand-700 text-white font-bold text-xs uppercase tracking-wider disabled:opacity-50 flex items-center gap-2 transition-colors"
-          >
-            {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
-            Salvar Permissões
-          </button>
         </div>
       </div>
     </div>
