@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { X, ShieldCheck, Loader2 } from 'lucide-react';
+import { X, ShieldCheck, Loader2, Save } from 'lucide-react';
 import { PermissionCategory, UserPermission } from '../types';
 import { permissionsApi } from '../services/api';
 import { useToast } from '../contexts/ToastContext';
@@ -16,7 +16,7 @@ export default function PermissionsModal({ userId, userName, onClose, onSaved }:
   const [categories, setCategories] = useState<PermissionCategory[]>([]);
   const [userPerms, setUserPerms] = useState<UserPermission[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [savingId, setSavingId] = useState<number | null>(null);
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -43,33 +43,33 @@ export default function PermissionsModal({ userId, userName, onClose, onSaved }:
     return found ? found.granted : false;
   };
 
-  const toggleAndSave = async (permissionId: number) => {
-    if (savingId === permissionId) return;
-    setSavingId(permissionId);
+  const togglePermission = (permissionId: number) => {
+    setUserPerms(prev => {
+      const exists = prev.find(p => p.permission_id === permissionId);
+      if (exists) {
+        return prev.map(p =>
+          p.permission_id === permissionId ? { ...p, granted: !p.granted } : p
+        );
+      }
+      return [...prev, { permission_id: permissionId, key: '', granted: true }];
+    });
+  };
 
-    const newGranted = !isGranted(permissionId);
-
+  const handleSave = async () => {
+    setSaving(true);
     try {
-      const newPerms: UserPermission[] = userPerms.some(p => p.permission_id === permissionId)
-        ? userPerms.map(p => p.permission_id === permissionId ? { ...p, granted: newGranted } : p)
-        : [...userPerms, { permission_id: permissionId, key: '', granted: newGranted }];
-
-      setUserPerms(newPerms);
-
-      const permsToSend = newPerms.map(p => ({
+      const permsToSend = userPerms.map(p => ({
         permission_id: p.permission_id,
         granted: p.granted,
       }));
-
       await permissionsApi.updateUserPermissions(userId, permsToSend);
+      toast('success', 'Permissões atualizadas com sucesso');
       onSaved();
+      onClose();
     } catch (e: any) {
-      setUserPerms(prev => prev.map(p =>
-        p.permission_id === permissionId ? { ...p, granted: !p.granted } : p
-      ));
-      toast('error', 'Erro ao salvar', e?.message || 'Não foi possível salvar');
+      toast('error', 'Erro ao salvar permissões', e?.message || 'Não foi possível salvar');
     } finally {
-      setSavingId(null);
+      setSaving(false);
     }
   };
 
@@ -116,21 +116,20 @@ export default function PermissionsModal({ userId, userName, onClose, onSaved }:
                 </div>
                 <div className="space-y-2">
                   {cat.permissions.map((perm) => {
-                    const isSaving = savingId === perm.id;
                     const granted = isGranted(perm.id);
                     return (
                       <label
                         key={perm.id}
-                        className={`flex items-center justify-between p-3 rounded-xl border transition-colors cursor-pointer ${
-                          isSaving
-                            ? 'bg-slate-50 dark:bg-slate-800/60 border-slate-200 dark:border-slate-700'
-                            : granted
-                              ? 'bg-brand-50/60 dark:bg-brand-900/15 border-brand-200 dark:border-brand-800/40'
-                              : 'bg-slate-50 dark:bg-slate-800/40 border-slate-100 dark:border-slate-700/30 hover:bg-slate-100 dark:hover:bg-slate-800/60'
+                        className={`flex items-center justify-between p-3 rounded-xl border transition-all cursor-pointer ${
+                          granted
+                            ? 'bg-brand-50/70 dark:bg-brand-900/15 border-brand-200 dark:border-brand-800/40 shadow-xs'
+                            : 'bg-slate-50 dark:bg-slate-800/40 border-slate-100 dark:border-slate-700/30 hover:bg-slate-100 dark:hover:bg-slate-800/60'
                         }`}
                       >
                         <div className="flex-1 min-w-0">
-                          <span className="text-sm font-semibold text-slate-700 dark:text-slate-200">
+                          <span className={`text-sm font-semibold transition-colors ${
+                            granted ? 'text-brand-700 dark:text-brand-300' : 'text-slate-700 dark:text-slate-200'
+                          }`}>
                             {perm.name}
                           </span>
                           {perm.description && (
@@ -139,24 +138,21 @@ export default function PermissionsModal({ userId, userName, onClose, onSaved }:
                             </p>
                           )}
                         </div>
-                        <div className="relative ml-3">
-                          {isSaving ? (
-                            <Loader2 size={20} className="animate-spin text-brand-600" />
-                          ) : (
-                            <div
-                              onClick={() => toggleAndSave(perm.id)}
-                              className={`w-11 h-6 rounded-full transition-colors cursor-pointer ${
-                                granted ? 'bg-brand-600' : 'bg-slate-300 dark:bg-slate-600'
-                              }`}
-                            >
-                              <div
-                                className={`w-5 h-5 bg-white rounded-full shadow-sm transition-transform mt-0.5 ${
-                                  granted ? 'translate-x-[22px]' : 'translate-x-[2px]'
-                                }`}
-                              />
-                            </div>
-                          )}
-                        </div>
+                        <button
+                          type="button"
+                          onClick={() => togglePermission(perm.id)}
+                          className={`relative inline-flex h-7 w-12 shrink-0 rounded-full border-2 border-transparent transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-brand-600 focus:ring-offset-2 dark:focus:ring-offset-slate-900 ${
+                            granted
+                              ? 'bg-brand-600 hover:bg-brand-500'
+                              : 'bg-slate-300 dark:bg-slate-600 hover:bg-slate-400 dark:hover:bg-slate-500'
+                          }`}
+                        >
+                          <span
+                            className={`inline-block h-6 w-6 transform rounded-full bg-white shadow-md ring-0 transition-all duration-200 ${
+                              granted ? 'translate-x-5' : 'translate-x-0'
+                            }`}
+                          />
+                        </button>
                       </label>
                     );
                   })}
@@ -164,6 +160,23 @@ export default function PermissionsModal({ userId, userName, onClose, onSaved }:
               </div>
             ))
           )}
+        </div>
+
+        <div className="flex items-center justify-end gap-3 p-6 border-t border-slate-100 dark:border-slate-700/50">
+          <button
+            onClick={onClose}
+            className="px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 font-bold text-xs uppercase tracking-wider hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+          >
+            Cancelar
+          </button>
+          <button
+            onClick={handleSave}
+            disabled={saving || isLoading}
+            className="px-4 py-2.5 rounded-xl bg-brand-600 hover:bg-brand-700 text-white font-bold text-xs uppercase tracking-wider disabled:opacity-50 flex items-center gap-2 transition-colors"
+          >
+            {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
+            Salvar Permissões
+          </button>
         </div>
       </div>
     </div>
