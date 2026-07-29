@@ -93,7 +93,7 @@ app.use('/api/auth', (req, res, next) => {
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 20,
-  message: 'Muitas tentativas de login. Tente novamente mais tarde.',
+  message: { error: 'Muitas tentativas de login. Tente novamente mais tarde.' },
   standardHeaders: true,
   legacyHeaders: false
 });
@@ -101,7 +101,7 @@ const authLimiter = rateLimit({
 const apiLimiter = rateLimit({
   windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS || '900000'),
   max: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS || '200'),
-  message: 'Muitas requisições. Por favor, tente novamente mais tarde.',
+  message: { error: 'Muitas requisições. Por favor, tente novamente mais tarde.' },
   standardHeaders: true,
   legacyHeaders: false
 });
