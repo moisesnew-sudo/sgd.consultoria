@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from 'react';
-import { Users as UsersIcon, ShieldCheck, UserPlus, Trash2, CheckCircle2, XCircle, Loader2, AlertCircle, KeyRound, Lock } from 'lucide-react';
+import { Users as UsersIcon, UserPlus, Loader2, AlertCircle, X, ChevronRight, Save, Trash2, KeyRound, ShieldCheck, CheckCircle2, XCircle } from 'lucide-react';
 import { TableSkeleton } from './ui/Skeleton';
 import { User, UserRole } from '../types';
-import { authApi, ROLE_LABELS, ROLE_PERMISSIONS } from '../services/api';
+import { authApi, permissionsApi, ROLE_LABELS, ROLE_PERMISSIONS } from '../services/api';
 import { useToast } from '../contexts/ToastContext';
 import PermissionsModal from './PermissionsModal';
 
@@ -23,6 +23,8 @@ const ROLE_STYLES: Record<string, string> = {
   visitante: 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300',
 };
 
+const ALL_ROLES: UserRole[] = ['admin', 'gestor', 'analista', 'consulta', 'administrador', 'diretor', 'tecnico', 'parceiro', 'cliente', 'visitante'];
+
 export default function UsersView({ currentUser }: UsersViewProps) {
   const { toast } = useToast();
   const [users, setUsers] = useState<User[]>([]);
@@ -31,6 +33,16 @@ export default function UsersView({ currentUser }: UsersViewProps) {
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ name: '', email: '', password: '', role: 'analista' as UserRole });
   const [saving, setSaving] = useState(false);
+
+  const [selectedUser, setSelectedUser] = useState<User | null>(null);
+  const [editName, setEditName] = useState('');
+  const [editEmail, setEditEmail] = useState('');
+  const [editRole, setEditRole] = useState<UserRole>('analista');
+  const [savingEdit, setSavingEdit] = useState(false);
+  const [passwordModal, setPasswordModal] = useState<{ id: number; name: string } | null>(null);
+  const [newPassword, setNewPassword] = useState('');
+  const [savingPassword, setSavingPassword] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState<{ id: number; name: string } | null>(null);
   const [permTarget, setPermTarget] = useState<{ id: number; name: string } | null>(null);
 
   const load = async () => {
@@ -63,21 +75,70 @@ export default function UsersView({ currentUser }: UsersViewProps) {
     }
   };
 
+  const openDetail = (u: User) => {
+    setSelectedUser(u);
+    setEditName(u.name);
+    setEditEmail(u.email);
+    setEditRole(u.role);
+  };
+
+  const handleSaveEdit = async () => {
+    if (!selectedUser) return;
+    if (!editName.trim()) return toast('error', 'Nome obrigatório');
+    if (!editEmail.trim()) return toast('error', 'Email obrigatório');
+    setSavingEdit(true);
+    try {
+      await authApi.updateUser(selectedUser.id, {
+        name: editName.trim(),
+        email: editEmail.trim(),
+        role: editRole,
+      });
+      toast('success', 'Usuário atualizado');
+      setSelectedUser(null);
+      load();
+    } catch (e: any) {
+      toast('error', 'Erro ao salvar', e?.message || 'Não foi possível salvar');
+    } finally {
+      setSavingEdit(false);
+    }
+  };
+
   const toggleActive = async (u: User) => {
     try {
       await authApi.updateUser(u.id, { active: u.active !== false });
+      if (selectedUser?.id === u.id) setSelectedUser({ ...u, active: u.active !== false });
       load();
     } catch (e: any) {
       toast('error', 'Erro ao atualizar', e?.message || 'Não foi possível atualizar');
     }
   };
 
-  const changeRole = async (u: User, role: UserRole) => {
+  const handleResetPassword = async () => {
+    if (!passwordModal) return;
+    if (!newPassword || newPassword.length < 6) return toast('error', 'Senha deve ter no mínimo 6 caracteres');
+    setSavingPassword(true);
     try {
-      await authApi.updateUser(u.id, { role });
+      await authApi.resetPasswordAsAdmin(passwordModal.id, newPassword);
+      toast('success', 'Senha alterada com sucesso');
+      setPasswordModal(null);
+      setNewPassword('');
+    } catch (e: any) {
+      toast('error', 'Erro ao alterar senha', e?.message || 'Não foi possível alterar');
+    } finally {
+      setSavingPassword(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!confirmDelete) return;
+    try {
+      await authApi.deleteUser(confirmDelete.id);
+      toast('success', 'Usuário excluído');
+      setConfirmDelete(null);
+      setSelectedUser(null);
       load();
     } catch (e: any) {
-      toast('error', 'Erro ao atualizar', e?.message || 'Não foi possível atualizar');
+      toast('error', 'Erro ao excluir', e?.message || 'Não foi possível excluir');
     }
   };
 
@@ -86,7 +147,7 @@ export default function UsersView({ currentUser }: UsersViewProps) {
   }
 
   return (
-    <div className="max-w-5xl mx-auto space-y-6">
+    <div className="max-w-6xl mx-auto space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h2 className="text-2xl font-black text-slate-900 dark:text-white flex items-center gap-2">
@@ -127,7 +188,7 @@ export default function UsersView({ currentUser }: UsersViewProps) {
             <div className="space-y-1">
               <label className="text-xs font-bold text-slate-700 dark:text-slate-200 block">Perfil</label>
               <select value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value as UserRole })} className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-900/60 text-sm text-slate-800 dark:text-slate-100">
-                {(['admin', 'gestor', 'analista', 'consulta'] as UserRole[]).map(r => (
+                {ALL_ROLES.map(r => (
                   <option key={r} value={r}>{ROLE_LABELS[r]}</option>
                 ))}
               </select>
@@ -149,7 +210,6 @@ export default function UsersView({ currentUser }: UsersViewProps) {
               <tr className="bg-slate-50 dark:bg-slate-800/40 border-b border-slate-100 dark:border-slate-700/50 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
                 <th className="py-4 px-6">Usuário</th>
                 <th className="py-4 px-6">Perfil</th>
-                <th className="py-4 px-6">Permissões</th>
                 <th className="py-4 px-6">Status</th>
                 <th className="py-4 px-6 text-right">Ações</th>
               </tr>
@@ -157,12 +217,15 @@ export default function UsersView({ currentUser }: UsersViewProps) {
             <tbody className="divide-y divide-slate-100 dark:divide-slate-700/50">
               {users.map((u) => {
                 const isSelf = u.id === currentUser.id;
-                const perm = ROLE_PERMISSIONS[u.role];
                 return (
-                  <tr key={u.id} className="text-xs text-slate-600 dark:text-slate-300">
+                  <tr
+                    key={u.id}
+                    onClick={() => !isSelf && openDetail(u)}
+                    className={`text-xs text-slate-600 dark:text-slate-300 ${!isSelf ? 'cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors' : ''}`}
+                  >
                     <td className="py-4 px-6">
                       <div className="flex items-center gap-3">
-                        <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-brand-500 to-brand-800 text-white flex items-center justify-center font-bold text-sm">
+                        <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-brand-500 to-brand-800 text-white flex items-center justify-center font-bold text-sm shrink-0">
                           {u.name.charAt(0).toUpperCase()}
                         </div>
                         <div>
@@ -177,15 +240,6 @@ export default function UsersView({ currentUser }: UsersViewProps) {
                       </span>
                     </td>
                     <td className="py-4 px-6">
-                      <div className="flex flex-wrap gap-1 text-[9px]">
-                        {perm.canCreate && <span className="px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-500">Criar</span>}
-                        {perm.canEdit && <span className="px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-500">Editar</span>}
-                        {perm.canDelete && <span className="px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-500">Excluir</span>}
-                        {perm.canManageUsers && <span className="px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-500">Usuários</span>}
-                        {!perm.canCreate && !perm.canEdit && <span className="px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-500">Somente leitura</span>}
-                      </div>
-                    </td>
-                    <td className="py-4 px-6">
                       {u.active !== false ? (
                         <span className="inline-flex items-center gap-1 text-emerald-600 dark:text-emerald-400 font-semibold"><CheckCircle2 size={14} /> Ativo</span>
                       ) : (
@@ -193,54 +247,13 @@ export default function UsersView({ currentUser }: UsersViewProps) {
                       )}
                     </td>
                     <td className="py-4 px-6 text-right">
-                      {!isSelf && currentUser.role === 'admin' && (
-                        <div className="flex items-center justify-end gap-2">
-                          <button
-                            onClick={() => setPermTarget({ id: u.id, name: u.name })}
-                            title="Gerenciar Permissões"
-                            className="p-1.5 rounded-lg text-slate-400 hover:text-brand-600 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-                          >
-                            <Lock size={16} />
-                          </button>
-                          <select
-                            value={u.role}
-                            onChange={(e) => changeRole(u, e.target.value as UserRole)}
-                            className="text-[10px] px-2 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 dark:bg-slate-900 text-slate-700 dark:text-slate-200"
-                          >
-                            {(['admin', 'gestor', 'analista', 'consulta'] as UserRole[]).map(r => (
-                              <option key={r} value={r}>{ROLE_LABELS[r]}</option>
-                            ))}
-                          </select>
-                          <button
-                            onClick={() => toggleActive(u)}
-                            title={u.active !== false ? 'Desativar' : 'Ativar'}
-                            className="p-1.5 rounded-lg text-slate-400 hover:text-brand-600 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-                          >
-                            {u.active !== false ? <XCircle size={16} /> : <CheckCircle2 size={16} />}
-                          </button>
-                        </div>
+                      {isSelf ? (
+                        <span className="text-[10px] text-slate-400 italic">Você</span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 text-brand-600 text-[10px] font-semibold">
+                          Gerenciar <ChevronRight size={14} />
+                        </span>
                       )}
-                      {!isSelf && currentUser.role !== 'admin' && (
-                        <div className="flex items-center justify-end gap-2">
-                          <select
-                            value={u.role}
-                            onChange={(e) => changeRole(u, e.target.value as UserRole)}
-                            className="text-[10px] px-2 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 dark:bg-slate-900 text-slate-700 dark:text-slate-200"
-                          >
-                            {(['admin', 'gestor', 'analista', 'consulta'] as UserRole[]).map(r => (
-                              <option key={r} value={r}>{ROLE_LABELS[r]}</option>
-                            ))}
-                          </select>
-                          <button
-                            onClick={() => toggleActive(u)}
-                            title={u.active !== false ? 'Desativar' : 'Ativar'}
-                            className="p-1.5 rounded-lg text-slate-400 hover:text-brand-600 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-                          >
-                            {u.active !== false ? <XCircle size={16} /> : <CheckCircle2 size={16} />}
-                          </button>
-                        </div>
-                      )}
-                      {isSelf && <span className="text-[10px] text-slate-400 italic">Você</span>}
                     </td>
                   </tr>
                 );
@@ -249,6 +262,163 @@ export default function UsersView({ currentUser }: UsersViewProps) {
           </table>
         </div>
       </div>
+
+      {/* Slide-over detail panel */}
+      {selectedUser && (
+        <div className="fixed inset-0 z-50 flex justify-end">
+          <div className="fixed inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setSelectedUser(null)} />
+          <div className="relative w-full max-w-lg bg-white dark:bg-[#0f1f3a] shadow-2xl border-l border-slate-200 dark:border-slate-700/50 overflow-y-auto animate-slide-left">
+            <div className="sticky top-0 z-10 bg-white dark:bg-[#0f1f3a] border-b border-slate-100 dark:border-slate-700/50 px-6 py-4 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-brand-500 to-brand-800 text-white flex items-center justify-center font-bold text-sm">
+                  {selectedUser.name.charAt(0).toUpperCase()}
+                </div>
+                <div>
+                  <h3 className="text-sm font-extrabold text-slate-900 dark:text-white">{selectedUser.name}</h3>
+                  <p className="text-[10px] text-slate-400">ID: {selectedUser.id}</p>
+                </div>
+              </div>
+              <button onClick={() => setSelectedUser(null)} className="p-2 rounded-xl text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-8">
+              {/* Informações Gerais */}
+              <section>
+                <h4 className="text-xs font-black text-slate-800 dark:text-slate-100 uppercase tracking-wider mb-4">Informações Gerais</h4>
+                <div className="space-y-4">
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-bold text-slate-600 dark:text-slate-300 block">Nome</label>
+                    <input value={editName} onChange={(e) => setEditName(e.target.value)} className="w-full px-3 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-900/60 text-sm text-slate-800 dark:text-slate-100 focus:ring-2 focus:ring-brand-600" />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-bold text-slate-600 dark:text-slate-300 block">E-mail (login)</label>
+                    <input value={editEmail} onChange={(e) => setEditEmail(e.target.value)} className="w-full px-3 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-900/60 text-sm text-slate-800 dark:text-slate-100 focus:ring-2 focus:ring-brand-600" />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-bold text-slate-600 dark:text-slate-300 block">Perfil</label>
+                    <select value={editRole} onChange={(e) => setEditRole(e.target.value as UserRole)} className="w-full px-3 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-900/60 text-sm text-slate-800 dark:text-slate-100 focus:ring-2 focus:ring-brand-600">
+                      {ALL_ROLES.map(r => (
+                        <option key={r} value={r}>{ROLE_LABELS[r]}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="flex items-center justify-between py-2">
+                    <span className="text-[11px] font-bold text-slate-600 dark:text-slate-300">Status</span>
+                    <button
+                      onClick={() => toggleActive(selectedUser)}
+                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all ${selectedUser.active !== false ? 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/30' : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-700'}`}
+                    >
+                      {selectedUser.active !== false ? <><CheckCircle2 size={14} /> Ativo</> : <><XCircle size={14} /> Inativo</>}
+                    </button>
+                  </div>
+                  <button
+                    onClick={handleSaveEdit}
+                    disabled={savingEdit}
+                    className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-brand-600 hover:bg-brand-700 text-white font-bold text-xs uppercase tracking-wider disabled:opacity-50 transition-all"
+                  >
+                    {savingEdit ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />} Salvar Alterações
+                  </button>
+                </div>
+              </section>
+
+              {/* Permissões */}
+              <section>
+                <h4 className="text-xs font-black text-slate-800 dark:text-slate-100 uppercase tracking-wider mb-3">Permissões</h4>
+                <div className="flex flex-wrap gap-1.5 mb-4">
+                  {Object.entries(ROLE_PERMISSIONS[editRole]).map(([key, val]) => {
+                    if (val) {
+                      const labelMap: Record<string, string> = { canCreate: 'Criar', canEdit: 'Editar', canDelete: 'Excluir', canManageUsers: 'Usuários', canViewUsers: 'Ver Usuários', canManageSettings: 'Config' };
+                      return <span key={key} className="px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 text-[9px] font-bold">{labelMap[key] || key}</span>;
+                    }
+                    return null;
+                  })}
+                </div>
+                <button
+                  onClick={() => setPermTarget({ id: selectedUser.id, name: selectedUser.name })}
+                  className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border-2 border-dashed border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-brand-600 hover:text-brand-600 dark:hover:border-brand-500 transition-all text-xs font-bold"
+                >
+                  <ShieldCheck size={16} /> Gerenciar Permissões Individuais
+                </button>
+              </section>
+
+              {/* Segurança */}
+              <section>
+                <h4 className="text-xs font-black text-slate-800 dark:text-slate-100 uppercase tracking-wider mb-3">Segurança</h4>
+                <button
+                  onClick={() => { setPasswordModal({ id: selectedUser.id, name: selectedUser.name }); setNewPassword(''); }}
+                  className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-brand-600 hover:text-brand-600 dark:hover:border-brand-500 transition-all text-xs font-bold"
+                >
+                  <KeyRound size={16} /> Resetar Senha
+                </button>
+              </section>
+
+              {/* Zona de Perigo */}
+              <section className="border-t border-rose-200 dark:border-rose-800/30 pt-6">
+                <h4 className="text-xs font-black text-rose-600 dark:text-rose-400 uppercase tracking-wider mb-3">Zona de Perigo</h4>
+                <button
+                  onClick={() => setConfirmDelete({ id: selectedUser.id, name: selectedUser.name })}
+                  className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-rose-50 dark:bg-rose-950/20 border border-rose-200 dark:border-rose-800/30 text-rose-600 dark:text-rose-400 hover:bg-rose-100 dark:hover:bg-rose-950/40 transition-all text-xs font-bold"
+                >
+                  <Trash2 size={16} /> Excluir Usuário
+                </button>
+              </section>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Password reset modal */}
+      {passwordModal && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+          <div className="bg-white dark:bg-[#111a2e] rounded-2xl shadow-2xl w-full max-w-md border border-slate-200 dark:border-slate-700/50 p-6 space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-sm font-black text-slate-900 dark:text-white">Resetar Senha</h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400">{passwordModal.name}</p>
+              </div>
+              <button onClick={() => { setPasswordModal(null); setNewPassword(''); }} className="p-2 rounded-xl text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
+                <X size={18} />
+              </button>
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-bold text-slate-700 dark:text-slate-200 block">Nova Senha</label>
+              <input type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} className="w-full px-3 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-900/60 text-sm text-slate-800 dark:text-slate-100 focus:ring-2 focus:ring-brand-600" placeholder="Mín. 6 caracteres" />
+            </div>
+            <div className="flex gap-3 pt-2">
+              <button onClick={() => { setPasswordModal(null); setNewPassword(''); }} className="flex-1 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 font-bold text-xs uppercase">Cancelar</button>
+              <button onClick={handleResetPassword} disabled={savingPassword || newPassword.length < 6} className="flex-1 py-2.5 rounded-xl bg-brand-600 hover:bg-brand-700 text-white font-bold text-xs uppercase disabled:opacity-50 flex items-center justify-center gap-2">
+                {savingPassword ? <Loader2 size={14} className="animate-spin" /> : <KeyRound size={14} />} Alterar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete confirmation modal */}
+      {confirmDelete && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+          <div className="bg-white dark:bg-[#111a2e] rounded-2xl shadow-2xl w-full max-w-md border border-slate-200 dark:border-slate-700/50 p-6 space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-rose-100 dark:bg-rose-900/30 flex items-center justify-center shrink-0">
+                <Trash2 className="text-rose-600" size={20} />
+              </div>
+              <div>
+                <h3 className="text-sm font-black text-slate-900 dark:text-white">Excluir Usuário</h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400">{confirmDelete.name}</p>
+              </div>
+            </div>
+            <p className="text-sm text-slate-600 dark:text-slate-300">Tem certeza? O usuário será desativado e não poderá mais acessar o sistema.</p>
+            <div className="flex gap-3 pt-2">
+              <button onClick={() => setConfirmDelete(null)} className="flex-1 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 font-bold text-xs uppercase">Cancelar</button>
+              <button onClick={handleDelete} className="flex-1 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs uppercase flex items-center justify-center gap-2">
+                <Trash2 size={14} /> Excluir
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {permTarget && (
         <PermissionsModal

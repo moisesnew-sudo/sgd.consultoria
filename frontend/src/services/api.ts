@@ -143,8 +143,17 @@ export const authApi = {
   createUser: (data: { email: string; password: string; name: string; role: UserRole }) =>
     request<User>('/auth/users', { method: 'POST', body: JSON.stringify(data) }),
 
-  updateUser: (id: number, data: { role?: UserRole; active?: boolean; name?: string }) =>
-    request<User>('/auth/users/' + id, { method: 'PUT', body: JSON.stringify(data) }),
+  updateUser: (id: number, data: { role?: UserRole; active?: boolean; name?: string; email?: string }) =>
+    request<{ message: string; user: User }>('/auth/users/' + id, { method: 'PUT', body: JSON.stringify(data) }),
+
+  deleteUser: (id: number) =>
+    request<{ message: string }>('/auth/users/' + id, { method: 'DELETE' }),
+
+  resetPasswordAsAdmin: (id: number, newPassword: string) =>
+    request<{ message: string }>('/auth/users/' + id + '/password', {
+      method: 'PUT',
+      body: JSON.stringify({ newPassword }),
+    }),
 };
 
 export const permissionsApi = {

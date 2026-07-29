@@ -426,7 +426,8 @@ router.post('/users', authenticateToken, requirePermission('users.create'), asyn
 const updateUserSchema = z.object({
   role: z.enum(USER_ROLES).optional(),
   active: z.boolean().optional(),
-  name: z.string().min(2).max(100).optional()
+  name: z.string().min(2).max(100).optional(),
+  email: z.string().email().optional()
 });
 
 router.put('/users/:id', authenticateToken, requirePermission('users.edit'), async (req: Request, res: Response) => {
@@ -456,6 +457,11 @@ router.put('/users/:id', authenticateToken, requirePermission('users.edit'), asy
     if (data.role) { updates.push(`role = $${idx++}`); values.push(data.role); }
     if (data.active !== undefined) { updates.push(`active = $${idx++}`); values.push(data.active); }
     if (data.name) { updates.push(`name = $${idx++}`); values.push(data.name); }
+    if (data.email) {
+      const emailExists = await get('SELECT id FROM users WHERE email = $1 AND id != $2 AND deleted_at IS NULL', [data.email, id]);
+      if (emailExists) return res.status(409).json({ error: 'Email já cadastrado' });
+      updates.push(`email = $${idx++}`); values.push(data.email);
+    }
     updates.push('updated_at = NOW()');
     values.push(id);
     await run(`UPDATE users SET ${updates.join(', ')} WHERE id = $${idx}`, values);
@@ -479,6 +485,62 @@ router.put('/users/:id', authenticateToken, requirePermission('users.edit'), asy
     }
     console.error('Update user error:', error);
     res.status(500).json({ error: 'Erro ao atualizar usuário' });
+  }
+});
+
+router.delete('/users/:id', authenticateToken, requirePermission('users.delete'), async (req: Request, res: Response) => {
+  try {
+    if (req.user?.role !== 'admin' && req.user?.role !== 'administrador') {
+      return res.status(403).json({ error: 'Apenas administradores podem excluir usuários' });
+    }
+    const { ip_address, user_agent } = extractMeta(req);
+    const id = parseInt(req.params.id as string);
+    if (id === req.user!.id) {
+      return res.status(400).json({ error: 'Não é possível excluir a própria conta' });
+    }
+    const existing = await get<User>('SELECT id, role FROM users WHERE id = $1 AND deleted_at IS NULL', [id]);
+    if (!existing) return res.status(404).json({ error: 'Usuário não encontrado' });
+    await run('UPDATE users SET deleted_at = NOW(), active = FALSE WHERE id = $1', [id]);
+    await run('UPDATE active_sessions SET active = FALSE WHERE user_id = $1', [id]);
+    await logAudit({
+      entity_type: 'user', entity_id: String(id), action: 'delete',
+      user_id: req.user!.id, user_name: req.user!.name,
+      details: {}, ip_address, user_agent
+    });
+    res.json({ message: 'Usuário excluído com sucesso' });
+  } catch (error) {
+    console.error('Delete user error:', error);
+    res.status(500).json({ error: 'Erro ao excluir usuário' });
+  }
+});
+
+router.put('/users/:id/password', authenticateToken, requirePermission('users.edit'), async (req: Request, res: Response) => {
+  try {
+    if (req.user?.role !== 'admin' && req.user?.role !== 'administrador') {
+      return res.status(403).json({ error: 'Apenas administradores podem alterar senhas' });
+    }
+    const { ip_address, user_agent } = extractMeta(req);
+    const id = parseInt(req.params.id as string);
+    if (id === req.user!.id) {
+      return res.status(400).json({ error: 'Use a troca de senha do próprio perfil' });
+    }
+    const { newPassword } = z.object({ newPassword: z.string().min(6).max(100) }).parse(req.body);
+    const existing = await get<User>('SELECT id FROM users WHERE id = $1 AND deleted_at IS NULL', [id]);
+    if (!existing) return res.status(404).json({ error: 'Usuário não encontrado' });
+    const passwordHash = await bcrypt.hash(newPassword, 10);
+    await run('UPDATE users SET password_hash = $1, updated_at = NOW() WHERE id = $2', [passwordHash, id]);
+    await savePasswordHistory(id, passwordHash);
+    await run('UPDATE active_sessions SET active = FALSE WHERE user_id = $1', [id]);
+    await logAudit({
+      entity_type: 'user', entity_id: String(id), action: 'password_reset',
+      user_id: req.user!.id, user_name: req.user!.name,
+      details: {}, ip_address, user_agent
+    });
+    res.json({ message: 'Senha alterada com sucesso' });
+  } catch (error) {
+    if (error instanceof z.ZodError) return res.status(400).json({ error: 'Senha deve ter no mínimo 6 caracteres' });
+    console.error('Reset password error:', error);
+    res.status(500).json({ error: 'Erro ao alterar senha' });
   }
 });
 
