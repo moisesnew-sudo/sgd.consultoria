@@ -135,7 +135,7 @@ export default function Sidebar({ activeTab, setActiveTab, isOpen, setIsOpen, pe
                 <span className="flex items-center gap-3 min-w-0">
                   <Icon
                     size={19}
-                    className={`shrink-0 ${isActive ? 'text-gold' : 'text-slate-500 group-hover:text-slate-300'}`}
+                    className={`shrink-0 ${isActive ? 'text-white' : 'text-slate-500 group-hover:text-slate-300'}`}
                   />
                   <span className="truncate">{item.label}</span>
                 </span>

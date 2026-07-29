@@ -40,6 +40,7 @@ interface KpiProps {
   icon: React.ReactNode;
   accent?: 'gov' | 'green' | 'amber' | 'rose' | 'blue' | 'brand';
   trend?: { value: string; positive?: boolean };
+  highlight?: 'brand' | 'rose';
 }
 
 const accentMap: Record<NonNullable<KpiProps['accent']>, string> = {
@@ -51,9 +52,14 @@ const accentMap: Record<NonNullable<KpiProps['accent']>, string> = {
   blue: 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-300',
 };
 
-export function Kpi({ label, value, hint, icon, accent = 'brand', trend }: KpiProps) {
+const highlightMap: Record<NonNullable<KpiProps['highlight']>, string> = {
+  brand: 'bg-gov-50/60 dark:bg-gov-900/20 border-gov-200 dark:border-gov-700/50',
+  rose: 'bg-rose-50/60 dark:bg-rose-950/20 border-rose-200 dark:border-rose-800/40',
+};
+
+export function Kpi({ label, value, hint, icon, accent = 'brand', trend, highlight }: KpiProps) {
   return (
-    <div className="group bg-white dark:bg-[#0f1f3a] border border-slate-100 dark:border-slate-700/50 rounded-2xl p-5 shadow-sm hover:shadow-md transition-all hover:-translate-y-0.5 duration-200">
+    <div className={`group rounded-2xl p-5 shadow-sm hover:shadow-md transition-all hover:-translate-y-0.5 duration-200 ${highlight ? highlightMap[highlight] : 'bg-white dark:bg-[#0f1f3a] border border-slate-100 dark:border-slate-700/50'}`}>
       <div className="flex items-start justify-between">
         <div className={`w-11 h-11 rounded-xl flex items-center justify-center ${accentMap[accent]}`}>
           {icon}
@@ -65,7 +71,7 @@ export function Kpi({ label, value, hint, icon, accent = 'brand', trend }: KpiPr
         )}
       </div>
       <div className="mt-4">
-        <h3 className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider leading-tight">{label}</h3>
+        <h3 className="text-[11px] font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider leading-tight">{label}</h3>
         <p className="text-2xl font-black text-slate-900 dark:text-white mt-1 tracking-tight">{value}</p>
         {hint && <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-1.5">{hint}</p>}
       </div>

@@ -23,6 +23,7 @@ import {
   XAxis,
   YAxis,
   Tooltip,
+  LabelList,
   CartesianGrid,
   PieChart,
   Pie,
@@ -209,7 +210,7 @@ export default function DashboardView({ onNavigateToTab, onSelectDemand }: Dashb
   const fmtPct = (n: number) => (metrics.total > 0 ? Math.round((n / metrics.total) * 100) : 0);
 
   return (
-    <div className="space-y-6" id="dashboard-view-root">
+    <div className="space-y-8" id="dashboard-view-root">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
@@ -255,16 +256,16 @@ export default function DashboardView({ onNavigateToTab, onSelectDemand }: Dashb
       {/* KPI GRID */}
       <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
         {[
-          { delay: 0, label: 'Total de Demandas', value: String(metrics.total), hint: 'Cadastradas no sistema', icon: <BarChart3 size={20} />, accent: 'brand' as const },
+          { delay: 0, label: 'Total de Demandas', value: String(metrics.total), hint: 'Cadastradas no sistema', icon: <BarChart3 size={20} />, accent: 'brand' as const, highlight: 'brand' as const },
           { delay: 50, label: 'Em Andamento', value: String(metrics.inProgress), hint: 'Em análise', icon: <Hourglass size={20} />, accent: 'blue' as const },
           { delay: 100, label: 'Concluídas', value: String(metrics.concluded), hint: `${fmtPct(metrics.concluded)}% do total`, icon: <CheckCircle2 size={20} />, accent: 'green' as const },
           { delay: 150, label: 'Valor Solicitado', value: formatCompactCurrency(metrics.totalValue), hint: `Completo: ${formatCurrency(metrics.totalValue)}`, icon: <DollarSign size={20} />, accent: 'brand' as const },
           { delay: 250, label: 'Municípios', value: String(metrics.municipalities), hint: 'Atendidos', icon: <MapPin size={20} />, accent: 'amber' as const },
-          { delay: 300, label: 'Vencidas', value: String(metrics.overdue), hint: `${fmtPct(metrics.overdue)}% do total`, icon: <AlertTriangle size={20} />, accent: 'rose' as const },
+          { delay: 300, label: 'Vencidas', value: String(metrics.overdue), hint: `${fmtPct(metrics.overdue)}% do total`, icon: <AlertTriangle size={20} />, accent: 'rose' as const, highlight: 'rose' as const },
           { delay: 350, label: 'Ticket Médio', value: metrics.total > 0 ? formatCompactCurrency(metrics.totalValue / metrics.total) : 'R$ 0', hint: `${metrics.total} demanda(s)`, icon: <DollarSign size={20} />, accent: 'blue' as const },
         ].map(k => (
           <div key={k.label} className="animate-fade-in" style={{ animationDelay: `${k.delay}ms` }}>
-            <Kpi label={k.label} value={k.value} hint={k.hint} icon={k.icon} accent={k.accent} />
+            <Kpi label={k.label} value={k.value} hint={k.hint} icon={k.icon} accent={k.accent} highlight={(k as any).highlight} />
           </div>
         ))}
       </section>
@@ -345,6 +346,7 @@ export default function DashboardView({ onNavigateToTab, onSelectDemand }: Dashb
               />
               <Bar dataKey="value" radius={[6, 6, 0, 0]} name="Demandas">
                 {charts.statusData.map((e) => <Cell key={e.key} fill={e.color} />)}
+                <LabelList dataKey="value" position="top" fill="#475569" fontSize={11} fontWeight={700} />
               </Bar>
             </BarChart>
           </ResponsiveContainer>
