@@ -90,13 +90,7 @@ export function Header({ onToggleSidebar, isSidebarOpen, pendingCount }: HeaderP
 
         {/* Right side */}
         <div className="flex items-center gap-2">
-          {/* Pending badge */}
-          {pendingCount > 0 && (
-            <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800/30 text-amber-700 dark:text-amber-400 text-[11px] font-bold animate-fade-in">
-              <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
-              {pendingCount} pendente{pendingCount !== 1 ? 's' : ''}
-            </div>
-          )}
+
 
           {/* Theme toggle */}
           <button
