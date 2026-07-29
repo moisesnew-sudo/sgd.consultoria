@@ -7,6 +7,7 @@ import { Demand } from '../types';
 import { demandsApi, formatDate, logExport } from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../contexts/ToastContext';
+import { LOGO_B64 } from './reports/logoBase64';
 
 interface FiltersState {
   search?: string;
@@ -186,32 +187,38 @@ export default function ImportExportBar({ rows, filters, onImported }: ImportExp
     const secondaryColor: [number, number, number] = [25, 135, 84];
     const accentColor: [number, number, number] = [32, 201, 151];
     const goldColor: [number, number, number] = [244, 180, 0];
-    const lightBg: [number, number, number] = [248, 249, 250];
+    const lightBg: [number, number, number] = [233, 236, 239];
     const surfaceColor: [number, number, number] = [255, 255, 255];
     const textPrimary: [number, number, number] = [33, 37, 41];
-    const textSecondary: [number, number, number] = [108, 117, 125];
-    const borderColor: [number, number, number] = [222, 226, 230];
+    const textSecondary: [number, number, number] = [73, 80, 87];
+    const borderColor: [number, number, number] = [206, 212, 218];
 
     function addHeader(y: number) {
-      doc.setFontSize(20);
-      doc.setFont('helvetica', 'bold');
-      doc.setTextColor(...primaryColor);
-      doc.text('CGASI.SE', pageW / 2, y, { align: 'center' });
+      const logoH = 14;
+      const logoW = 36;
+      try {
+        doc.addImage(LOGO_B64, 'JPEG', (pageW - logoW) / 2, y - logoH + 2, logoW, logoH);
+      } catch {
+        doc.setFontSize(20);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(...primaryColor);
+        doc.text('CGASI.SE', pageW / 2, y, { align: 'center' });
+      }
 
       doc.setFontSize(8);
       doc.setFont('helvetica', 'normal');
       doc.setTextColor(...textSecondary);
       doc.text(
         'COORDENAÇÃO GERAL DE ARTICULAÇÃO E SUPERVISÃO INSTITUCIONAL DA SECRETARIA EXECUTIVA / MAPA',
-        pageW / 2, y + 6, { align: 'center' }
+        pageW / 2, y + 10, { align: 'center' }
       );
 
       doc.setDrawColor(...goldColor);
       doc.setLineWidth(0.6);
-      doc.line(margin, y + 9, pageW - margin, y + 9);
+      doc.line(margin, y + 13, pageW - margin, y + 13);
       doc.setDrawColor(...primaryColor);
       doc.setLineWidth(0.3);
-      doc.line(margin, y + 9.8, pageW - margin, y + 9.8);
+      doc.line(margin, y + 13.8, pageW - margin, y + 13.8);
     }
 
     function addFooter(pageNum: number, totalPages: number) {
@@ -382,7 +389,7 @@ export default function ImportExportBar({ rows, filters, onImported }: ImportExp
         halign: 'center',
       },
       alternateRowStyles: {
-        fillColor: [248, 249, 250],
+        fillColor: [233, 236, 239],
       },
       columnStyles: {
         0: { cellWidth: 'auto' },

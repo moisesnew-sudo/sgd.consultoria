@@ -1,5 +1,6 @@
 import { Demand } from '../../types';
 import { computeMetrics, genAnalysis, genRecommendations, RM, fmt, fc, fd, SL, PL, SC, PC, UC } from './report-utils';
+import { LOGO_DATA_URL } from './logoBase64';
 
 /* ============================================================
    SVG Chart Generators
@@ -96,7 +97,7 @@ function legendHtml(items: { name: string; value: number; color: string }[]): st
    ============================================================ */
 
 function pageHeader(page: number, total: number, date: string): string {
-  return `<div class="phdr"><div class="phdr-l"><div class="phdr-logo">C</div><span class="phdr-txt">CGASI.SE — Relatório Executivo</span></div><span class="phdr-num">${date} | Página ${page} de ${total}</span></div>`;
+  return `<div class="phdr"><div class="phdr-l"><img src="${LOGO_DATA_URL}" alt="MAPA" class="phdr-logo"/><span class="phdr-txt">CGASI.SE — Relatório Executivo</span></div><span class="phdr-num">${date} | Página ${page} de ${total}</span></div>`;
 }
 
 function pageFooter(): string {
@@ -155,21 +156,20 @@ export function buildReportHtml(demands: Demand[], filters: { uf: string; status
 body{font-family:'Inter','Segoe UI',system-ui,sans-serif;font-size:12px;line-height:1.6;color:#212529;-webkit-print-color-adjust:exact;print-color-adjust:exact}
 
 /* Cover */
-.cvr{min-height:297mm;display:flex;flex-direction:column;background:linear-gradient(165deg,#f0f7f3,#e8f5ef 50%,#d6f7ed);page-break-after:always}
+.cvr{min-height:297mm;display:flex;flex-direction:column;background:linear-gradient(165deg,#d6f7ed,#bdf2e2 50%,#a8e8d0);page-break-after:always}
 .cvr-bd{flex:1;padding:25mm 20mm;display:flex;flex-direction:column}
 .cvr-lg{display:flex;align-items:center;gap:16px;margin-bottom:64px}
-.cvr-lg-i{width:64px;height:64px;border-radius:16px;background:linear-gradient(135deg,#0F5132,#198754);display:flex;align-items:center;justify-content:center;box-shadow:0 10px 15px -3px rgba(15,81,50,.15)}
-.cvr-lg-i span{color:#fff;font-weight:900;font-size:24px;letter-spacing:.05em}
+.cvr-lg-logo{height:64px;border-radius:12px;box-shadow:0 10px 15px -3px rgba(15,81,50,.2)}
 .cvr-lg-t p:first-child{font-size:10px;font-weight:700;color:#0F5132;text-transform:uppercase;letter-spacing:.2em}
-.cvr-lg-t p:last-child{font-size:8px;color:#6C757D;text-transform:uppercase;margin-top:2px}
-.cvr-bdg{font-size:10px;font-weight:700;color:#0F5132;text-transform:uppercase;letter-spacing:.25em;background:#d6f7ed;padding:6px 12px;border-radius:999px;display:inline-block;width:fit-content;margin-bottom:20px}
+.cvr-lg-t p:last-child{font-size:8px;color:#495057;text-transform:uppercase;margin-top:2px}
+.cvr-bdg{font-size:10px;font-weight:700;color:#0F5132;text-transform:uppercase;letter-spacing:.25em;background:#bdf2e2;padding:6px 12px;border-radius:999px;display:inline-block;width:fit-content;margin-bottom:20px}
 .cvr-tit{font-size:32px;font-weight:900;color:#212529;line-height:1.1;letter-spacing:-.02em;margin-bottom:12px}
-.cvr-sub{font-size:22px;color:#6C757D;font-weight:300;margin-bottom:40px}
-.cvr-info{border-top:1px solid #d6f7ed;padding-top:32px;max-width:420px}
+.cvr-sub{font-size:22px;color:#495057;font-weight:300;margin-bottom:40px}
+.cvr-info{border-top:1px solid #a8e8d0;padding-top:32px;max-width:420px}
 .cvr-info .r{display:flex;justify-content:space-between;margin-bottom:8px}
-.cvr-info .l{color:#6C757D;font-size:12px}
+.cvr-info .l{color:#495057;font-size:12px}
 .cvr-info .v{color:#212529;font-weight:600;font-size:12px;text-align:right;max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.cvr-ft{border-top:1px solid rgba(15,81,50,.15);padding:16px 20mm;display:flex;justify-content:space-between;font-size:10px;color:#6C757D}
+.cvr-ft{border-top:1px solid rgba(15,81,50,.3);padding:16px 20mm;display:flex;justify-content:space-between;font-size:10px;color:#495057}
 
 /* Pages */
 .pg{page-break-after:always;min-height:297mm;display:flex;flex-direction:column}
@@ -177,14 +177,14 @@ body{font-family:'Inter','Segoe UI',system-ui,sans-serif;font-size:12px;line-hei
 .pg-bd{flex:1;padding:0 20mm 20mm 20mm}
 
 /* Page Header */
-.phdr{display:flex;align-items:center;justify-content:space-between;padding:25mm 20mm 10px 20mm;border-bottom:1px solid #DEE2E6;margin-bottom:20px}
+.phdr{display:flex;align-items:center;justify-content:space-between;padding:25mm 20mm 10px 20mm;border-bottom:1px solid #ced4da;margin-bottom:20px}
 .phdr-l{display:flex;align-items:center;gap:10px}
-.phdr-logo{width:28px;height:28px;border-radius:8px;background:linear-gradient(135deg,#0F5132,#198754);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:900;font-size:10px;letter-spacing:.05em}
-.phdr-txt{font-size:10px;font-weight:600;color:#6C757D;text-transform:uppercase}
-.phdr-num{font-size:10px;color:#6C757D;font-family:monospace}
+.phdr-logo{height:22px;border-radius:4px}
+.phdr-txt{font-size:10px;font-weight:600;color:#495057;text-transform:uppercase}
+.phdr-num{font-size:10px;color:#495057;font-family:monospace}
 
 /* Footer */
-.pftr{border-top:1px solid #DEE2E6;padding:10px 20mm;display:flex;justify-content:space-between;font-size:9px;color:#6C757D;margin-top:auto}
+.pftr{border-top:1px solid #ced4da;padding:10px 20mm;display:flex;justify-content:space-between;font-size:9px;color:#495057;margin-top:auto}
 
 /* Section Title */
 .sectit{display:flex;align-items:center;gap:8px;margin-bottom:20px}
@@ -193,32 +193,32 @@ body{font-family:'Inter','Segoe UI',system-ui,sans-serif;font-size:12px;line-hei
 
 /* KPI */
 .kpi-g{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px}
-.kpi-c{display:flex;align-items:center;gap:12px;background:#F8F9FA;border:1px solid #DEE2E6;border-radius:12px;padding:16px}
+.kpi-c{display:flex;align-items:center;gap:12px;background:#e9ecef;border:1px solid #ced4da;border-radius:12px;padding:16px}
 .kpi-ic{width:44px;height:44px;border-radius:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
-.kpi-l{font-size:10px;font-weight:700;color:#6C757D;text-transform:uppercase;letter-spacing:.05em}
+.kpi-l{font-size:10px;font-weight:700;color:#495057;text-transform:uppercase;letter-spacing:.05em}
 .kpi-v{font-size:15px;font-weight:900;color:#212529;margin-top:2px}
 .kpi-mg{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
-.kpi-mc{text-align:center;background:#fff;border:1px solid #DEE2E6;border-radius:12px;padding:12px}
-.kpi-ml{font-size:10px;font-weight:700;color:#6C757D;text-transform:uppercase}
+.kpi-mc{text-align:center;background:#F8F9FA;border:1px solid #ced4da;border-radius:12px;padding:12px}
+.kpi-ml{font-size:10px;font-weight:700;color:#495057;text-transform:uppercase}
 .kpi-mv{font-size:18px;font-weight:900;color:#212529;margin-top:4px}
-.kpi-mh{font-size:10px;color:#6C757D;margin-top:2px}
+.kpi-mh{font-size:10px;color:#495057;margin-top:2px}
 
 /* Analysis / Text */
-.anl{font-size:12px;color:#6C757D;line-height:1.8}
+.anl{font-size:12px;color:#495057;line-height:1.8}
 .anl p{margin-bottom:14px}
 
 /* Insights */
 .ins-g{display:grid;grid-template-columns:1fr 1fr;gap:12px}
-.ins-c{background:#F8F9FA;border:1px solid #DEE2E6;border-radius:12px;padding:14px}
-.ins-l{font-size:9px;font-weight:700;color:#6C757D;text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px}
+.ins-c{background:#e9ecef;border:1px solid #ced4da;border-radius:12px;padding:14px}
+.ins-l{font-size:9px;font-weight:700;color:#495057;text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px}
 .ins-v{font-size:14px;font-weight:700;color:#212529;word-break:break-word}
-.ins-d{font-size:10px;color:#6C757D;margin-top:2px;word-break:break-word}
+.ins-d{font-size:10px;color:#495057;margin-top:2px;word-break:break-word}
 
 /* Charts */
 .ch{text-align:center;margin-bottom:24px;page-break-inside:avoid}
 .ch-g{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px}
-.ch-b{border:1px solid #DEE2E6;border-radius:12px;padding:16px;page-break-inside:avoid}
-.ch-t{font-size:10px;font-weight:700;color:#6C757D;text-transform:uppercase;letter-spacing:.05em;text-align:center;margin-bottom:10px}
+.ch-b{background:#F8F9FA;border:1px solid #ced4da;border-radius:12px;padding:16px;page-break-inside:avoid}
+.ch-t{font-size:10px;font-weight:700;color:#495057;text-transform:uppercase;letter-spacing:.05em;text-align:center;margin-bottom:10px}
 .ch-lg{display:flex;justify-content:center;gap:12px;flex-wrap:wrap;margin-top:8px}
 
 /* Table */
@@ -226,25 +226,25 @@ body{font-family:'Inter','Segoe UI',system-ui,sans-serif;font-size:12px;line-hei
 .tb{width:100%;border-collapse:collapse;font-size:8px;text-align:left;min-width:680px}
 .tb thead{display:table-header-group}
 .tb th{background:#0F5132;color:#fff;font-weight:700;text-transform:uppercase;letter-spacing:.05em;padding:8px 6px;white-space:nowrap}
-.tb td{padding:6px;border-bottom:1px solid #DEE2E6;white-space:nowrap}
-.tb tr:nth-child(even){background:rgba(248,249,250,.6)}
-.tb .cid{font-family:monospace;font-weight:700;color:#6C757D}
+.tb td{padding:6px;border-bottom:1px solid #ced4da;white-space:nowrap}
+.tb tr:nth-child(even){background:rgba(233,236,239,.6)}
+.tb .cid{font-family:monospace;font-weight:700;color:#495057}
 .tb .ctit{font-weight:600;color:#212529;max-width:160px;overflow:hidden;text-overflow:ellipsis}
-.tb .cmun{color:#6C757D}
-.tb .corg{color:#6C757D;max-width:80px;overflow:hidden;text-overflow:ellipsis}
-.tb .cano{font-family:monospace;color:#6C757D;text-align:center}
+.tb .cmun{color:#495057}
+.tb .corg{color:#495057;max-width:80px;overflow:hidden;text-overflow:ellipsis}
+.tb .cano{font-family:monospace;color:#495057;text-align:center}
 .tb .cval{font-family:monospace;font-weight:700;color:#212529;text-align:right;white-space:nowrap}
-.tb .cdat{color:#6C757D;font-family:monospace;white-space:nowrap}
+.tb .cdat{color:#495057;font-family:monospace;white-space:nowrap}
 .tb .cst{display:inline-block;padding:2px 8px;border-radius:4px;font-size:8px;font-weight:700;text-transform:uppercase}
 .tb .cpr{font-size:8px;font-weight:700;text-transform:uppercase}
 
 /* Recommendations */
 .rec-l{display:flex;flex-direction:column;gap:12px}
-.rec-i{display:flex;align-items:flex-start;gap:14px;background:linear-gradient(to right,#d6f7ed,#fff);border:1px solid #bdf2e2;border-radius:12px;padding:16px}
+.rec-i{display:flex;align-items:flex-start;gap:14px;background:linear-gradient(to right,#bdf2e2,#e9ecef);border:1px solid #a8e8d0;border-radius:12px;padding:16px}
 .rec-n{width:32px;height:32px;border-radius:50%;background:#20C997;color:#fff;font-size:14px;font-weight:900;display:flex;align-items:center;justify-content:center;flex-shrink:0;box-shadow:0 1px 2px rgba(0,0,0,.05)}
-.rec-t{font-size:12px;color:#6C757D;line-height:1.6;padding-top:2px}
-.rec-concl{border-top:1px solid #DEE2E6;padding-top:24px;margin-top:24px;text-align:center;font-size:10px;color:#6C757D}
-.rec-concl .sn{font-weight:600;color:#6C757D;margin-bottom:4px}
+.rec-t{font-size:12px;color:#495057;line-height:1.6;padding-top:2px}
+.rec-concl{border-top:1px solid #ced4da;padding-top:24px;margin-top:24px;text-align:center;font-size:10px;color:#495057}
+.rec-concl .sn{font-weight:600;color:#495057;margin-bottom:4px}
 
 /* Screen button */
 .scr-btn{text-align:center;padding:16px}
@@ -259,10 +259,10 @@ body{font-family:'Inter','Segoe UI',system-ui,sans-serif;font-size:12px;line-hei
 <!-- ===== PAGE 1: COVER ===== -->
 <div class="cvr">
   <div class="cvr-bd">
-    <div class="cvr-lg">
-      <div class="cvr-lg-i"><span>C</span></div>
-      <div class="cvr-lg-t"><p>CGASI.SE</p><p>Coordenação Geral de Articulação e Supervisão Institucional / MAPA</p></div>
-    </div>
+      <div class="cvr-lg">
+        <img src="${LOGO_DATA_URL}" alt="MAPA" class="cvr-lg-logo"/>
+        <div class="cvr-lg-t"><p>CGASI.SE</p><p>Coordenação Geral de Articulação e Supervisão Institucional / MAPA</p></div>
+      </div>
     <div style="flex:1;display:flex;flex-direction:column;justify-content:center">
       <span class="cvr-bdg">SGD - Sistema de Gestão de Demandas</span>
       <h1 class="cvr-tit">Relatório Executivo<br/>de Demandas</h1>
