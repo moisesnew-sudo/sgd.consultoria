@@ -18,12 +18,17 @@ if (!fs.existsSync(BACKUPS_DIR)) {
 }
 
 async function exportAllData(): Promise<string> {
-  const tables = ['demands', 'municipalities', 'users', 'timeline_events', 'attachments', 'comments', 'audit_logs', 'system_settings', 'permissions', 'user_permissions', 'role_permissions'];
+  // ✅ CORREÇÃO: Não exporta password_hash nem tokens sensíveis
   const data: Record<string, any> = {};
-  for (const table of tables) {
+  const safeTables = ['demands', 'municipalities', 'timeline_events', 'attachments', 'comments', 'audit_logs', 'system_settings', 'permissions', 'user_permissions', 'role_permissions'];
+  for (const table of safeTables) {
     const rows = await all(`SELECT * FROM ${table}`);
     data[table] = rows;
   }
+  // Usuários sem password_hash
+  const users = await all('SELECT id, email, name, role, active, created_at, updated_at, deleted_at FROM users');
+  data['users'] = users;
+
   return JSON.stringify({ version: 'sgd-v3', timestamp: new Date().toISOString(), data }, null, 2);
 }
 
@@ -47,7 +52,6 @@ router.post('/', authenticateToken, requireRole('admin'), async (req: Request, r
     if (!['daily', 'weekly', 'monthly', 'manual'].includes(backupType)) {
       return res.status(400).json({ error: 'Tipo de backup inválido' });
     }
-
     const jsonData = await exportAllData();
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
     const filename = `backup_${backupType}_${timestamp}.json`;
@@ -103,11 +107,9 @@ router.post('/:id/verify', authenticateToken, requireRole('admin'), async (req: 
     if (!fs.existsSync(backup.file_path)) {
       return res.json({ valid: false, error: 'Arquivo de backup não encontrado no disco' });
     }
-
     const fileContent = fs.readFileSync(backup.file_path, 'utf8');
     const currentHash = crypto.createHash('sha256').update(fileContent).digest('hex');
     const valid = currentHash === backup.sha256_hash;
-
     res.json({ valid, stored_hash: backup.sha256_hash, computed_hash: currentHash, filename: backup.filename });
   } catch (error) {
     console.error('Verify backup error:', error);
@@ -158,7 +160,7 @@ router.post('/:id/restore', authenticateToken, requireRole('admin'), async (req:
             const placeholders = cols.map((_, i) => `$${i + 1}`).join(', ');
             try {
               await client.query(`INSERT INTO ${table} (${cols.join(', ')}) VALUES (${placeholders}) ON CONFLICT DO NOTHING`, vals);
-            } catch { /* skip conflicts */ }
+            } catch { }
           }
         }
       }

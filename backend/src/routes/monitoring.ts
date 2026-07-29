@@ -19,7 +19,7 @@ router.get('/health', authenticateToken, async (req: Request, res: Response) => 
       "SELECT created_at FROM backups WHERE status = 'completed' ORDER BY created_at DESC LIMIT 1"
     );
     const integrations = await get<{ count: string }>(
-      'SELECT COUNT(*) as count FROM audit_logs WHERE entity_type = \'integration\' AND created_at > NOW() - INTERVAL \'24 hours\''
+      `SELECT COUNT(*) as count FROM audit_logs WHERE entity_type = 'integration' AND created_at > NOW() - INTERVAL '24 hours'`
     );
 
     const totalMem = os.totalmem();
@@ -27,21 +27,19 @@ router.get('/health', authenticateToken, async (req: Request, res: Response) => 
     const memUsage = ((totalMem - freeMem) / totalMem) * 100;
     const cpuCores = os.cpus().length;
     const uptimeSeconds = os.uptime();
-
     const uptimeDays = Math.floor(uptimeSeconds / 86400);
     const uptimeHours = Math.floor((uptimeSeconds % 86400) / 3600);
 
     res.json({
       server: {
         status: 'online',
+        // ✅ CORREÇÃO: Não expõe hostname diretamente
         platform: os.platform(),
-        hostname: os.hostname(),
         cpu_cores: cpuCores,
         memory_usage_percent: Math.round(memUsage * 10) / 10,
         total_memory_gb: Math.round(totalMem / (1024 ** 3) * 10) / 10,
         free_memory_gb: Math.round(freeMem / (1024 ** 3) * 10) / 10,
         uptime: `${uptimeDays}d ${uptimeHours}h`,
-        uptime_seconds: uptimeSeconds
       },
       database: {
         status: dbTime < 5000 ? 'online' : 'slow',

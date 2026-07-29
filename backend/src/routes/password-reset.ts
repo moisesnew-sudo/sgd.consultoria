@@ -33,17 +33,22 @@ router.post('/request', async (req: Request, res: Response) => {
       const token = crypto.randomBytes(32).toString('hex');
       const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
       await run(
-        'INSERT INTO password_reset_tokens (user_id, token_hash, expires_at) VALUES ($1, $2, NOW() + INTERVAL \'30 minutes\')',
+        `INSERT INTO password_reset_tokens (user_id, token_hash, expires_at) VALUES ($1, $2, NOW() + INTERVAL '30 minutes')`,
         [user.id, tokenHash]
       );
 
       const resetLink = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/reset-password?token=${token}`;
-      console.log(`\n[PASSWORD RESET] Link para ${email}: ${resetLink}\n`);
+      // ✅ CORREÇÃO: Log seguro (não expõe token/link completo)
+      if (process.env.NODE_ENV !== 'production') {
+        console.log(`[PASSWORD RESET] Token gerado para ${email} (expira em 30min)`);
+      }
+
+      // TODO: Envie o link por email usando um serviço como SendGrid/AWS SES
+      // await sendEmail(email, 'Redefinição de Senha', `Clique aqui: ${resetLink}`);
 
       await logAudit({
         entity_type: 'auth', entity_id: String(user.id), action: 'password_reset_requested',
-        user_id: user.id, user_name: user.name,
-        details: {}, ip_address, user_agent
+        user_id: user.id, user_name: user.name, details: {}, ip_address, user_agent
       });
     }
 
@@ -80,8 +85,7 @@ router.post('/reset', async (req: Request, res: Response) => {
 
     await logAudit({
       entity_type: 'auth', entity_id: String(resetToken.user_id), action: 'password_reset_completed',
-      user_id: resetToken.user_id,
-      details: {}, ip_address, user_agent
+      user_id: resetToken.user_id, details: {}, ip_address, user_agent
     });
 
     res.json({ message: 'Senha redefinida com sucesso. Todas as sessões foram encerradas.' });

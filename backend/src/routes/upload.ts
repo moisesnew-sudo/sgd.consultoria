@@ -68,6 +68,16 @@ const upload = multer({
 
 const router = Router();
 
+// ✅ CORREÇÃO: Função de validação de path
+function validateFilePath(filePath: string): string | null {
+  const resolvedPath = path.resolve(UPLOAD_DIR, filePath);
+  const resolvedUploadDir = path.resolve(UPLOAD_DIR);
+  if (!resolvedPath.startsWith(resolvedUploadDir + path.sep) && resolvedPath !== resolvedUploadDir) {
+    return null;
+  }
+  return resolvedPath;
+}
+
 router.post('/demands/:id/attachments', authenticateToken, requirePermission('demands.edit'), (req: Request, res: Response) => {
   upload.array('files', 10)(req, res, async (err) => {
     if (err) {
@@ -81,7 +91,7 @@ router.post('/demands/:id/attachments', authenticateToken, requirePermission('de
 
     try {
       const { ip_address, user_agent } = extractMeta(req);
-      const demand = await get<Attachment>('SELECT id, title FROM demands WHERE id = $1 AND deleted_at IS NULL', [req.params.id as string]);
+      const demand = await get('SELECT id, title FROM demands WHERE id = $1 AND deleted_at IS NULL', [req.params.id as string]);
       if (!demand) return res.status(404).json({ error: 'Demanda não encontrada' });
 
       const files = req.files as Express.Multer.File[];
@@ -123,17 +133,21 @@ router.post('/demands/:id/attachments', authenticateToken, requirePermission('de
 
 router.get('/attachments/:id', authenticateToken, requirePermission('demands.view'), async (req: Request, res: Response) => {
   try {
-    const attachment = await get<Attachment>('SELECT * FROM attachments WHERE id = $1 AND deleted_at IS NULL', [parseInt(req.params.id as string)]);
+    const attachment = await get('SELECT * FROM attachments WHERE id = $1 AND deleted_at IS NULL', [parseInt(req.params.id as string)]);
     if (!attachment) return res.status(404).json({ error: 'Anexo não encontrado' });
 
-    const filePath = path.join(UPLOAD_DIR, attachment.file_path!);
-    if (!fs.existsSync(filePath)) return res.status(404).json({ error: 'Arquivo não encontrado no disco' });
+    // ✅ CORREÇÃO: Path traversal validation
+    const safePath = validateFilePath(attachment.file_path!);
+    if (!safePath) {
+      return res.status(403).json({ error: 'Acesso negado ao arquivo' });
+    }
+    if (!fs.existsSync(safePath)) return res.status(404).json({ error: 'Arquivo não encontrado no disco' });
 
     const mime = attachment.mime_type || 'application/octet-stream';
     res.setHeader('Content-Type', mime);
     res.setHeader('Content-Disposition', `inline; filename="${attachment.name}"`);
     res.setHeader('Content-Length', attachment.file_size || 0);
-    res.sendFile(filePath);
+    res.sendFile(safePath);
   } catch (error) {
     console.error('Download error:', error);
     res.status(500).json({ error: 'Erro ao baixar arquivo' });
@@ -143,15 +157,14 @@ router.get('/attachments/:id', authenticateToken, requirePermission('demands.vie
 router.delete('/attachments/:id', authenticateToken, requirePermission('demands.edit'), async (req: Request, res: Response) => {
   try {
     const { ip_address, user_agent } = extractMeta(req);
-    const attachment = await get<Attachment>('SELECT * FROM attachments WHERE id = $1 AND deleted_at IS NULL', [parseInt(req.params.id as string)]);
+    const attachment = await get('SELECT * FROM attachments WHERE id = $1 AND deleted_at IS NULL', [parseInt(req.params.id as string)]);
     if (!attachment) return res.status(404).json({ error: 'Anexo não encontrado' });
 
     await run('UPDATE attachments SET deleted_at = NOW() WHERE id = $1', [attachment.id]);
     await logAudit({
       entity_type: 'demand', entity_id: attachment.demand_id, action: 'attachment_delete',
       user_id: req.user!.id, user_name: req.user!.name,
-      details: { file_name: attachment.name },
-      ip_address, user_agent
+      details: { file_name: attachment.name }, ip_address, user_agent
     });
 
     res.json({ message: 'Anexo removido com sucesso' });

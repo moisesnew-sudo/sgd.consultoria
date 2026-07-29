@@ -1,7 +1,8 @@
 import { Router, Request, Response } from 'express';
 import { z } from 'zod';
+import crypto from 'crypto';
 import { get, all, run } from '../database.js';
-import { Demand, TimelineEvent, Attachment, DEMAND_STATUSES, DEMAND_PRIORITIES } from '../types.js';
+import { Demand, DEMAND_STATUSES, DEMAND_PRIORITIES } from '../types.js';
 import { authenticateToken, requirePermission } from '../middleware/auth.js';
 import { logAudit, extractMeta } from '../lib/audit.js';
 import { addTimelineEvent, buildUpdateQuery } from '../lib/helpers.js';
@@ -46,40 +47,71 @@ async function saveDemandVersion(demandId: string, snapshot: any, changedBy: num
   );
 }
 
+// ✅ CORREÇÃO: Geração segura de ID usando crypto.randomUUID()
+function generateDemandId(organ: string, year: number): string {
+  const shortUuid = crypto.randomUUID().replace(/-/g, '').slice(0, 8).toUpperCase();
+  return `${organ || 'SGD'}-${year}-${shortUuid}`;
+}
+
 router.get('/', authenticateToken, requirePermission('demands.view'), async (req: Request, res: Response) => {
   try {
     const { status, priority, municipality, uf, category, search, include_deleted, page = '1', limit = '50' } = req.query;
-    let sql = 'SELECT * FROM demands WHERE deleted_at IS NULL';
+    // ✅ CORREÇÃO: Lógica correta de include_deleted
+    let sql = 'SELECT * FROM demands';
     const params: any[] = [];
+    const conditions: string[] = [];
+
     if (include_deleted === 'true' && req.user?.role === 'admin') {
-      sql = 'SELECT * FROM demands WHERE (deleted_at IS NULL OR deleted_at IS NOT NULL)';
+      // Não filtra deleted_at — mostra tudo
+    } else {
+      conditions.push('deleted_at IS NULL');
     }
-    if (status && status !== 'all') { sql += ' AND status = $' + (params.length + 1); params.push(status); }
-    if (priority && priority !== 'all') { sql += ' AND priority = $' + (params.length + 1); params.push(priority); }
-    if (municipality && municipality !== 'all') { sql += ' AND municipality = $' + (params.length + 1); params.push(municipality); }
-    if (uf && uf !== 'all') { sql += ' AND uf = $' + (params.length + 1); params.push(uf); }
-    if (category && category !== 'all') { sql += ' AND category = $' + (params.length + 1); params.push(category); }
+
+    if (status && status !== 'all') { conditions.push(`status = $${params.length + 1}`); params.push(status); }
+    if (priority && priority !== 'all') { conditions.push(`priority = $${params.length + 1}`); params.push(priority); }
+    if (municipality && municipality !== 'all') { conditions.push(`municipality = $${params.length + 1}`); params.push(municipality); }
+    if (uf && uf !== 'all') { conditions.push(`uf = $${params.length + 1}`); params.push(uf); }
+    if (category && category !== 'all') { conditions.push(`category = $${params.length + 1}`); params.push(category); }
     if (search) {
-      sql += ' AND (id ILIKE $' + (params.length + 1) + ' OR title ILIKE $' + (params.length + 2) + ' OR municipality ILIKE $' + (params.length + 3) + ')';
+      conditions.push(`(id ILIKE $${params.length + 1} OR title ILIKE $${params.length + 2} OR municipality ILIKE $${params.length + 3})`);
       const t = `%${search}%`;
       params.push(t, t, t);
     }
-    const countSql = sql.replace('SELECT *', 'SELECT COUNT(*) as count');
-    const countResult = await get<{ count: string }>(countSql, params);
+    if (conditions.length > 0) {
+      sql += ' WHERE ' + conditions.join(' AND ');
+    }
+
+    const countSql = `SELECT COUNT(*) as count FROM demands ${conditions.length > 0 ? 'WHERE ' + conditions.join(' AND ') : ''}`;
+    const countResult = await get<{ count: string }>(countSql, [...params]);
     const total = parseInt(countResult?.count || '0');
     const offset = (Number(page) - 1) * Number(limit);
-    sql += ' ORDER BY created_at DESC LIMIT $' + (params.length + 1) + ' OFFSET $' + (params.length + 2);
+    sql += ` ORDER BY created_at DESC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
     params.push(Number(limit), offset);
-    const demands = await all<Demand>(sql, params);
-    const demandsWithDetails = await Promise.all(demands.map(async demand => {
-      const timeline = await all<TimelineEvent>(
-        'SELECT * FROM timeline_events WHERE demand_id = $1 ORDER BY created_at DESC', [demand.id]
+    const demands = await all(sql, params);
+
+    // ✅ CORREÇÃO: JSON aggregation para evitar N+1
+    const demandIds = demands.map(d => d.id);
+    let demandsWithDetails: any[] = demands;
+    if (demandIds.length > 0) {
+      const timelines = await all(
+        `SELECT demand_id, json_agg(t.* ORDER BY t.created_at DESC) as events
+         FROM timeline_events t WHERE demand_id = ANY($1) GROUP BY demand_id`,
+        [demandIds]
       );
-      const attachments = await all<Attachment>(
-        'SELECT * FROM attachments WHERE demand_id = $1 AND deleted_at IS NULL', [demand.id]
+      const attachments = await all(
+        `SELECT demand_id, json_agg(a.*) as files
+         FROM attachments a WHERE demand_id = ANY($1) AND deleted_at IS NULL GROUP BY demand_id`,
+        [demandIds]
       );
-      return { ...demand, timeline, attachments };
-    }));
+      const timelineMap = Object.fromEntries(timelines.map(t => [t.demand_id, t.events || []]));
+      const attachmentMap = Object.fromEntries(attachments.map(a => [a.demand_id, a.files || []]));
+      demandsWithDetails = demands.map(d => ({
+        ...d,
+        timeline: timelineMap[d.id] || [],
+        attachments: attachmentMap[d.id] || []
+      }));
+    }
+
     res.json({
       data: demandsWithDetails,
       pagination: { page: Number(page), limit: Number(limit), total, pages: Math.ceil(total / Number(limit)) }
@@ -92,7 +124,7 @@ router.get('/', authenticateToken, requirePermission('demands.view'), async (req
 
 router.get('/calendar/events', authenticateToken, requirePermission('demands.view'), async (req: Request, res: Response) => {
   try {
-    const demands = await all<Demand>(
+    const demands = await all(
       "SELECT id, title, status, priority, municipality, uf, created_at, updated_at FROM demands WHERE deleted_at IS NULL"
     );
     const events = await all(
@@ -135,17 +167,11 @@ router.get('/:id/versions', authenticateToken, requirePermission('demands.view')
 
 router.get('/:id', authenticateToken, requirePermission('demands.view'), async (req: Request, res: Response) => {
   try {
-    const demand = await get<Demand>('SELECT * FROM demands WHERE id = $1 AND deleted_at IS NULL', [req.params.id as string]);
+    const demand = await get('SELECT * FROM demands WHERE id = $1 AND deleted_at IS NULL', [req.params.id as string]);
     if (!demand) return res.status(404).json({ error: 'Demanda não encontrada' });
-    const timeline = await all<TimelineEvent>(
-      'SELECT * FROM timeline_events WHERE demand_id = $1 ORDER BY created_at DESC', [demand.id]
-    );
-    const attachments = await all<Attachment>(
-      'SELECT * FROM attachments WHERE demand_id = $1 AND deleted_at IS NULL', [demand.id]
-    );
-    const comments = await all(
-      'SELECT * FROM comments WHERE demand_id = $1 AND deleted_at IS NULL ORDER BY created_at ASC', [demand.id]
-    );
+    const timeline = await all('SELECT * FROM timeline_events WHERE demand_id = $1 ORDER BY created_at DESC', [demand.id]);
+    const attachments = await all('SELECT * FROM attachments WHERE demand_id = $1 AND deleted_at IS NULL', [demand.id]);
+    const comments = await all('SELECT * FROM comments WHERE demand_id = $1 AND deleted_at IS NULL ORDER BY created_at ASC', [demand.id]);
     res.json({ ...demand, timeline, attachments, comments });
   } catch (error) {
     console.error('Get demand error:', error);
@@ -161,19 +187,20 @@ router.post('/', authenticateToken, requirePermission('demands.create'), async (
     }
     const data = demandSchema.parse(req.body);
     const currentYear = new Date().getFullYear();
-    const countResult = await get<{ count: string }>('SELECT COUNT(*) as count FROM demands WHERE deleted_at IS NULL');
-    const count = parseInt(countResult?.count || '0');
-    const id = `${data.organ || 'SGD'}-${currentYear}-${String(count + 1).padStart(3, '0')}`;
+    // ✅ CORREÇÃO: UUID seguro em vez de COUNT(*)+1
+    const id = generateDemandId(data.organ || 'SGD', currentYear);
     const now = new Date().toISOString();
     const anoVal = data.ano ?? currentYear;
+
     await run(
       `INSERT INTO demands (id, title, description, category, status, priority, municipality, uf, requested_value, prefeitura, proposal_number, organ, process_link, responsible_name, responsible_email, responsible_phone, notes, created_by, created_at, updated_at, ano)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21)`,
       [id, data.title, data.description || '', data.category, data.status || 'pendente', data.priority || 'media',
        data.municipality, data.uf, data.requested_value || 0, data.prefeitura || `Prefeitura Municipal de ${data.municipality}`,
-       data.proposal_number || `PROP-${currentYear}-${String(count + 1).padStart(4, '0')}`, data.organ || '',
-       data.process_link || '', data.responsible_name || req.user!.name, data.responsible_email || req.user!.email,
-       data.responsible_phone || '', data.notes || '', req.user!.id, now, now, anoVal]
+       data.proposal_number || `PROP-${currentYear}-${crypto.randomUUID().slice(0, 4).toUpperCase()}`,
+       data.organ || '', data.process_link || '', data.responsible_name || req.user!.name,
+       data.responsible_email || req.user!.email, data.responsible_phone || '', data.notes || '',
+       req.user!.id, now, now, anoVal]
     );
     await addTimelineEvent(id, 'Demanda Cadastrada', `Demanda criada por ${req.user!.name}`, req.user!.name, data.status || 'pendente');
     await run(
@@ -181,7 +208,7 @@ router.post('/', authenticateToken, requirePermission('demands.create'), async (
       [data.requested_value || 0, data.municipality, data.uf]
     );
     await saveDemandVersion(id, { ...data, created_by: req.user!.id }, req.user!.id, req.user!.name, ip_address);
-    const newDemand = await get<Demand>('SELECT * FROM demands WHERE id = $1', [id]);
+    const newDemand = await get('SELECT * FROM demands WHERE id = $1', [id]);
     await logAudit({
       entity_type: 'demand', entity_id: id, action: 'create',
       user_id: req.user!.id, user_name: req.user!.name,
@@ -205,7 +232,7 @@ router.put('/:id', authenticateToken, requirePermission('demands.edit'), async (
     if (req.user!.role === 'consulta') {
       return res.status(403).json({ error: 'Consulta não pode editar demandas' });
     }
-    const existing = await get<Demand>('SELECT * FROM demands WHERE id = $1 AND deleted_at IS NULL', [req.params.id as string]);
+    const existing = await get('SELECT * FROM demands WHERE id = $1 AND deleted_at IS NULL', [req.params.id as string]);
     if (!existing) return res.status(404).json({ error: 'Demanda não encontrada' });
     await saveDemandVersion(req.params.id as string, existing, req.user!.id, req.user!.name, ip_address);
     const data = demandSchema.partial().parse(req.body);
@@ -219,12 +246,11 @@ router.put('/:id', authenticateToken, requirePermission('demands.edit'), async (
           user?.name || req.user!.name, data.status);
       }
     }
-    const updated = await get<Demand>('SELECT * FROM demands WHERE id = $1 AND deleted_at IS NULL', [req.params.id as string]);
+    const updated = await get('SELECT * FROM demands WHERE id = $1 AND deleted_at IS NULL', [req.params.id as string]);
     await logAudit({
       entity_type: 'demand', entity_id: req.params.id as string, action: 'update',
       user_id: req.user!.id, user_name: req.user!.name,
-      details: { changed: Object.keys(data), status: data.status },
-      ip_address, user_agent
+      details: { changed: Object.keys(data), status: data.status }, ip_address, user_agent
     });
     res.json(updated);
   } catch (error) {
@@ -243,7 +269,7 @@ router.delete('/:id', authenticateToken, requirePermission('demands.delete'), as
     if (req.user!.role !== 'admin' && req.user!.role !== 'gestor') {
       return res.status(403).json({ error: 'Sem permissão para excluir demandas' });
     }
-    const demand = await get<Demand>('SELECT * FROM demands WHERE id = $1 AND deleted_at IS NULL', [req.params.id as string]);
+    const demand = await get('SELECT * FROM demands WHERE id = $1 AND deleted_at IS NULL', [req.params.id as string]);
     if (!demand) return res.status(404).json({ error: 'Demanda não encontrada' });
     await run('UPDATE demands SET deleted_at = NOW(), deleted_by = $1 WHERE id = $2', [req.user!.id, req.params.id as string]);
     await run(
@@ -253,8 +279,7 @@ router.delete('/:id', authenticateToken, requirePermission('demands.delete'), as
     await logAudit({
       entity_type: 'demand', entity_id: req.params.id as string, action: 'delete',
       user_id: req.user!.id, user_name: req.user!.name,
-      details: { municipality: demand.municipality, uf: demand.uf },
-      ip_address, user_agent
+      details: { municipality: demand.municipality, uf: demand.uf }, ip_address, user_agent
     });
     res.json({ message: 'Demanda removida com sucesso' });
   } catch (error) {
@@ -266,7 +291,7 @@ router.delete('/:id', authenticateToken, requirePermission('demands.delete'), as
 router.post('/:id/restore', authenticateToken, requirePermission('demands.delete'), async (req: Request, res: Response) => {
   try {
     const { ip_address, user_agent } = extractMeta(req);
-    const demand = await get<Demand>('SELECT * FROM demands WHERE id = $1 AND deleted_at IS NOT NULL', [req.params.id as string]);
+    const demand = await get('SELECT * FROM demands WHERE id = $1 AND deleted_at IS NOT NULL', [req.params.id as string]);
     if (!demand) return res.status(404).json({ error: 'Demanda não encontrada ou não excluída' });
     await run('UPDATE demands SET deleted_at = NULL, deleted_by = NULL WHERE id = $1', [req.params.id as string]);
     await run(
@@ -277,8 +302,7 @@ router.post('/:id/restore', authenticateToken, requirePermission('demands.delete
     await logAudit({
       entity_type: 'demand', entity_id: req.params.id as string, action: 'restore',
       user_id: req.user!.id, user_name: req.user!.name,
-      details: { municipality: demand.municipality, uf: demand.uf },
-      ip_address, user_agent
+      details: { municipality: demand.municipality, uf: demand.uf }, ip_address, user_agent
     });
     res.json({ message: 'Demanda restaurada com sucesso' });
   } catch (error) {
@@ -292,7 +316,7 @@ router.post('/:id/timeline', authenticateToken, requirePermission('demands.edit'
     if (req.user!.role === 'consulta') {
       return res.status(403).json({ error: 'Seu perfil (Consulta) é somente leitura' });
     }
-    const demand = await get<Demand>('SELECT * FROM demands WHERE id = $1 AND deleted_at IS NULL', [req.params.id as string]);
+    const demand = await get('SELECT * FROM demands WHERE id = $1 AND deleted_at IS NULL', [req.params.id as string]);
     if (!demand) return res.status(404).json({ error: 'Demanda não encontrada' });
     const data = timelineEventSchema.parse(req.body);
     const eventId = await addTimelineEvent(req.params.id as string, data.title,
@@ -300,7 +324,7 @@ router.post('/:id/timeline', authenticateToken, requirePermission('demands.edit'
     if (data.status_changed_to) {
       await run('UPDATE demands SET status = $1, updated_at = NOW() WHERE id = $2', [data.status_changed_to, req.params.id as string]);
     }
-    const event = await get<TimelineEvent>('SELECT * FROM timeline_events WHERE id = $1', [eventId]);
+    const event = await get('SELECT * FROM timeline_events WHERE id = $1', [eventId]);
     res.status(201).json(event);
   } catch (error) {
     if (error instanceof z.ZodError) return res.status(400).json({ error: 'Dados inválidos', details: error.errors });
@@ -348,12 +372,12 @@ async function getAllOverdue() {
     WHERE status IN ('pendente', 'analise')
     AND deleted_at IS NULL
     AND EXTRACT(EPOCH FROM (NOW() - created_at)) / 86400 >
-      CASE priority
-        WHEN 'urgente' THEN 5
-        WHEN 'alta' THEN 15
-        WHEN 'media' THEN 30
-        ELSE 45
-      END
+    CASE priority
+      WHEN 'urgente' THEN 5
+      WHEN 'alta' THEN 15
+      WHEN 'media' THEN 30
+      ELSE 45
+    END
   `);
   return parseInt(result?.count || '0');
 }

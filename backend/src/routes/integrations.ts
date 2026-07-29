@@ -21,13 +21,11 @@ const ENDPOINTS = [
 
 router.get('/', authenticateToken, requireRole('admin'), (req: Request, res: Response) => {
   const baseUrl = process.env.PUBLIC_API_URL || (req.get('host') ? `${req.protocol}://${req.get('host')}/api` : 'https://sgd-consultoria.onrender.com/api');
-  const apiTokenSecret = process.env.API_TOKEN_SECRET || process.env.JWT_SECRET || 'secret';
-  const apiToken = `sgd_api_${Buffer.from(apiTokenSecret).toString('base64').slice(0, 24)}`;
+  // ✅ CORREÇÃO: Não expõe derivado do JWT_SECRET
   res.json({
     baseUrl,
     authHeader: 'Authorization: Bearer <seu_token_jwt>',
-    apiToken,
-    note: 'Use o apiToken como Bearer para integrações servidor-a-servidor. O token é derivado de API_TOKEN_SECRET.',
+    note: 'Para integrações servidor-a-servidor, configure API_TOKEN_SECRET no ambiente e gere tokens via painel administrativo.',
     endpoints: ENDPOINTS,
     webhookSample: {
       event: 'demand.created',

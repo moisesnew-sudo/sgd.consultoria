@@ -12,6 +12,11 @@ const commentSchema = z.object({
 
 router.get('/:id/comments', authenticateToken, async (req: Request, res: Response) => {
   try {
+    // ✅ CORREÇÃO: Verifica se demanda existe
+    const demand = await get('SELECT id FROM demands WHERE id = $1 AND deleted_at IS NULL', [req.params.id as string]);
+    if (!demand) {
+      return res.status(404).json({ error: 'Demanda não encontrada' });
+    }
     const comments = await all(
       'SELECT * FROM comments WHERE demand_id = $1 AND deleted_at IS NULL ORDER BY created_at ASC',
       [req.params.id as string]
@@ -27,6 +32,11 @@ router.post('/:id/comments', authenticateToken, requirePermission('demands.edit'
   try {
     if (req.user!.role === 'consulta') {
       return res.status(403).json({ error: 'Seu perfil (Consulta) é somente leitura' });
+    }
+    // ✅ CORREÇÃO: Verifica se demanda existe antes de comentar
+    const demand = await get('SELECT id FROM demands WHERE id = $1 AND deleted_at IS NULL', [req.params.id as string]);
+    if (!demand) {
+      return res.status(404).json({ error: 'Demanda não encontrada' });
     }
     const { body } = commentSchema.parse(req.body);
     const result = await run(

@@ -10,11 +10,27 @@ if (!process.env.DATABASE_URL) {
   }
 }
 
+// ✅ CORREÇÃO: SSL com CA certificado em produção
+function getSSLConfig(): any {
+  if (process.env.NODE_ENV !== 'production') {
+    return false;
+  }
+  // Se houver certificado CA customizado
+  if (process.env.DB_CA_CERT) {
+    return { ca: process.env.DB_CA_CERT };
+  }
+  // Para Render.com, use rejectUnauthorized: false apenas se não houver CA
+  // Idealmente, baixe o certificado CA do Render e coloque em DB_CA_CERT
+  if (process.env.DATABASE_URL?.includes('render.com') && !process.env.DB_CA_CERT) {
+    console.warn('⚠️  Usando SSL sem verificação de certificado. Recomendado: configure DB_CA_CERT com o certificado CA do Render.');
+    return { rejectUnauthorized: false };
+  }
+  return { rejectUnauthorized: true };
+}
+
 const pool = new pg.Pool({
   connectionString: process.env.DATABASE_URL,
-  ssl: process.env.NODE_ENV === 'production' || process.env.DATABASE_URL?.includes('render.com')
-    ? { rejectUnauthorized: false }
-    : false,
+  ssl: getSSLConfig(),
 });
 
 pool.on('error', (err) => {
@@ -57,6 +73,7 @@ export async function transaction<T>(fn: (client: PoolClient) => Promise<T>): Pr
 }
 
 export async function initDatabase() {
+  // ... (mesmo conteúdo do original, mantido para compatibilidade)
   await query(`
     CREATE TABLE IF NOT EXISTS users (
       id SERIAL PRIMARY KEY,
@@ -193,19 +210,16 @@ export async function initDatabase() {
     CREATE INDEX IF NOT EXISTS idx_timeline_demand_id ON timeline_events(demand_id);
     CREATE INDEX IF NOT EXISTS idx_attachments_demand_id ON attachments(demand_id);
 
-    -- Migrate role constraint for existing databases (idempotent)
     ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_check;
     ALTER TABLE users ADD CONSTRAINT users_role_check
       CHECK(role IN ('admin', 'gestor', 'analista', 'consulta', 'administrador', 'diretor', 'tecnico', 'parceiro', 'cliente', 'visitante'));
     ALTER TABLE users ALTER COLUMN role SET DEFAULT 'consulta';
     ALTER TABLE users ADD COLUMN IF NOT EXISTS active BOOLEAN DEFAULT TRUE;
 
-    -- Expand role_permissions check constraint (idempotent)
     ALTER TABLE role_permissions DROP CONSTRAINT IF EXISTS role_permissions_role_check;
     ALTER TABLE role_permissions ADD CONSTRAINT role_permissions_role_check
       CHECK(role IN ('admin', 'gestor', 'analista', 'consulta', 'administrador', 'diretor', 'tecnico', 'parceiro', 'cliente', 'visitante'));
 
-    -- Add ano column to demands (idempotent)
     ALTER TABLE demands ADD COLUMN IF NOT EXISTS ano INTEGER DEFAULT EXTRACT(YEAR FROM NOW());
 
     CREATE TABLE IF NOT EXISTS token_blacklist (
@@ -221,15 +235,9 @@ export async function initDatabase() {
     CREATE INDEX IF NOT EXISTS idx_user_permissions_user_id ON user_permissions(user_id);
     CREATE INDEX IF NOT EXISTS idx_permissions_category ON permissions(category);
 
-    -- ============================================================
-    -- MÓDULO 1: Extended audit fields (idempotent)
-    -- ============================================================
     ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS ip_address TEXT;
     ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS user_agent TEXT;
 
-    -- ============================================================
-    -- MÓDULO 2: Demand versioning
-    -- ============================================================
     CREATE TABLE IF NOT EXISTS demand_versions (
       id SERIAL PRIMARY KEY,
       demand_id TEXT NOT NULL REFERENCES demands(id) ON DELETE CASCADE,
@@ -242,9 +250,6 @@ export async function initDatabase() {
     );
     CREATE INDEX IF NOT EXISTS idx_demand_versions_demand_id ON demand_versions(demand_id);
 
-    -- ============================================================
-    -- MÓDULO 3: Password recovery
-    -- ============================================================
     CREATE TABLE IF NOT EXISTS password_reset_tokens (
       id SERIAL PRIMARY KEY,
       user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -255,9 +260,6 @@ export async function initDatabase() {
     );
     CREATE INDEX IF NOT EXISTS idx_password_reset_token_hash ON password_reset_tokens(token_hash);
 
-    -- ============================================================
-    -- MÓDULO 5 & 12: Active sessions & inactivity
-    -- ============================================================
     CREATE TABLE IF NOT EXISTS active_sessions (
       id SERIAL PRIMARY KEY,
       user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -273,9 +275,6 @@ export async function initDatabase() {
     CREATE INDEX IF NOT EXISTS idx_active_sessions_user_id ON active_sessions(user_id);
     CREATE INDEX IF NOT EXISTS idx_active_sessions_token ON active_sessions(token_hash);
 
-    -- ============================================================
-    -- MÓDULO 12: Login attempts (account lockout)
-    -- ============================================================
     CREATE TABLE IF NOT EXISTS login_attempts (
       id SERIAL PRIMARY KEY,
       email TEXT NOT NULL,
@@ -287,9 +286,6 @@ export async function initDatabase() {
     CREATE INDEX IF NOT EXISTS idx_login_attempts_ip ON login_attempts(ip_address);
     CREATE INDEX IF NOT EXISTS idx_login_attempts_time ON login_attempts(attempted_at);
 
-    -- ============================================================
-    -- MÓDULO 12: Password history (prevent reuse)
-    -- ============================================================
     CREATE TABLE IF NOT EXISTS password_history (
       id SERIAL PRIMARY KEY,
       user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -298,9 +294,6 @@ export async function initDatabase() {
     );
     CREATE INDEX IF NOT EXISTS idx_password_history_user_id ON password_history(user_id);
 
-    -- ============================================================
-    -- MÓDULO 1.1: Refresh tokens for JWT rotation
-    -- ============================================================
     CREATE TABLE IF NOT EXISTS refresh_tokens (
       id SERIAL PRIMARY KEY,
       user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -315,8 +308,6 @@ export async function initDatabase() {
     CREATE INDEX IF NOT EXISTS idx_refresh_tokens_user ON refresh_tokens(user_id);
     CREATE INDEX IF NOT EXISTS idx_refresh_tokens_expires ON refresh_tokens(expires_at);
 
-    -- ============================================================
-    -- Soft delete columns (idempotent)
     ALTER TABLE demands ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;
     ALTER TABLE demands ADD COLUMN IF NOT EXISTS deleted_by INTEGER REFERENCES users(id);
     ALTER TABLE municipalities ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;
@@ -329,9 +320,6 @@ export async function initDatabase() {
     ALTER TABLE attachments ADD COLUMN IF NOT EXISTS file_hash TEXT;
     CREATE INDEX IF NOT EXISTS idx_attachments_hash ON attachments(file_hash);
 
-    -- ============================================================
-    -- Multi-tenant preparation (idempotent)
-    -- ============================================================
     ALTER TABLE demands ADD COLUMN IF NOT EXISTS tenant_id INTEGER DEFAULT 1;
     ALTER TABLE users ADD COLUMN IF NOT EXISTS tenant_id INTEGER DEFAULT 1;
     ALTER TABLE municipalities ADD COLUMN IF NOT EXISTS tenant_id INTEGER DEFAULT 1;
@@ -344,9 +332,6 @@ export async function initDatabase() {
     CREATE INDEX IF NOT EXISTS idx_users_tenant ON users(tenant_id);
     CREATE INDEX IF NOT EXISTS idx_demands_deleted ON demands(deleted_at);
 
-    -- ============================================================
-    -- MÓDULO 7: Backup tracking
-    -- ============================================================
     CREATE TABLE IF NOT EXISTS backups (
       id SERIAL PRIMARY KEY,
       filename TEXT NOT NULL,
@@ -361,9 +346,6 @@ export async function initDatabase() {
     CREATE INDEX IF NOT EXISTS idx_backups_type ON backups(backup_type);
     CREATE INDEX IF NOT EXISTS idx_backups_created ON backups(created_at);
 
-    -- ============================================================
-    -- MÓDULO 10: Export logs
-    -- ============================================================
     CREATE TABLE IF NOT EXISTS export_logs (
       id SERIAL PRIMARY KEY,
       user_id INTEGER REFERENCES users(id),
@@ -378,9 +360,6 @@ export async function initDatabase() {
     CREATE INDEX IF NOT EXISTS idx_export_logs_type ON export_logs(export_type);
     CREATE INDEX IF NOT EXISTS idx_export_logs_created ON export_logs(created_at);
 
-    -- ============================================================
-    -- MÓDULO 9: System monitoring
-    -- ============================================================
     CREATE TABLE IF NOT EXISTS monitoring_logs (
       id SERIAL PRIMARY KEY,
       server_cpu REAL,

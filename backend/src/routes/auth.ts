@@ -3,8 +3,8 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
 import { z } from 'zod';
-import { get, run, all } from '../database.js';
-import { User, UserResponse, USER_ROLES } from '../types.js';
+import { get, run, all, transaction } from '../database.js';
+import { UserResponse, USER_ROLES } from '../types.js';
 import { authenticateToken, authenticateRefreshToken, requirePermission, signAccessToken, signRefreshToken } from '../middleware/auth.js';
 import { logAudit, extractMeta } from '../lib/audit.js';
 
@@ -51,10 +51,7 @@ async function endUserSessions(userId: number, excludeTokenHash?: string) {
 }
 
 async function savePasswordHistory(userId: number, passwordHash: string) {
-  await run(
-    'INSERT INTO password_history (user_id, password_hash) VALUES ($1, $2)',
-    [userId, passwordHash]
-  );
+  await run('INSERT INTO password_history (user_id, password_hash) VALUES ($1, $2)', [userId, passwordHash]);
   await run(
     `DELETE FROM password_history WHERE id IN (
       SELECT id FROM password_history WHERE user_id = $1 ORDER BY created_at DESC OFFSET $2
@@ -62,13 +59,14 @@ async function savePasswordHistory(userId: number, passwordHash: string) {
   );
 }
 
-async function wasPasswordUsed(userId: number, newHash: string): Promise<boolean> {
+// ✅ CORREÇÃO: Recebe texto puro, compara com bcrypt corretamente
+async function wasPasswordUsed(userId: number, plainPassword: string): Promise<boolean> {
   const history = await all<{ password_hash: string }>(
     'SELECT password_hash FROM password_history WHERE user_id = $1 ORDER BY created_at DESC',
     [userId]
   );
   for (const h of history) {
-    if (await bcrypt.compare(newHash.replace(/^\$2[ab]\$\d+\$/, ''), h.password_hash)) {
+    if (await bcrypt.compare(plainPassword, h.password_hash)) {
       return true;
     }
   }
@@ -79,7 +77,7 @@ router.post('/login', async (req: Request, res: Response) => {
   try {
     const { email, password } = loginSchema.parse(req.body);
     const { ip_address, user_agent } = extractMeta(req);
-    const user = await get<User>('SELECT * FROM users WHERE email = $1 AND deleted_at IS NULL', [email]);
+    const user = await get('SELECT * FROM users WHERE email = $1 AND deleted_at IS NULL', [email]);
 
     if (user && await isAccountLocked(email)) {
       await logAudit({
@@ -90,10 +88,7 @@ router.post('/login', async (req: Request, res: Response) => {
     }
 
     if (!user || user.active === false || !(await bcrypt.compare(password, user.password_hash))) {
-      await run(
-        'INSERT INTO login_attempts (email, ip_address, success) VALUES ($1, $2, FALSE)',
-        [email, ip_address]
-      );
+      await run('INSERT INTO login_attempts (email, ip_address, success) VALUES ($1, $2, FALSE)', [email, ip_address]);
       await logAudit({
         entity_type: 'auth', entity_id: email, action: 'login_failed',
         user_name: email, details: { ip: ip_address }, ip_address, user_agent
@@ -101,10 +96,7 @@ router.post('/login', async (req: Request, res: Response) => {
       return res.status(401).json({ error: 'Credenciais inválidas' });
     }
 
-    await run(
-      'INSERT INTO login_attempts (email, ip_address, success) VALUES ($1, $2, TRUE)',
-      [email, ip_address]
-    );
+    await run('INSERT INTO login_attempts (email, ip_address, success) VALUES ($1, $2, TRUE)', [email, ip_address]);
 
     let permissions: string[] = [];
     if (user.role === 'admin') {
@@ -114,8 +106,7 @@ router.post('/login', async (req: Request, res: Response) => {
       const userPerms = await all<{ key: string }>(
         `SELECT p.key FROM user_permissions up
          JOIN permissions p ON p.id = up.permission_id
-         WHERE up.user_id = $1 AND up.granted = TRUE`,
-        [user.id]
+         WHERE up.user_id = $1 AND up.granted = TRUE`, [user.id]
       );
       permissions = userPerms.map(p => p.key);
     }
@@ -128,8 +119,8 @@ router.post('/login', async (req: Request, res: Response) => {
     const refreshFamily = crypto.randomBytes(16).toString('hex');
     const refreshToken = signRefreshToken(user.id, refreshFamily);
     const refreshHash = crypto.createHash('sha256').update(refreshToken).digest('hex');
-
     const accessHash = crypto.createHash('sha256').update(accessToken).digest('hex');
+
     let browser = 'Desconhecido', os = 'Desconhecido';
     const ua = user_agent || '';
     if (ua.includes('Chrome') && !ua.includes('Edg')) browser = 'Chrome';
@@ -144,8 +135,7 @@ router.post('/login', async (req: Request, res: Response) => {
 
     await run(
       `INSERT INTO active_sessions (user_id, token_hash, ip_address, user_agent, browser, os)
-       VALUES ($1, $2, $3, $4, $5, $6)
-       ON CONFLICT DO NOTHING`,
+       VALUES ($1, $2, $3, $4, $5, $6) ON CONFLICT DO NOTHING`,
       [user.id, accessHash, ip_address, user_agent, browser, os]
     );
 
@@ -177,7 +167,7 @@ router.post('/refresh', authenticateRefreshToken, async (req: Request, res: Resp
     const oldRefreshToken = req.body.refreshToken;
     const oldHash = crypto.createHash('sha256').update(oldRefreshToken).digest('hex');
 
-    const user = await get<User>('SELECT * FROM users WHERE id = $1 AND active = TRUE AND deleted_at IS NULL', [req.user!.id]);
+    const user = await get('SELECT * FROM users WHERE id = $1 AND active = TRUE AND deleted_at IS NULL', [req.user!.id]);
     if (!user) return res.status(401).json({ error: 'Usuário não encontrado' });
 
     const newAccessToken = signAccessToken(user);
@@ -189,13 +179,11 @@ router.post('/refresh', authenticateRefreshToken, async (req: Request, res: Resp
       'INSERT INTO refresh_tokens (user_id, token_hash, family, expires_at, replaced_by) VALUES ($1, $2, $3, $4, $5)',
       [user.id, newRefreshHash, req.refreshFamily!, refreshExpiry, null]
     );
-
     await run('UPDATE refresh_tokens SET revoked = TRUE, replaced_by = $1 WHERE token_hash = $2', [newRefreshHash, oldHash]);
 
     await logAudit({
       entity_type: 'auth', entity_id: String(user.id), action: 'token_refresh',
-      user_id: user.id, user_name: user.name,
-      details: { ip: ip_address }, ip_address, user_agent
+      user_id: user.id, user_name: user.name, details: { ip: ip_address }, ip_address, user_agent
     });
 
     res.json({ token: newAccessToken, refreshToken: newRefreshToken });
@@ -220,17 +208,14 @@ router.post('/logout', authenticateToken, async (req: Request, res: Response) =>
       );
       await run('UPDATE active_sessions SET active = FALSE WHERE token_hash = $1', [tokenHash]);
     }
-
     const { refreshToken } = req.body;
     if (refreshToken) {
       const refreshHash = crypto.createHash('sha256').update(refreshToken).digest('hex');
       await run('UPDATE refresh_tokens SET revoked = TRUE WHERE token_hash = $1', [refreshHash]);
     }
-
     await logAudit({
       entity_type: 'auth', entity_id: String(req.user!.id), action: 'logout',
-      user_id: req.user!.id, user_name: req.user!.name,
-      details: {}, ip_address, user_agent
+      user_id: req.user!.id, user_name: req.user!.name, details: {}, ip_address, user_agent
     });
     res.json({ message: 'Sessão encerrada com sucesso' });
   } catch (error) {
@@ -241,21 +226,20 @@ router.post('/logout', authenticateToken, async (req: Request, res: Response) =>
 
 router.post('/register', authenticateToken, requirePermission('users.create'), async (req: Request, res: Response) => {
   try {
-      if (req.user?.role !== 'admin' && req.user?.role !== 'administrador') {
-        return res.status(403).json({ error: 'Apenas administradores podem criar usuários' });
-      }
-      const { ip_address, user_agent } = extractMeta(req);
-      const { email, password, name, role } = registerSchema.parse(req.body);
-      const existingUser = await get('SELECT id FROM users WHERE email = $1', [email]);
-      if (existingUser) {
-        return res.status(409).json({ error: 'Email já cadastrado' });
-      }
-      const passwordHash = await bcrypt.hash(password, 10);
-      const result = await run(
-        'INSERT INTO users (email, password_hash, name, role) VALUES ($1, $2, $3, $4) RETURNING id, email, name, role',
-        [email, passwordHash, name, role || 'consulta']
-      );
-
+    if (req.user?.role !== 'admin' && req.user?.role !== 'administrador') {
+      return res.status(403).json({ error: 'Apenas administradores podem criar usuários' });
+    }
+    const { ip_address, user_agent } = extractMeta(req);
+    const { email, password, name, role } = registerSchema.parse(req.body);
+    const existingUser = await get('SELECT id FROM users WHERE email = $1', [email]);
+    if (existingUser) {
+      return res.status(409).json({ error: 'Email já cadastrado' });
+    }
+    const passwordHash = await bcrypt.hash(password, 10);
+    const result = await run(
+      'INSERT INTO users (email, password_hash, name, role) VALUES ($1, $2, $3, $4) RETURNING id, email, name, role',
+      [email, passwordHash, name, role || 'consulta']
+    );
     const registerUserId = result.rows[0].id;
     const registerRole = result.rows[0].role;
     const registerRolePerms = await all<{ permission_id: number }>(
@@ -267,16 +251,12 @@ router.post('/register', authenticateToken, requirePermission('users.create'), a
         [registerUserId, rp.permission_id]
       );
     }
-
     await savePasswordHistory(registerUserId, passwordHash);
-
     await logAudit({
       entity_type: 'user', entity_id: String(registerUserId), action: 'create',
       user_id: req.user!.id, user_name: req.user!.name,
-      details: { target_email: email, target_role: registerRole },
-      ip_address, user_agent
+      details: { target_email: email, target_role: registerRole }, ip_address, user_agent
     });
-
     res.status(201).json({ message: 'Usuário criado com sucesso', user: result.rows[0] });
   } catch (error) {
     if (error instanceof z.ZodError) {
@@ -288,9 +268,8 @@ router.post('/register', authenticateToken, requirePermission('users.create'), a
 });
 
 router.get('/me', authenticateToken, async (req: Request, res: Response) => {
-  const user = await get<UserResponse & { created_at: string }>(
-    'SELECT id, email, name, role, created_at FROM users WHERE id = $1 AND deleted_at IS NULL',
-    [req.user!.id]
+  const user = await get(
+    'SELECT id, email, name, role, created_at FROM users WHERE id = $1 AND deleted_at IS NULL', [req.user!.id]
   );
   if (!user) {
     return res.status(404).json({ error: 'Usuário não encontrado' });
@@ -303,14 +282,14 @@ router.get('/me', authenticateToken, async (req: Request, res: Response) => {
     const userPerms = await all<{ key: string }>(
       `SELECT p.key FROM user_permissions up
        JOIN permissions p ON p.id = up.permission_id
-       WHERE up.user_id = $1 AND up.granted = TRUE`,
-      [user.id]
+       WHERE up.user_id = $1 AND up.granted = TRUE`, [user.id]
     );
     permissions = userPerms.map(p => p.key);
   }
   res.json({ ...user, permissions });
 });
 
+// ✅ CORREÇÃO: Troca de senha em transação atômica
 router.put('/change-password', authenticateToken, async (req: Request, res: Response) => {
   try {
     const { ip_address, user_agent } = extractMeta(req);
@@ -320,43 +299,39 @@ router.put('/change-password', authenticateToken, async (req: Request, res: Resp
     if (!currentPassword || !newPassword) {
       return res.status(400).json({ error: 'Senha atual e nova senha são obrigatórias' });
     }
-
     const parsed = passwordSchema.safeParse(newPassword);
     if (!parsed.success) {
       return res.status(400).json({ error: parsed.error.errors[0].message });
     }
-
-    const user = await get<User>('SELECT * FROM users WHERE id = $1 AND deleted_at IS NULL', [req.user!.id]);
+    const user = await get('SELECT * FROM users WHERE id = $1 AND deleted_at IS NULL', [req.user!.id]);
     if (!user) {
       return res.status(404).json({ error: 'Usuário não encontrado' });
     }
-
     const validPassword = await bcrypt.compare(currentPassword, user.password_hash);
     if (!validPassword) {
       return res.status(401).json({ error: 'Senha atual incorreta' });
     }
-
+    // ✅ CORREÇÃO: Passa texto puro
     const reused = await wasPasswordUsed(req.user!.id, newPassword);
     if (reused) {
       return res.status(400).json({ error: 'A nova senha não pode ser igual a nenhuma das últimas 5 senhas utilizadas.' });
     }
-
     const newPasswordHash = await bcrypt.hash(newPassword, 10);
-    await run(
-      'UPDATE users SET password_hash = $1, updated_at = NOW() WHERE id = $2',
-      [newPasswordHash, req.user!.id]
-    );
 
-    await savePasswordHistory(req.user!.id, newPasswordHash);
-
-    await run('UPDATE active_sessions SET active = FALSE WHERE user_id = $1 AND active = TRUE', [req.user!.id]);
+    await transaction(async (client) => {
+      await client.query('UPDATE users SET password_hash = $1, updated_at = NOW() WHERE id = $2', [newPasswordHash, req.user!.id]);
+      await client.query('INSERT INTO password_history (user_id, password_hash) VALUES ($1, $2)', [req.user!.id, newPasswordHash]);
+      await client.query(
+        'DELETE FROM password_history WHERE id IN (SELECT id FROM password_history WHERE user_id = $1 ORDER BY created_at DESC OFFSET $2)',
+        [req.user!.id, PASSWORD_HISTORY_LIMIT]
+      );
+      await client.query('UPDATE active_sessions SET active = FALSE WHERE user_id = $1 AND active = TRUE', [req.user!.id]);
+    });
 
     await logAudit({
       entity_type: 'auth', entity_id: String(req.user!.id), action: 'password_change',
-      user_id: req.user!.id, user_name: req.user!.name,
-      details: {}, ip_address, user_agent
+      user_id: req.user!.id, user_name: req.user!.name, details: {}, ip_address, user_agent
     });
-
     res.json({ message: 'Senha alterada com sucesso. Todas as sessões foram encerradas.' });
   } catch (error) {
     console.error('Change password error:', error);
@@ -366,10 +341,10 @@ router.put('/change-password', authenticateToken, async (req: Request, res: Resp
 
 router.get('/users', authenticateToken, requirePermission('users.view'), async (req: Request, res: Response) => {
   try {
-      if (req.user?.role !== 'admin' && req.user?.role !== 'administrador' && req.user?.role !== 'gestor' && req.user?.role !== 'diretor') {
-        return res.status(403).json({ error: 'Permissão insuficiente' });
-      }
-    const users = await all<UserResponse & { active: boolean; created_at: string; deleted_at: string | null }>(
+    if (req.user?.role !== 'admin' && req.user?.role !== 'administrador' && req.user?.role !== 'gestor' && req.user?.role !== 'diretor') {
+      return res.status(403).json({ error: 'Permissão insuficiente' });
+    }
+    const users = await all(
       'SELECT id, email, name, role, active, created_at, deleted_at FROM users WHERE deleted_at IS NULL ORDER BY name'
     );
     res.json(users);
@@ -410,8 +385,7 @@ router.post('/users', authenticateToken, requirePermission('users.create'), asyn
     await logAudit({
       entity_type: 'user', entity_id: String(newUserId), action: 'create',
       user_id: req.user!.id, user_name: req.user!.name,
-      details: { target_email: email, target_role: newRole },
-      ip_address, user_agent
+      details: { target_email: email, target_role: newRole }, ip_address, user_agent
     });
     res.status(201).json({ message: 'Usuário criado com sucesso', user: result.rows[0] });
   } catch (error) {
@@ -441,12 +415,14 @@ router.put('/users/:id', authenticateToken, requirePermission('users.edit'), asy
       return res.status(400).json({ error: 'Não é possível alterar a própria conta' });
     }
     const data = updateUserSchema.parse(req.body);
-    const existing = await get<User>('SELECT id, role FROM users WHERE id = $1 AND deleted_at IS NULL', [id]);
+    const existing = await get('SELECT id, role FROM users WHERE id = $1 AND deleted_at IS NULL', [id]);
     if (!existing) {
       return res.status(404).json({ error: 'Usuário não encontrado' });
     }
     if ((existing.role === 'admin' || existing.role === 'administrador') && data.role && data.role !== 'admin' && data.role !== 'administrador') {
-      const adminCount = await get<{ count: string }>("SELECT COUNT(*) as count FROM users WHERE (role = 'admin' OR role = 'administrador') AND active = TRUE AND deleted_at IS NULL");
+      const adminCount = await get<{ count: string }>(
+        "SELECT COUNT(*) as count FROM users WHERE (role = 'admin' OR role = 'administrador') AND active = TRUE AND deleted_at IS NULL"
+      );
       if (parseInt(adminCount?.count || '0') <= 1) {
         return res.status(400).json({ error: 'Deve haver ao menos um administrador ativo' });
       }
@@ -470,9 +446,7 @@ router.put('/users/:id', authenticateToken, requirePermission('users.edit'), asy
       await run('UPDATE active_sessions SET active = FALSE WHERE user_id = $1', [id]);
     }
 
-    const updated = await get<UserResponse & { active: boolean }>(
-      'SELECT id, email, name, role, active FROM users WHERE id = $1 AND deleted_at IS NULL', [id]
-    );
+    const updated = await get('SELECT id, email, name, role, active FROM users WHERE id = $1 AND deleted_at IS NULL', [id]);
     await logAudit({
       entity_type: 'user', entity_id: String(id), action: 'update',
       user_id: req.user!.id, user_name: req.user!.name,
@@ -498,14 +472,13 @@ router.delete('/users/:id', authenticateToken, requirePermission('users.delete')
     if (id === req.user!.id) {
       return res.status(400).json({ error: 'Não é possível excluir a própria conta' });
     }
-    const existing = await get<User>('SELECT id, role FROM users WHERE id = $1 AND deleted_at IS NULL', [id]);
+    const existing = await get('SELECT id, role FROM users WHERE id = $1 AND deleted_at IS NULL', [id]);
     if (!existing) return res.status(404).json({ error: 'Usuário não encontrado' });
     await run('UPDATE users SET deleted_at = NOW(), active = FALSE WHERE id = $1', [id]);
     await run('UPDATE active_sessions SET active = FALSE WHERE user_id = $1', [id]);
     await logAudit({
       entity_type: 'user', entity_id: String(id), action: 'delete',
-      user_id: req.user!.id, user_name: req.user!.name,
-      details: {}, ip_address, user_agent
+      user_id: req.user!.id, user_name: req.user!.name, details: {}, ip_address, user_agent
     });
     res.json({ message: 'Usuário excluído com sucesso' });
   } catch (error) {
@@ -525,7 +498,7 @@ router.put('/users/:id/password', authenticateToken, requirePermission('users.ed
       return res.status(400).json({ error: 'Use a troca de senha do próprio perfil' });
     }
     const { newPassword } = z.object({ newPassword: z.string().min(6).max(100) }).parse(req.body);
-    const existing = await get<User>('SELECT id FROM users WHERE id = $1 AND deleted_at IS NULL', [id]);
+    const existing = await get('SELECT id FROM users WHERE id = $1 AND deleted_at IS NULL', [id]);
     if (!existing) return res.status(404).json({ error: 'Usuário não encontrado' });
     const passwordHash = await bcrypt.hash(newPassword, 10);
     await run('UPDATE users SET password_hash = $1, updated_at = NOW() WHERE id = $2', [passwordHash, id]);
@@ -533,8 +506,7 @@ router.put('/users/:id/password', authenticateToken, requirePermission('users.ed
     await run('UPDATE active_sessions SET active = FALSE WHERE user_id = $1', [id]);
     await logAudit({
       entity_type: 'user', entity_id: String(id), action: 'password_reset',
-      user_id: req.user!.id, user_name: req.user!.name,
-      details: {}, ip_address, user_agent
+      user_id: req.user!.id, user_name: req.user!.name, details: {}, ip_address, user_agent
     });
     res.json({ message: 'Senha alterada com sucesso' });
   } catch (error) {

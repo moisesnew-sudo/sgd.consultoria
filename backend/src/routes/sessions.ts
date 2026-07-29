@@ -10,8 +10,8 @@ router.get('/', authenticateToken, requireRole('admin'), async (req: Request, re
   try {
     const sessions = await all(
       `SELECT s.id, s.user_id, u.name, u.email, u.role, s.ip_address, s.browser, s.os,
-              s.user_agent, s.last_activity, s.started_at, s.active,
-              CASE WHEN s.last_activity > NOW() - INTERVAL '30 minutes' THEN 'Ativa' ELSE 'Inativa' END as status
+        s.user_agent, s.last_activity, s.started_at, s.active,
+        CASE WHEN s.last_activity > NOW() - INTERVAL '30 minutes' THEN 'Ativa' ELSE 'Inativa' END as status
        FROM active_sessions s
        JOIN users u ON u.id = s.user_id
        WHERE s.active = TRUE
@@ -35,9 +35,9 @@ router.delete('/:id', authenticateToken, requireRole('admin'), async (req: Reque
 
     await run('UPDATE active_sessions SET active = FALSE WHERE id = $1', [req.params.id]);
     if (session.token_hash) {
-      const decoded = await get<{ exp?: number }>('SELECT 1'); // just to have a fallback
+      // ✅ CORREÇÃO: Blacklist com expiração adequada (24h)
       await run(
-        'INSERT INTO token_blacklist (token_hash, expires_at) VALUES ($1, NOW() + INTERVAL \'24 hours\') ON CONFLICT DO NOTHING',
+        `INSERT INTO token_blacklist (token_hash, expires_at) VALUES ($1, NOW() + INTERVAL '24 hours') ON CONFLICT DO NOTHING`,
         [session.token_hash]
       );
     }
@@ -45,8 +45,7 @@ router.delete('/:id', authenticateToken, requireRole('admin'), async (req: Reque
     await logAudit({
       entity_type: 'session', entity_id: String(req.params.id), action: 'session_terminated',
       user_id: req.user!.id, user_name: req.user!.name,
-      details: { target_user_id: session.user_id },
-      ip_address, user_agent
+      details: { target_user_id: session.user_id }, ip_address, user_agent
     });
 
     res.json({ message: 'Sessão encerrada com sucesso' });
@@ -60,7 +59,7 @@ router.get('/my-sessions', authenticateToken, async (req: Request, res: Response
   try {
     const sessions = await all(
       `SELECT id, ip_address, browser, os, last_activity, started_at, active,
-              CASE WHEN last_activity > NOW() - INTERVAL '30 minutes' THEN 'Ativa' ELSE 'Inativa' END as status
+        CASE WHEN last_activity > NOW() - INTERVAL '30 minutes' THEN 'Ativa' ELSE 'Inativa' END as status
        FROM active_sessions
        WHERE user_id = $1 AND active = TRUE
        ORDER BY last_activity DESC`,

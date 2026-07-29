@@ -7,6 +7,13 @@ import { get, run } from '../database.js';
 const ACCESS_TOKEN_EXPIRY = '15m';
 const REFRESH_TOKEN_EXPIRY_DAYS = 7;
 
+const JWT_SECRET = process.env.JWT_SECRET;
+const REFRESH_SECRET = JWT_SECRET ? `${JWT_SECRET}_refresh` : null;
+
+if (!JWT_SECRET || JWT_SECRET.length < 32) {
+  throw new Error('JWT_SECRET inválido ou não configurado. Deve ter pelo menos 32 caracteres.');
+}
+
 declare global {
   namespace Express {
     interface Request {
@@ -25,26 +32,22 @@ const cleanupBlacklist = async () => {
   try {
     const { run } = await import('../database.js');
     await run('DELETE FROM token_blacklist WHERE expires_at < NOW()');
-  } catch { /* non-critical cleanup */ }
+  } catch { }
 };
 
 export const authenticateToken = async (req: Request, res: Response, next: NextFunction) => {
   const authHeader = req.headers['authorization'];
   const token = authHeader && authHeader.split(' ')[1];
-
   if (!token) {
     return res.status(401).json({ error: 'Token de acesso não fornecido' });
   }
-
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET!) as UserResponse;
-
+    const decoded = jwt.verify(token, JWT_SECRET!) as UserResponse;
     const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
     const blacklisted = await get('SELECT id FROM token_blacklist WHERE token_hash = $1', [tokenHash]);
     if (blacklisted) {
       return res.status(401).json({ error: 'Sessão encerrada. Faça login novamente.' });
     }
-
     req.user = decoded;
     cleanupBlacklist();
     next();
@@ -58,11 +61,9 @@ export const requireRole = (...roles: string[]) => {
     if (!req.user) {
       return res.status(401).json({ error: 'Usuário não autenticado' });
     }
-
     if (!roles.includes(req.user.role)) {
       return res.status(403).json({ error: 'Permissão insuficiente' });
     }
-
     next();
   };
 };
@@ -102,14 +103,17 @@ export const requirePermission = (permissionKey: string) => {
 export function signAccessToken(user: { id: number; email: string; name: string; role: string }): string {
   return jwt.sign(
     { id: user.id, email: user.email, name: user.name, role: user.role },
-    process.env.JWT_SECRET!,
+    JWT_SECRET!,
     { expiresIn: ACCESS_TOKEN_EXPIRY }
   );
 }
 
 export function signRefreshToken(userId: number, family: string): string {
   const payload = { userId, family, type: 'refresh' };
-  return jwt.sign(payload, process.env.JWT_SECRET! + '_refresh', {
+  if (!REFRESH_SECRET) {
+    throw new Error('Refresh secret não configurado');
+  }
+  return jwt.sign(payload, REFRESH_SECRET, {
     expiresIn: `${REFRESH_TOKEN_EXPIRY_DAYS}d`
   });
 }
@@ -123,16 +127,16 @@ export const authenticateRefreshToken = async (req: Request, res: Response, next
   if (!refreshToken) {
     return res.status(401).json({ error: 'Refresh token não fornecido' });
   }
-
   try {
-    const decoded = jwt.verify(refreshToken, process.env.JWT_SECRET! + '_refresh') as { userId: number; family: string };
+    if (!REFRESH_SECRET) {
+      throw new Error('Refresh secret não configurado');
+    }
+    const decoded = jwt.verify(refreshToken, REFRESH_SECRET) as { userId: number; family: string };
     const tokenHash = crypto.createHash('sha256').update(refreshToken).digest('hex');
-
     const stored = await get<{ id: number; revoked: boolean; user_id: number; family: string; replaced_by: string | null }>(
       'SELECT id, revoked, user_id, family, replaced_by FROM refresh_tokens WHERE token_hash = $1',
       [tokenHash]
     );
-
     if (!stored || stored.revoked) {
       if (stored?.replaced_by) {
         const replacement = await get<{ id: number }>('SELECT id FROM refresh_tokens WHERE token_hash = $1', [stored.replaced_by]);
@@ -142,7 +146,6 @@ export const authenticateRefreshToken = async (req: Request, res: Response, next
       }
       return res.status(401).json({ error: 'Refresh token inválido ou revogado' });
     }
-
     const user = await get<{ id: number; email: string; name: string; role: string }>(
       'SELECT id, email, name, role FROM users WHERE id = $1 AND active = TRUE AND deleted_at IS NULL',
       [stored.user_id]
@@ -150,7 +153,6 @@ export const authenticateRefreshToken = async (req: Request, res: Response, next
     if (!user) {
       return res.status(401).json({ error: 'Usuário não encontrado ou inativo' });
     }
-
     req.user = { id: user.id, email: user.email, name: user.name, role: user.role as UserResponse['role'] };
     req.refreshTokenId = stored.id;
     req.refreshFamily = stored.family;
@@ -171,15 +173,12 @@ export const requireAdmin = (req: Request, res: Response, next: NextFunction) =>
 export const optionalAuth = (req: Request, res: Response, next: NextFunction) => {
   const authHeader = req.headers['authorization'];
   const token = authHeader && authHeader.split(' ')[1];
-
   if (token) {
     try {
-      const decoded = jwt.verify(token, process.env.JWT_SECRET!) as UserResponse;
+      const decoded = jwt.verify(token, JWT_SECRET!) as UserResponse;
       req.user = decoded;
     } catch (error) {
-      // Token invalid, continue without user
     }
   }
-
   next();
 };
