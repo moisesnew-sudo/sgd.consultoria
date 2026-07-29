@@ -40,7 +40,7 @@ export default function Sidebar({ activeTab, setActiveTab, isOpen, setIsOpen, pe
       { id: 'new-demand', label: 'Nova Demanda', icon: FilePlus2, badge: null }
     ] : []),
     ...(isAuthenticated && hasPermission('demands.view') ? [
-      { id: 'demands', label: 'Demandas', icon: FolderKanban, badge: pendingCount > 0 ? pendingCount : null }
+      { id: 'demands', label: 'Demandas', icon: FolderKanban, badge: null }
     ] : []),
     ...(isAuthenticated && hasPermission('demands.view') ? [
       { id: 'calendar', label: 'Calendário', icon: Calendar, badge: null }
