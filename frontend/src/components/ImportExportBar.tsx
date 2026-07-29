@@ -194,45 +194,45 @@ export default function ImportExportBar({ rows, filters, onImported }: ImportExp
     const borderColor: [number, number, number] = [206, 212, 218];
 
     function addHeader(y: number) {
-      const logoH = 14;
-      const logoW = 36;
+      const logoH = 18;
+      const logoW = 46;
       try {
         doc.addImage(LOGO_B64, 'JPEG', (pageW - logoW) / 2, y - logoH + 2, logoW, logoH);
       } catch {
-        doc.setFontSize(20);
+        doc.setFontSize(24);
         doc.setFont('helvetica', 'bold');
         doc.setTextColor(...primaryColor);
         doc.text('CGASI.SE', pageW / 2, y, { align: 'center' });
       }
 
-      doc.setFontSize(8);
-      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(9);
+      doc.setFont('helvetica', 'bold');
       doc.setTextColor(...textSecondary);
       doc.text(
         'COORDENAÇÃO GERAL DE ARTICULAÇÃO E SUPERVISÃO INSTITUCIONAL DA SECRETARIA EXECUTIVA / MAPA',
-        pageW / 2, y + 10, { align: 'center' }
+        pageW / 2, y + 12, { align: 'center' }
       );
 
       doc.setDrawColor(...goldColor);
-      doc.setLineWidth(0.6);
-      doc.line(margin, y + 13, pageW - margin, y + 13);
+      doc.setLineWidth(0.8);
+      doc.line(margin, y + 15, pageW - margin, y + 15);
       doc.setDrawColor(...primaryColor);
-      doc.setLineWidth(0.3);
-      doc.line(margin, y + 13.8, pageW - margin, y + 13.8);
+      doc.setLineWidth(0.4);
+      doc.line(margin, y + 16, pageW - margin, y + 16);
     }
 
     function addFooter(pageNum: number, totalPages: number) {
       doc.setDrawColor(...borderColor);
       doc.setLineWidth(0.3);
       doc.line(margin, 202, pageW - margin, 202);
-      doc.setFontSize(7);
+      doc.setFontSize(8);
       doc.setFont('helvetica', 'bold');
       doc.setTextColor(...primaryColor);
       doc.text('CGASI.SE', margin, 206);
       doc.setFont('helvetica', 'normal');
       doc.setTextColor(...textSecondary);
-      doc.text('Sistema de Gestão de Demandas', margin, 210);
-      doc.text(`${dateStr} ${timeStr}`, margin, 214);
+      doc.text('Sistema de Gestão de Demandas', margin, 211);
+      doc.text(`${dateStr} ${timeStr}`, margin, 216);
       doc.setTextColor(...textSecondary);
       doc.text(`Página ${pageNum} de ${totalPages}`, pageW - margin, 206, { align: 'right' });
     }
@@ -419,14 +419,14 @@ export default function ImportExportBar({ rows, filters, onImported }: ImportExp
       doc.setDrawColor(...borderColor);
       doc.setLineWidth(0.3);
       doc.line(margin, 202, pageW - margin, 202);
-      doc.setFontSize(7);
+      doc.setFontSize(8);
       doc.setFont('helvetica', 'bold');
       doc.setTextColor(...primaryColor);
       doc.text('CGASI.SE', margin, 206);
       doc.setFont('helvetica', 'normal');
       doc.setTextColor(...textSecondary);
-      doc.text('Sistema de Gestão de Demandas', margin, 210);
-      doc.text(`${dateStr} ${timeStr}`, margin, 214);
+      doc.text('Sistema de Gestão de Demandas', margin, 211);
+      doc.text(`${dateStr} ${timeStr}`, margin, 216);
       doc.setTextColor(...textSecondary);
       doc.text(`Página ${i} de ${finalPages}`, pageW - margin, 206, { align: 'right' });
     }

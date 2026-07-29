@@ -159,9 +159,9 @@ body{font-family:'Inter','Segoe UI',system-ui,sans-serif;font-size:12px;line-hei
 .cvr{min-height:297mm;display:flex;flex-direction:column;background:linear-gradient(165deg,#d6f7ed,#bdf2e2 50%,#a8e8d0);page-break-after:always}
 .cvr-bd{flex:1;padding:25mm 20mm;display:flex;flex-direction:column}
 .cvr-lg{display:flex;align-items:center;gap:16px;margin-bottom:64px}
-.cvr-lg-logo{height:64px;border-radius:12px;box-shadow:0 10px 15px -3px rgba(15,81,50,.2)}
-.cvr-lg-t p:first-child{font-size:10px;font-weight:700;color:#0F5132;text-transform:uppercase;letter-spacing:.2em}
-.cvr-lg-t p:last-child{font-size:8px;color:#495057;text-transform:uppercase;margin-top:2px}
+.cvr-lg-logo{height:96px;border-radius:12px;box-shadow:0 10px 15px -3px rgba(15,81,50,.2)}
+.cvr-lg-t p:first-child{font-size:14px;font-weight:900;color:#0F5132;text-transform:uppercase;letter-spacing:.2em}
+.cvr-lg-t p:last-child{font-size:11px;color:#495057;text-transform:uppercase;margin-top:2px}
 .cvr-bdg{font-size:10px;font-weight:700;color:#0F5132;text-transform:uppercase;letter-spacing:.25em;background:#bdf2e2;padding:6px 12px;border-radius:999px;display:inline-block;width:fit-content;margin-bottom:20px}
 .cvr-tit{font-size:32px;font-weight:900;color:#212529;line-height:1.1;letter-spacing:-.02em;margin-bottom:12px}
 .cvr-sub{font-size:22px;color:#495057;font-weight:300;margin-bottom:40px}
@@ -169,7 +169,7 @@ body{font-family:'Inter','Segoe UI',system-ui,sans-serif;font-size:12px;line-hei
 .cvr-info .r{display:flex;justify-content:space-between;margin-bottom:8px}
 .cvr-info .l{color:#495057;font-size:12px}
 .cvr-info .v{color:#212529;font-weight:600;font-size:12px;text-align:right;max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.cvr-ft{border-top:1px solid rgba(15,81,50,.3);padding:16px 20mm;display:flex;justify-content:space-between;font-size:10px;color:#495057}
+.cvr-ft{border-top:1px solid rgba(15,81,50,.3);padding:16px 20mm;display:flex;justify-content:space-between;font-size:11px;color:#495057}
 
 /* Pages */
 .pg{page-break-after:always;min-height:297mm;display:flex;flex-direction:column}
@@ -179,12 +179,12 @@ body{font-family:'Inter','Segoe UI',system-ui,sans-serif;font-size:12px;line-hei
 /* Page Header */
 .phdr{display:flex;align-items:center;justify-content:space-between;padding:25mm 20mm 10px 20mm;border-bottom:1px solid #ced4da;margin-bottom:20px}
 .phdr-l{display:flex;align-items:center;gap:10px}
-.phdr-logo{height:22px;border-radius:4px}
-.phdr-txt{font-size:10px;font-weight:600;color:#495057;text-transform:uppercase}
+.phdr-logo{height:28px;border-radius:4px}
+.phdr-txt{font-size:11px;font-weight:700;color:#495057;text-transform:uppercase}
 .phdr-num{font-size:10px;color:#495057;font-family:monospace}
 
 /* Footer */
-.pftr{border-top:1px solid #ced4da;padding:10px 20mm;display:flex;justify-content:space-between;font-size:9px;color:#495057;margin-top:auto}
+.pftr{border-top:1px solid #ced4da;padding:10px 20mm;display:flex;justify-content:space-between;font-size:11px;color:#495057;margin-top:auto}
 
 /* Section Title */
 .sectit{display:flex;align-items:center;gap:8px;margin-bottom:20px}
