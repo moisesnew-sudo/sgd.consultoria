@@ -10,22 +10,14 @@ if (!process.env.DATABASE_URL) {
   }
 }
 
-// ✅ CORREÇÃO: SSL com CA certificado em produção
 function getSSLConfig(): any {
   if (process.env.NODE_ENV !== 'production') {
     return false;
   }
-  // Se houver certificado CA customizado
   if (process.env.DB_CA_CERT) {
     return { ca: process.env.DB_CA_CERT };
   }
-  // Para Render.com, use rejectUnauthorized: false apenas se não houver CA
-  // Idealmente, baixe o certificado CA do Render e coloque em DB_CA_CERT
-  if (process.env.DATABASE_URL?.includes('render.com') && !process.env.DB_CA_CERT) {
-    console.warn('⚠️  Usando SSL sem verificação de certificado. Recomendado: configure DB_CA_CERT com o certificado CA do Render.');
-    return { rejectUnauthorized: false };
-  }
-  return { rejectUnauthorized: true };
+  return { rejectUnauthorized: false };
 }
 
 const pool = new pg.Pool({
