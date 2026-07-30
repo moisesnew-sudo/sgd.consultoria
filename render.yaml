@@ -19,6 +19,6 @@ services:
       - key: JWT_SECRET
         sync: false
       - key: CORS_ORIGIN
-        value: "*"
+        value: https://sgd-consultoria.vercel.app,http://localhost:3000
       - key: PUBLIC_API_URL
         value: https://sgd-consultoria.onrender.com/api
