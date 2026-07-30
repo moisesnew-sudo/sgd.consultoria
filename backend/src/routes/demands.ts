@@ -6,6 +6,7 @@ import { Demand, DEMAND_STATUSES, DEMAND_PRIORITIES } from '../types.js';
 import { authenticateToken, requirePermission } from '../middleware/auth.js';
 import { logAudit, extractMeta } from '../lib/audit.js';
 import { logger } from '../lib/logger.js';
+import { getCached, setCache, clearCache } from '../lib/cache.js';
 import { addTimelineEvent, buildUpdateQuery } from '../lib/helpers.js';
 
 const router = Router();
@@ -216,6 +217,7 @@ router.post('/', authenticateToken, requirePermission('demands.create'), async (
       details: { municipality: data.municipality, uf: data.uf, value: data.requested_value || 0 },
       ip_address, user_agent
     });
+    clearCache('dashboard-stats');
     res.status(201).json(newDemand);
   } catch (error) {
     if (error instanceof z.ZodError) {
@@ -253,6 +255,7 @@ router.put('/:id', authenticateToken, requirePermission('demands.edit'), async (
       user_id: req.user!.id, user_name: req.user!.name,
       details: { changed: Object.keys(data), status: data.status }, ip_address, user_agent
     });
+    clearCache('dashboard-stats');
     res.json(updated);
   } catch (error) {
     if (error instanceof z.ZodError) {
@@ -282,6 +285,7 @@ router.delete('/:id', authenticateToken, requirePermission('demands.delete'), as
       user_id: req.user!.id, user_name: req.user!.name,
       details: { municipality: demand.municipality, uf: demand.uf }, ip_address, user_agent
     });
+    clearCache('dashboard-stats');
     res.json({ message: 'Demanda removida com sucesso' });
   } catch (error) {
     logger.error('Delete demand error', { error });
@@ -337,6 +341,10 @@ router.post('/:id/timeline', authenticateToken, requirePermission('demands.edit'
 router.get('/stats/dashboard', authenticateToken, async (req: Request, res: Response) => {
   try {
     const total = await get<{ count: string }>('SELECT COUNT(*) as count FROM demands WHERE deleted_at IS NULL');
+    const cacheKey = 'dashboard-stats';
+    const cached = getCached<any>(cacheKey);
+    if (cached) return res.json(cached);
+
     const byStatus = await all<{ status: string; count: string }>(
       'SELECT status, COUNT(*) as count FROM demands WHERE deleted_at IS NULL GROUP BY status ORDER BY count DESC'
     );
@@ -352,7 +360,7 @@ router.get('/stats/dashboard', authenticateToken, async (req: Request, res: Resp
       'SELECT COUNT(*) as count FROM demands WHERE deleted_at IS NULL AND DATE(created_at) = $1', [today]
     );
     const overdue = await getAllOverdue();
-    res.json({
+    const result = {
       total: parseInt(total?.count || '0'),
       byStatus: byStatus.reduce((acc, item) => ({ ...acc, [item.status]: parseInt(item.count) }), {}),
       byPriority: byPriority.reduce((acc, item) => ({ ...acc, [item.priority]: parseInt(item.count) }), {}),
@@ -360,7 +368,9 @@ router.get('/stats/dashboard', authenticateToken, async (req: Request, res: Resp
       totalValue: parseFloat(totalValue?.total || '0'),
       todayCount: parseInt(todayCount?.count || '0'),
       overdue
-    });
+    };
+    setCache(cacheKey, result, 30_000);
+    res.json(result);
   } catch (error) {
     logger.error('Dashboard stats error', { error });
     res.status(500).json({ error: 'Erro ao buscar estatísticas' });
