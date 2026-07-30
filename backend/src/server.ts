@@ -171,7 +171,6 @@ const apiLimiter = rateLimit({
 });
 
 app.use('/api/auth/login', authLimiter);
-app.use('/api/auth/', authLimiter);
 app.use('/api/password-reset/request', passwordResetLimiter);
 app.use('/api/', apiLimiter);
 
