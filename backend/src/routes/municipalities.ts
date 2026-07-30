@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { get, all, run } from '../database.js';
 import { REGIONS } from '../types.js';
 import { authenticateToken, requireRole } from '../middleware/auth.js';
+import { logger } from '../lib/logger.js';
 
 const router = Router();
 
@@ -33,7 +34,7 @@ router.get('/', authenticateToken, async (req: Request, res: Response) => {
     const municipalities = await all(sql, params);
     res.json(municipalities);
   } catch (error) {
-    console.error('Get municipalities error:', error);
+    logger.error('Get municipalities error:', error);
     res.status(500).json({ error: 'Erro ao buscar municípios' });
   }
 });
@@ -50,7 +51,7 @@ router.get('/:id', authenticateToken, async (req: Request, res: Response) => {
 
     res.json({ ...municipality, demands });
   } catch (error) {
-    console.error('Get municipality error:', error);
+    logger.error('Get municipality error:', error);
     res.status(500).json({ error: 'Erro ao buscar município' });
   }
 });
@@ -71,7 +72,7 @@ router.post('/', authenticateToken, requireRole('admin'), async (req: Request, r
     res.status(201).json(result.rows[0]);
   } catch (error) {
     if (error instanceof z.ZodError) return res.status(400).json({ error: 'Dados inválidos', details: error.errors });
-    console.error('Create municipality error:', error);
+    logger.error('Create municipality error:', error);
     res.status(500).json({ error: 'Erro ao criar município' });
   }
 });
@@ -93,7 +94,7 @@ router.put('/:id', authenticateToken, requireRole('admin'), async (req: Request,
     res.json(result.rows[0]);
   } catch (error) {
     if (error instanceof z.ZodError) return res.status(400).json({ error: 'Dados inválidos', details: error.errors });
-    console.error('Update municipality error:', error);
+    logger.error('Update municipality error:', error);
     res.status(500).json({ error: 'Erro ao atualizar município' });
   }
 });
@@ -115,7 +116,7 @@ router.delete('/:id', authenticateToken, requireRole('admin'), async (req: Reque
     await run('UPDATE municipalities SET deleted_at = NOW() WHERE id = $1', [req.params.id]);
     res.json({ message: 'Município removido com sucesso' });
   } catch (error) {
-    console.error('Delete municipality error:', error);
+    logger.error('Delete municipality error:', error);
     res.status(500).json({ error: 'Erro ao remover município' });
   }
 });
@@ -127,7 +128,7 @@ router.post('/:id/restore', authenticateToken, requireRole('admin'), async (req:
     await run('UPDATE municipalities SET deleted_at = NULL WHERE id = $1', [req.params.id]);
     res.json({ message: 'Município restaurado com sucesso' });
   } catch (error) {
-    console.error('Restore municipality error:', error);
+    logger.error('Restore municipality error:', error);
     res.status(500).json({ error: 'Erro ao restaurar município' });
   }
 });
@@ -140,7 +141,7 @@ router.get('/stats/by-region', authenticateToken, async (req: Request, res: Resp
     `);
     res.json(stats);
   } catch (error) {
-    console.error('Municipality stats error:', error);
+    logger.error('Municipality stats error:', error);
     res.status(500).json({ error: 'Erro ao buscar estatísticas' });
   }
 });

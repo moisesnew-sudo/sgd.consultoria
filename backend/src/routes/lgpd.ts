@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { get, all } from '../database.js';
 import { authenticateToken, requireRole } from '../middleware/auth.js';
+import { logger } from '../lib/logger.js';
 
 const router = Router();
 
@@ -60,7 +61,7 @@ router.get('/dashboard', authenticateToken, requireRole('admin'), async (req: Re
       exports: exportTypes.reduce((acc: any, e) => ({ ...acc, [e.export_type]: parseInt(e.count) }), {})
     });
   } catch (error) {
-    console.error('LGPD dashboard error:', error);
+    logger.error('LGPD dashboard error:', error);
     res.status(500).json({ error: 'Erro ao carregar dados LGPD' });
   }
 });

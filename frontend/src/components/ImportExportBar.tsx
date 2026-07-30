@@ -1,7 +1,5 @@
 import React, { useState, useRef } from 'react';
 import * as XLSX from 'xlsx-js-style';
-import { jsPDF } from 'jspdf';
-import autoTable from 'jspdf-autotable';
 import { UploadCloud, Download, FileText, X, Loader2, CheckCircle2, AlertTriangle } from 'lucide-react';
 import { Demand } from '../types';
 import { demandsApi, formatDate, logExport } from '../services/api';
@@ -164,7 +162,11 @@ export default function ImportExportBar({ rows, filters, onImported }: ImportExp
     URL.revokeObjectURL(url);
   };
 
-  const exportPdf = () => {
+  const exportPdf = async () => {
+    const [{ jsPDF }, autoTable] = await Promise.all([
+      import('jspdf'),
+      import('jspdf-autotable').then(m => m.default)
+    ]);
     const doc = new jsPDF('landscape', 'mm', 'a4');
     const pageW = 297;
     const margin = 20;

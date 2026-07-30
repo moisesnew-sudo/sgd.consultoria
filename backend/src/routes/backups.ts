@@ -6,6 +6,7 @@ import { fileURLToPath } from 'url';
 import { get, all, run, transaction } from '../database.js';
 import { authenticateToken, requireRole } from '../middleware/auth.js';
 import { logAudit, extractMeta } from '../lib/audit.js';
+import { logger } from '../lib/logger.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -40,7 +41,7 @@ router.get('/', authenticateToken, requireRole('admin'), async (req: Request, re
     );
     res.json(backups);
   } catch (error) {
-    console.error('List backups error:', error);
+    logger.error('List backups error:', error);
     res.status(500).json({ error: 'Erro ao listar backups' });
   }
 });
@@ -76,7 +77,7 @@ router.post('/', authenticateToken, requireRole('admin'), async (req: Request, r
 
     res.status(201).json({ id: result.rows[0].id, filename, file_size: fileSize, sha256_hash: sha256Hash, backup_type: backupType, status: 'completed', created_at: new Date().toISOString() });
   } catch (error) {
-    console.error('Create backup error:', error);
+    logger.error('Create backup error:', error);
     res.status(500).json({ error: 'Erro ao criar backup' });
   }
 });
@@ -93,7 +94,7 @@ router.get('/:id/download', authenticateToken, requireRole('admin'), async (req:
     res.setHeader('Content-Disposition', `attachment; filename=${backup.filename}`);
     res.sendFile(backup.file_path);
   } catch (error) {
-    console.error('Download backup error:', error);
+    logger.error('Download backup error:', error);
     res.status(500).json({ error: 'Erro ao baixar backup' });
   }
 });
@@ -112,7 +113,7 @@ router.post('/:id/verify', authenticateToken, requireRole('admin'), async (req: 
     const valid = currentHash === backup.sha256_hash;
     res.json({ valid, stored_hash: backup.sha256_hash, computed_hash: currentHash, filename: backup.filename });
   } catch (error) {
-    console.error('Verify backup error:', error);
+    logger.error('Verify backup error:', error);
     res.status(500).json({ error: 'Erro ao verificar backup' });
   }
 });
@@ -175,7 +176,7 @@ router.post('/:id/restore', authenticateToken, requireRole('admin'), async (req:
 
     res.json({ message: 'Backup restaurado com sucesso. Todas as sessões foram encerradas.' });
   } catch (error) {
-    console.error('Restore backup error:', error);
+    logger.error('Restore backup error:', error);
     res.status(500).json({ error: 'Erro ao restaurar backup' });
   }
 });

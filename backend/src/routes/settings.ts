@@ -4,6 +4,7 @@ import crypto from 'crypto';
 import { get, all, run, transaction } from '../database.js';
 import { authenticateToken, requireRole, requirePermission } from '../middleware/auth.js';
 import { logAudit, logExport, extractMeta } from '../lib/audit.js';
+import { logger } from '../lib/logger.js';
 import { buildUpdateQuery } from '../lib/helpers.js';
 
 const router = Router();
@@ -47,7 +48,7 @@ router.get('/', authenticateToken, async (req: Request, res: Response) => {
     }
     res.json(settings);
   } catch (error) {
-    console.error('Get settings error:', error);
+    logger.error('Get settings error:', error);
     res.status(500).json({ error: 'Erro ao buscar configurações' });
   }
 });
@@ -70,7 +71,7 @@ router.put('/', authenticateToken, requireRole('admin'), requirePermission('sett
     res.json(updated);
   } catch (error) {
     if (error instanceof z.ZodError) return res.status(400).json({ error: 'Dados inválidos', details: error.errors });
-    console.error('Update settings error:', error);
+    logger.error('Update settings error:', error);
     res.status(500).json({ error: 'Erro ao atualizar configurações' });
   }
 });
@@ -97,7 +98,7 @@ router.get('/export', authenticateToken, requireRole('admin'), async (req: Reque
     res.setHeader('Content-Disposition', `attachment; filename=SGD_Backup_${new Date().toISOString().split('T')[0]}.json`);
     res.json(exportData);
   } catch (error) {
-    console.error('Export error:', error);
+    logger.error('Export error:', error);
     res.status(500).json({ error: 'Erro ao exportar dados' });
   }
 });
@@ -167,7 +168,7 @@ router.post('/import', authenticateToken, requireRole('admin'), async (req: Requ
 
     res.json({ message: 'Dados importados com sucesso' });
   } catch (error) {
-    console.error('Import error:', error);
+    logger.error('Import error:', error);
     res.status(500).json({ error: 'Erro ao importar dados' });
   }
 });

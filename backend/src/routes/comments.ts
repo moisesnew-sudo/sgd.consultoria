@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { get, all, run } from '../database.js';
 import { authenticateToken, requirePermission } from '../middleware/auth.js';
 import { logAudit } from '../lib/audit.js';
+import { logger } from '../lib/logger.js';
 
 const router = Router();
 

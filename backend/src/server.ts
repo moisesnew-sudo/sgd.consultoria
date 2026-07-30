@@ -7,6 +7,7 @@ import dotenv from 'dotenv';
 import { fileURLToPath } from 'url';
 import path from 'path';
 import fs from 'fs';
+import { logger } from './lib/logger.js';
 
 // Load environment variables
 dotenv.config();
@@ -40,8 +41,8 @@ function validateEnv() {
   }
 
   if (errors.length > 0) {
-    console.error('❌ ERROS DE CONFIGURAÇÃO CRÍTICOS:');
-    errors.forEach(e => console.error(`   - ${e}`));
+    logger.error('❌ ERROS DE CONFIGURAÇÃO CRÍTICOS:');
+    errors.forEach(e => logger.error(`   - ${e}`));
     process.exit(1);
   }
 }
@@ -104,7 +105,7 @@ const allowedOrigins = (process.env.CORS_ORIGIN || 'http://localhost:3000')
   .filter(s => s.length > 0 && s !== '*');
 
 if (process.env.NODE_ENV === 'production' && allowedOrigins.length === 0) {
-  console.error('❌ CORS_ORIGIN não configurado corretamente em produção');
+    logger.error('❌ CORS_ORIGIN não configurado corretamente em produção');
   process.exit(1);
 }
 
@@ -216,7 +217,7 @@ if (process.env.NODE_ENV === 'production' && process.env.SERVE_FRONTEND === 'tru
 
 // Error handling middleware
 app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
-  console.error('Unhandled error:', err);
+  logger.error('Unhandled error', { error: err.message, stack: process.env.NODE_ENV !== 'production' ? err.stack : undefined });
 
   res.status(err.status || 500).json({
     error: process.env.NODE_ENV === 'production'
@@ -243,15 +244,7 @@ async function start() {
   await run("DELETE FROM export_logs WHERE created_at < NOW() - INTERVAL '90 days'");
 
   app.listen(PORT, () => {
-    console.log(`
- 🚀 SGD Backend Server Running
- =============================
- Port: ${PORT}
- Environment: ${process.env.NODE_ENV || 'development'}
- API: http://localhost:${PORT}/api
- Health: http://localhost:${PORT}/api/health
- =============================
- `);
+    logger.info('SGD Backend Server Running', { port: PORT, env: process.env.NODE_ENV || 'development' });
   });
 }
 

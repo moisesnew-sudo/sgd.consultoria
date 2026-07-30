@@ -1,10 +1,12 @@
 import bcrypt from 'bcryptjs';
 import { get, run, all } from './database.js';
+import { logger } from './lib/logger.js';
 
 export async function runSeed() {
-  console.log('🌱 Verificando dados iniciais...');
+  logger.info('🌱 Verificando dados iniciais...');
 
-  const adminPassword = await bcrypt.hash('Admin2026!', 10);
+  const defaultPwd = () => process.env.SEED_DEFAULT_PASSWORD || 'Sgd@2026!';
+  const adminPassword = await bcrypt.hash(process.env.SEED_ADMIN_PASSWORD || defaultPwd(), 10);
   const existingAdmin = await get('SELECT id FROM users WHERE email = $1', ['admin@sgd.gov.br']);
 
   if (!existingAdmin) {
@@ -12,10 +14,10 @@ export async function runSeed() {
       'INSERT INTO users (email, password_hash, name, role) VALUES ($1, $2, $3, $4)',
       ['admin@sgd.gov.br', adminPassword, 'Administrador SGD', 'admin']
     );
-    console.log('✅ Usuário admin criado: admin@sgd.gov.br / Admin2026!');
+    logger.info('✅ Usuário admin criado: admin@sgd.gov.br / Admin2026!');
   }
 
-  const viewerPassword = await bcrypt.hash('Visitante2026!', 10);
+  const viewerPassword = await bcrypt.hash(process.env.SEED_VIEWER_PASSWORD || defaultPwd(), 10);
   const existingViewer = await get('SELECT id FROM users WHERE email = $1', ['consulta@sgd.gov.br']);
 
   if (!existingViewer) {
@@ -23,10 +25,10 @@ export async function runSeed() {
       'INSERT INTO users (email, password_hash, name, role) VALUES ($1, $2, $3, $4)',
       ['consulta@sgd.gov.br', viewerPassword, 'Consultor Público', 'consulta']
     );
-    console.log('✅ Usuário consulta criado: consulta@sgd.gov.br / Visitante2026!');
+    logger.info('✅ Usuário consulta criado: consulta@sgd.gov.br / Visitante2026!');
   }
 
-  const gestorPassword = await bcrypt.hash('Gestor2026!', 10);
+  const gestorPassword = await bcrypt.hash(process.env.SEED_GESTOR_PASSWORD || defaultPwd(), 10);
   const existingGestor = await get('SELECT id FROM users WHERE email = $1', ['gestor@sgd.gov.br']);
 
   if (!existingGestor) {
@@ -34,10 +36,10 @@ export async function runSeed() {
       'INSERT INTO users (email, password_hash, name, role) VALUES ($1, $2, $3, $4)',
       ['gestor@sgd.gov.br', gestorPassword, 'Gestor SGD', 'gestor']
     );
-    console.log('✅ Usuário gestor criado: gestor@sgd.gov.br / Gestor2026!');
+    logger.info('✅ Usuário gestor criado: gestor@sgd.gov.br / Gestor2026!');
   }
 
-  const analistaPassword = await bcrypt.hash('Analista2026!', 10);
+  const analistaPassword = await bcrypt.hash(process.env.SEED_ANALISTA_PASSWORD || defaultPwd(), 10);
   const existingAnalista = await get('SELECT id FROM users WHERE email = $1', ['analista@sgd.gov.br']);
 
   if (!existingAnalista) {
@@ -45,7 +47,7 @@ export async function runSeed() {
       'INSERT INTO users (email, password_hash, name, role) VALUES ($1, $2, $3, $4)',
       ['analista@sgd.gov.br', analistaPassword, 'Analista SGD', 'analista']
     );
-    console.log('✅ Usuário analista criado: analista@sgd.gov.br / Analista2026!');
+    logger.info('✅ Usuário analista criado: analista@sgd.gov.br / Analista2026!');
   }
 
   const municipalities = [
@@ -67,7 +69,7 @@ export async function runSeed() {
       [m.name, m.uf, m.schools_count, m.population, m.hdi, m.region]
     );
   }
-  console.log(`✅ ${municipalities.length} municípios inseridos`);
+  logger.info(`✅ ${municipalities.length} municípios inseridos`);
 
   // Seed permissions (always runs — ON CONFLICT DO NOTHING avoids duplicates)
   const permissions = [
@@ -148,15 +150,15 @@ export async function runSeed() {
     }
   }
 
-  console.log('✅ Permissões e perfis sincronizados');
+  logger.info('✅ Permissões e perfis sincronizados');
 
   // Seed new roles (idempotent)
   const NEW_USERS: { email: string; password: string; name: string; role: string }[] = [
-    { email: 'diretor@sgd.gov.br', password: 'Diretor2026!', name: 'Diretor SGD', role: 'diretor' },
-    { email: 'tecnico@sgd.gov.br', password: 'Tecnico2026!', name: 'Técnico SGD', role: 'tecnico' },
-    { email: 'parceiro@sgd.gov.br', password: 'Parceiro2026!', name: 'Parceiro SGD', role: 'parceiro' },
-    { email: 'cliente@sgd.gov.br', password: 'Cliente2026!', name: 'Cliente SGD', role: 'cliente' },
-    { email: 'visitante@sgd.gov.br', password: 'Visitante2026!', name: 'Visitante', role: 'visitante' },
+    { email: 'diretor@sgd.gov.br', password: process.env.SEED_DIRETOR_PASSWORD || defaultPwd(), name: 'Diretor SGD', role: 'diretor' },
+    { email: 'tecnico@sgd.gov.br', password: process.env.SEED_TECNICO_PASSWORD || defaultPwd(), name: 'Técnico SGD', role: 'tecnico' },
+    { email: 'parceiro@sgd.gov.br', password: process.env.SEED_PARCEIRO_PASSWORD || defaultPwd(), name: 'Parceiro SGD', role: 'parceiro' },
+    { email: 'cliente@sgd.gov.br', password: process.env.SEED_CLIENTE_PASSWORD || defaultPwd(), name: 'Cliente SGD', role: 'cliente' },
+    { email: 'visitante@sgd.gov.br', password: process.env.SEED_VISITANTE_PASSWORD || defaultPwd(), name: 'Visitante', role: 'visitante' },
   ];
 
   for (const nu of NEW_USERS) {
@@ -171,7 +173,6 @@ export async function runSeed() {
   }
 
   const newRolePerms: Record<string, number[]> = {
-    administrador: adminPerms,
     diretor: gestorPerms,
     tecnico: analistaPerms,
     parceiro: ['dashboard.view', 'demands.view', 'reports.view'].filter(k => permMap[k]).map(k => permMap[k]),
@@ -193,22 +194,15 @@ export async function runSeed() {
     await run(
       'INSERT INTO system_settings (id, sla_days_baixa, sla_days_media, sla_days_alta, sla_days_urgente, auto_triage, email_notifications, budget_cap) VALUES (1, 45, 30, 15, 5, TRUE, TRUE, 15000000) ON CONFLICT (id) DO NOTHING'
     );
-    console.log('✅ Configurações padrão criadas');
+    logger.info('✅ Configurações padrão criadas');
   }
 
-  console.log('\n🎉 Seed concluído com sucesso!');
-  console.log('\n📋 Credenciais de acesso:');
-  console.log('   Admin:      admin@sgd.gov.br / Admin2026!');
-  console.log('   Gestor:     gestor@sgd.gov.br / Gestor2026!');
-  console.log('   Analista:   analista@sgd.gov.br / Analista2026!');
-  console.log('   Consulta:   consulta@sgd.gov.br / Visitante2026!');
-  console.log('   Diretor:    diretor@sgd.gov.br / Diretor2026!');
-  console.log('   Técnico:    tecnico@sgd.gov.br / Tecnico2026!');
-  console.log('   Parceiro:   parceiro@sgd.gov.br / Parceiro2026!');
-  console.log('   Cliente:    cliente@sgd.gov.br / Cliente2026!');
-  console.log('   Visitante:  visitante@sgd.gov.br / Visitante2026!');
+  logger.info('🎉 Seed concluído com sucesso!');
+  if (!process.env.SEED_ADMIN_PASSWORD && !process.env.SEED_DEFAULT_PASSWORD) {
+    logger.info('📋 Usuários criados com senhas padrão. Defina SEED_*_PASSWORD nas env vars para personalizar.');
+  }
 }
 
 if (process.argv[1] && process.argv[1].includes('seed')) {
-  runSeed().catch(console.error);
+  runSeed().catch((err) => logger.error('Seed failed', { error: err instanceof Error ? err.message : err }));
 }

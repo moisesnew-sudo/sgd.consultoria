@@ -3,6 +3,7 @@ import { get, all, run } from '../database.js';
 import { Permission, PermissionCategory, UserResponse } from '../types.js';
 import { authenticateToken } from '../middleware/auth.js';
 import { logAudit } from '../lib/audit.js';
+import { logger } from '../lib/logger.js';
 
 const router = Router();
 
@@ -21,7 +22,7 @@ router.get('/', authenticateToken, async (req: Request, res: Response) => {
     }
     res.json(Object.values(grouped));
   } catch (error) {
-    console.error('List permissions error:', error);
+    logger.error('List permissions error:', error);
     res.status(500).json({ error: 'Erro ao listar permissões' });
   }
 });
@@ -40,7 +41,7 @@ router.get('/my', authenticateToken, async (req: Request, res: Response) => {
     );
     res.json(result.map(r => r.key));
   } catch (error) {
-    console.error('My permissions error:', error);
+    logger.error('My permissions error:', error);
     res.status(500).json({ error: 'Erro ao carregar permissões' });
   }
 });
@@ -59,7 +60,7 @@ router.get('/user/:id', authenticateToken, async (req: Request, res: Response) =
     );
     res.json(result);
   } catch (error) {
-    console.error('Get user permissions error:', error);
+    logger.error('Get user permissions error:', error);
     res.status(500).json({ error: 'Erro ao carregar permissões do usuário' });
   }
 });
@@ -108,7 +109,7 @@ router.put('/user/:id', authenticateToken, async (req: Request, res: Response) =
 
     res.json({ message: 'Permissões atualizadas com sucesso' });
   } catch (error) {
-    console.error('Update user permissions error:', error);
+    logger.error('Update user permissions error:', error);
     res.status(500).json({ error: 'Erro ao atualizar permissões' });
   }
 });

@@ -4,6 +4,7 @@ import crypto from 'crypto';
 import { z } from 'zod';
 import { get, run } from '../database.js';
 import { logAudit, extractMeta } from '../lib/audit.js';
+import { logger } from '../lib/logger.js';
 
 const router = Router();
 
@@ -40,7 +41,7 @@ router.post('/request', async (req: Request, res: Response) => {
       const resetLink = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/reset-password?token=${token}`;
       // ✅ CORREÇÃO: Log seguro (não expõe token/link completo)
       if (process.env.NODE_ENV !== 'production') {
-        console.log(`[PASSWORD RESET] Token gerado para ${email} (expira em 30min)`);
+        logger.info('Token de reset gerado', { email, expires: '30min' });
       }
 
       // TODO: Envie o link por email usando um serviço como SendGrid/AWS SES
@@ -57,7 +58,7 @@ router.post('/request', async (req: Request, res: Response) => {
     if (error instanceof z.ZodError) {
       return res.status(400).json({ error: 'Email inválido' });
     }
-    console.error('Password reset request error:', error);
+    logger.error('Password reset request error:', error);
     res.json({ message: 'Se o email estiver cadastrado, você receberá um link para redefinir sua senha.' });
   }
 });
@@ -93,7 +94,7 @@ router.post('/reset', async (req: Request, res: Response) => {
     if (error instanceof z.ZodError) {
       return res.status(400).json({ error: error.errors[0].message });
     }
-    console.error('Password reset error:', error);
+    logger.error('Password reset error:', error);
     res.status(500).json({ error: 'Erro interno do servidor' });
   }
 });

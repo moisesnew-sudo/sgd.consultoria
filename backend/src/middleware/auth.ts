@@ -3,6 +3,7 @@ import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
 import { UserResponse } from '../types.js';
 import { get, run } from '../database.js';
+import { logger } from '../lib/logger.js';
 
 const ACCESS_TOKEN_EXPIRY = '15m';
 const REFRESH_TOKEN_EXPIRY_DAYS = 7;
@@ -94,7 +95,7 @@ export const requirePermission = (permissionKey: string) => {
       }
       next();
     } catch (error) {
-      console.error('Permission check error:', error);
+      logger.error('Permission check error', { error: error instanceof Error ? error.message : error });
       return res.status(500).json({ error: 'Erro ao verificar permissão' });
     }
   };

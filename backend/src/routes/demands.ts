@@ -5,6 +5,7 @@ import { get, all, run } from '../database.js';
 import { Demand, DEMAND_STATUSES, DEMAND_PRIORITIES } from '../types.js';
 import { authenticateToken, requirePermission } from '../middleware/auth.js';
 import { logAudit, extractMeta } from '../lib/audit.js';
+import { logger } from '../lib/logger.js';
 import { addTimelineEvent, buildUpdateQuery } from '../lib/helpers.js';
 
 const router = Router();
@@ -117,7 +118,7 @@ router.get('/', authenticateToken, requirePermission('demands.view'), async (req
       pagination: { page: Number(page), limit: Number(limit), total, pages: Math.ceil(total / Number(limit)) }
     });
   } catch (error) {
-    console.error('Get demands error:', error);
+    logger.error('Get demands error', { error });
     res.status(500).json({ error: 'Erro ao buscar demandas' });
   }
 });
@@ -146,7 +147,7 @@ router.get('/calendar/events', authenticateToken, requirePermission('demands.vie
     ];
     res.json(result);
   } catch (error) {
-    console.error('Calendar events error:', error);
+    logger.error('Calendar events error', { error });
     res.status(500).json({ error: 'Erro ao buscar eventos' });
   }
 });
@@ -160,7 +161,7 @@ router.get('/:id/versions', authenticateToken, requirePermission('demands.view')
     );
     res.json(versions);
   } catch (error) {
-    console.error('Get versions error:', error);
+    logger.error('Get versions error', { error });
     res.status(500).json({ error: 'Erro ao buscar versões' });
   }
 });
@@ -174,7 +175,7 @@ router.get('/:id', authenticateToken, requirePermission('demands.view'), async (
     const comments = await all('SELECT * FROM comments WHERE demand_id = $1 AND deleted_at IS NULL ORDER BY created_at ASC', [demand.id]);
     res.json({ ...demand, timeline, attachments, comments });
   } catch (error) {
-    console.error('Get demand error:', error);
+    logger.error('Get demand error', { error });
     res.status(500).json({ error: 'Erro ao buscar demanda' });
   }
 });
@@ -221,7 +222,7 @@ router.post('/', authenticateToken, requirePermission('demands.create'), async (
       const messages = error.errors.map(e => `"${e.path.join('.')}": ${e.message}`).join('; ');
       return res.status(400).json({ error: messages || 'Dados inválidos', details: error.errors });
     }
-    console.error('Create demand error:', error);
+    logger.error('Create demand error', { error });
     res.status(500).json({ error: 'Erro ao criar demanda' });
   }
 });
@@ -258,7 +259,7 @@ router.put('/:id', authenticateToken, requirePermission('demands.edit'), async (
       const messages = error.errors.map(e => `"${e.path.join('.')}": ${e.message}`).join('; ');
       return res.status(400).json({ error: messages || 'Dados inválidos', details: error.errors });
     }
-    console.error('Update demand error:', error);
+    logger.error('Update demand error', { error });
     res.status(500).json({ error: 'Erro ao atualizar demanda' });
   }
 });
@@ -283,7 +284,7 @@ router.delete('/:id', authenticateToken, requirePermission('demands.delete'), as
     });
     res.json({ message: 'Demanda removida com sucesso' });
   } catch (error) {
-    console.error('Delete demand error:', error);
+    logger.error('Delete demand error', { error });
     res.status(500).json({ error: 'Erro ao remover demanda' });
   }
 });
@@ -306,7 +307,7 @@ router.post('/:id/restore', authenticateToken, requirePermission('demands.delete
     });
     res.json({ message: 'Demanda restaurada com sucesso' });
   } catch (error) {
-    console.error('Restore demand error:', error);
+    logger.error('Restore demand error', { error });
     res.status(500).json({ error: 'Erro ao restaurar demanda' });
   }
 });
@@ -328,7 +329,7 @@ router.post('/:id/timeline', authenticateToken, requirePermission('demands.edit'
     res.status(201).json(event);
   } catch (error) {
     if (error instanceof z.ZodError) return res.status(400).json({ error: 'Dados inválidos', details: error.errors });
-    console.error('Add timeline event error:', error);
+    logger.error('Add timeline event error', { error });
     res.status(500).json({ error: 'Erro ao adicionar evento' });
   }
 });
@@ -361,7 +362,7 @@ router.get('/stats/dashboard', authenticateToken, async (req: Request, res: Resp
       overdue
     });
   } catch (error) {
-    console.error('Dashboard stats error:', error);
+    logger.error('Dashboard stats error', { error });
     res.status(500).json({ error: 'Erro ao buscar estatísticas' });
   }
 });

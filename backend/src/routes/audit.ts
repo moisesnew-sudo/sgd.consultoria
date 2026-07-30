@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import { get, all, run } from '../database.js';
 import { authenticateToken, requireRole } from '../middleware/auth.js';
 import { extractMeta, logExport } from '../lib/audit.js';
+import { logger } from '../lib/logger.js';
 
 const router = Router();
 
@@ -28,7 +29,7 @@ router.get('/', authenticateToken, requireRole('admin'), async (req: Request, re
     const logs = await all(sql, params);
     res.json({ data: logs, pagination: { page: p, limit: l, total, pages: Math.ceil(total / l) } });
   } catch (e) {
-    console.error('Audit list error:', e);
+    logger.error('Audit list error:', e);
     res.status(500).json({ error: 'Erro ao listar logs' });
   }
 });
@@ -114,7 +115,7 @@ router.get('/dashboard-stats', authenticateToken, requireRole('admin'), async (r
       exports_done: exportsDone
     });
   } catch (e) {
-    console.error('Audit dashboard stats error:', e);
+    logger.error('Audit dashboard stats error:', e);
     res.status(500).json({ error: 'Erro ao carregar estatísticas' });
   }
 });
@@ -129,7 +130,7 @@ router.post('/log-export', authenticateToken, async (req: Request, res: Response
     await logExport(req, req.user!, export_type, record_count || 0, filters);
     res.json({ message: 'Exportação registrada' });
   } catch (error) {
-    console.error('Log export error:', error);
+    logger.error('Log export error:', error);
     res.status(500).json({ error: 'Erro ao registrar exportação' });
   }
 });
@@ -139,7 +140,7 @@ router.get('/stats', authenticateToken, async (req: Request, res: Response) => {
     const total = await get<{ count: string }>('SELECT COUNT(*) as count FROM audit_logs');
     res.json({ total: parseInt(total?.count || '0') });
   } catch (e) {
-    console.error('Audit stats error:', e);
+    logger.error('Audit stats error:', e);
     res.status(500).json({ error: 'Erro ao obter estatísticas' });
   }
 });

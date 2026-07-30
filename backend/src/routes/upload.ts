@@ -8,6 +8,7 @@ import { get, run, all } from '../database.js';
 import { Attachment } from '../types.js';
 import { authenticateToken, requirePermission } from '../middleware/auth.js';
 import { logAudit, extractMeta } from '../lib/audit.js';
+import { logger } from '../lib/logger.js';
 import { addTimelineEvent } from '../lib/helpers.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -125,7 +126,7 @@ router.post('/demands/:id/attachments', authenticateToken, requirePermission('de
 
       res.status(201).json(saved);
     } catch (error) {
-      console.error('Upload error:', error);
+      logger.error('Upload error:', error);
       res.status(500).json({ error: 'Erro ao fazer upload' });
     }
   });
@@ -149,7 +150,7 @@ router.get('/attachments/:id', authenticateToken, requirePermission('demands.vie
     res.setHeader('Content-Length', attachment.file_size || 0);
     res.sendFile(safePath);
   } catch (error) {
-    console.error('Download error:', error);
+    logger.error('Download error:', error);
     res.status(500).json({ error: 'Erro ao baixar arquivo' });
   }
 });
@@ -169,7 +170,7 @@ router.delete('/attachments/:id', authenticateToken, requirePermission('demands.
 
     res.json({ message: 'Anexo removido com sucesso' });
   } catch (error) {
-    console.error('Delete attachment error:', error);
+    logger.error('Delete attachment error:', error);
     res.status(500).json({ error: 'Erro ao remover anexo' });
   }
 });

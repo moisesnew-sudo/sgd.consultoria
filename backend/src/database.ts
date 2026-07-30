@@ -1,10 +1,11 @@
 import pg, { PoolClient } from 'pg';
 import dotenv from 'dotenv';
+import { logger } from './lib/logger.js';
 
 dotenv.config();
 
 if (!process.env.DATABASE_URL) {
-  console.error('❌ DATABASE_URL não definida. Defina a variável de ambiente (Render: vínculo ao Postgres).');
+  logger.error('❌ DATABASE_URL não definida. Defina a variável de ambiente (Render: vínculo ao Postgres).');
   if (process.env.NODE_ENV === 'production') {
     process.exit(1);
   }
@@ -26,7 +27,7 @@ const pool = new pg.Pool({
 });
 
 pool.on('error', (err) => {
-  console.error('Database pool error:', err);
+  logger.error('Database pool error', { error: err instanceof Error ? err.message : err });
 });
 
 export async function query(sql: string, params?: any[]) {
@@ -367,7 +368,11 @@ export async function initDatabase() {
     CREATE INDEX IF NOT EXISTS idx_monitoring_logs_recorded ON monitoring_logs(recorded_at);
   `);
 
-  console.log('✅ Tabelas criadas/verificadas');
+  // Migração: unificar role 'administrador' → 'admin'
+  await run("UPDATE users SET role = 'admin' WHERE role = 'administrador'");
+  await run("DELETE FROM role_permissions WHERE role = 'administrador'");
+
+  logger.info('Tabelas criadas/verificadas');
 }
 
 export default { query, get, all, run, initDatabase };

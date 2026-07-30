@@ -3,6 +3,7 @@ import crypto from 'crypto';
 import { get, all, run } from '../database.js';
 import { authenticateToken, requireRole } from '../middleware/auth.js';
 import { logAudit, extractMeta } from '../lib/audit.js';
+import { logger } from '../lib/logger.js';
 
 const router = Router();
 
@@ -19,7 +20,7 @@ router.get('/', authenticateToken, requireRole('admin'), async (req: Request, re
     );
     res.json(sessions);
   } catch (error) {
-    console.error('List sessions error:', error);
+    logger.error('List sessions error:', error);
     res.status(500).json({ error: 'Erro ao listar sessões' });
   }
 });
@@ -50,7 +51,7 @@ router.delete('/:id', authenticateToken, requireRole('admin'), async (req: Reque
 
     res.json({ message: 'Sessão encerrada com sucesso' });
   } catch (error) {
-    console.error('Terminate session error:', error);
+    logger.error('Terminate session error:', error);
     res.status(500).json({ error: 'Erro ao encerrar sessão' });
   }
 });
@@ -67,7 +68,7 @@ router.get('/my-sessions', authenticateToken, async (req: Request, res: Response
     );
     res.json(sessions);
   } catch (error) {
-    console.error('List my sessions error:', error);
+    logger.error('List my sessions error:', error);
     res.status(500).json({ error: 'Erro ao listar sessões' });
   }
 });

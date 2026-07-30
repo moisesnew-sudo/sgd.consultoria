@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import os from 'os';
 import { get, all, run } from '../database.js';
 import { authenticateToken, requireRole } from '../middleware/auth.js';
+import { logger } from '../lib/logger.js';
 
 const router = Router();
 
@@ -57,7 +58,7 @@ router.get('/health', authenticateToken, async (req: Request, res: Response) => 
       }
     });
   } catch (error) {
-    console.error('Health check error:', error);
+    logger.error('Health check error:', error);
     res.status(500).json({
       server: { status: 'error' },
       database: { status: 'error' },
@@ -93,7 +94,7 @@ router.post('/snapshot', authenticateToken, requireRole('admin'), async (req: Re
 
     res.json({ message: 'Snapshot recorded' });
   } catch (error) {
-    console.error('Snapshot error:', error);
+    logger.error('Snapshot error:', error);
     res.status(500).json({ error: 'Erro ao registrar snapshot' });
   }
 });
@@ -107,7 +108,7 @@ router.get('/history', authenticateToken, requireRole('admin'), async (req: Requ
     );
     res.json(logs);
   } catch (error) {
-    console.error('Monitoring history error:', error);
+    logger.error('Monitoring history error:', error);
     res.status(500).json({ error: 'Erro ao buscar histórico' });
   }
 });

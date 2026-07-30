@@ -7,6 +7,7 @@ import { get, run, all, transaction } from '../database.js';
 import { UserResponse, USER_ROLES } from '../types.js';
 import { authenticateToken, authenticateRefreshToken, requirePermission, signAccessToken, signRefreshToken } from '../middleware/auth.js';
 import { logAudit, extractMeta } from '../lib/audit.js';
+import { logger } from '../lib/logger.js';
 
 const router = Router();
 
@@ -156,7 +157,7 @@ router.post('/login', async (req: Request, res: Response) => {
     if (error instanceof z.ZodError) {
       return res.status(400).json({ error: 'Dados inválidos', details: error.errors });
     }
-    console.error('Login error:', error);
+    logger.error('Login error', { error: error instanceof Error ? error.message : error });
     res.status(500).json({ error: 'Erro interno do servidor' });
   }
 });
@@ -188,7 +189,7 @@ router.post('/refresh', authenticateRefreshToken, async (req: Request, res: Resp
 
     res.json({ token: newAccessToken, refreshToken: newRefreshToken });
   } catch (error) {
-    console.error('Refresh error:', error);
+    logger.error('Refresh error', { error: error instanceof Error ? error.message : error });
     res.status(500).json({ error: 'Erro ao renovar token' });
   }
 });
@@ -219,7 +220,7 @@ router.post('/logout', authenticateToken, async (req: Request, res: Response) =>
     });
     res.json({ message: 'Sessão encerrada com sucesso' });
   } catch (error) {
-    console.error('Logout error:', error);
+    logger.error('Logout error', { error: error instanceof Error ? error.message : error });
     res.status(500).json({ error: 'Erro interno do servidor' });
   }
 });
@@ -262,7 +263,7 @@ router.post('/register', authenticateToken, requirePermission('users.create'), a
     if (error instanceof z.ZodError) {
       return res.status(400).json({ error: 'Dados inválidos', details: error.errors });
     }
-    console.error('Register error:', error);
+    logger.error('Register error', { error: error instanceof Error ? error.message : error });
     res.status(500).json({ error: 'Erro interno do servidor' });
   }
 });
@@ -334,7 +335,7 @@ router.put('/change-password', authenticateToken, async (req: Request, res: Resp
     });
     res.json({ message: 'Senha alterada com sucesso. Todas as sessões foram encerradas.' });
   } catch (error) {
-    console.error('Change password error:', error);
+    logger.error('Change password error', { error: error instanceof Error ? error.message : error });
     res.status(500).json({ error: 'Erro interno do servidor' });
   }
 });
@@ -349,7 +350,7 @@ router.get('/users', authenticateToken, requirePermission('users.view'), async (
     );
     res.json(users);
   } catch (error) {
-    console.error('List users error:', error);
+    logger.error('List users error', { error: error instanceof Error ? error.message : error });
     res.status(500).json({ error: 'Erro ao listar usuários' });
   }
 });
@@ -392,7 +393,7 @@ router.post('/users', authenticateToken, requirePermission('users.create'), asyn
     if (error instanceof z.ZodError) {
       return res.status(400).json({ error: 'Dados inválidos', details: error.errors });
     }
-    console.error('Create user error:', error);
+    logger.error('Create user error', { error: error instanceof Error ? error.message : error });
     res.status(500).json({ error: 'Erro ao criar usuário' });
   }
 });
@@ -457,7 +458,7 @@ router.put('/users/:id', authenticateToken, requirePermission('users.edit'), asy
     if (error instanceof z.ZodError) {
       return res.status(400).json({ error: 'Dados inválidos', details: error.errors });
     }
-    console.error('Update user error:', error);
+    logger.error('Update user error', { error: error instanceof Error ? error.message : error });
     res.status(500).json({ error: 'Erro ao atualizar usuário' });
   }
 });
@@ -482,7 +483,7 @@ router.delete('/users/:id', authenticateToken, requirePermission('users.delete')
     });
     res.json({ message: 'Usuário excluído com sucesso' });
   } catch (error) {
-    console.error('Delete user error:', error);
+    logger.error('Delete user error', { error: error instanceof Error ? error.message : error });
     res.status(500).json({ error: 'Erro ao excluir usuário' });
   }
 });
@@ -511,7 +512,7 @@ router.put('/users/:id/password', authenticateToken, requirePermission('users.ed
     res.json({ message: 'Senha alterada com sucesso' });
   } catch (error) {
     if (error instanceof z.ZodError) return res.status(400).json({ error: 'Senha deve ter no mínimo 6 caracteres' });
-    console.error('Reset password error:', error);
+    logger.error('Reset password error', { error: error instanceof Error ? error.message : error });
     res.status(500).json({ error: 'Erro ao alterar senha' });
   }
 });
