@@ -128,11 +128,11 @@ export async function runSeed() {
   const analistaPerms = [
     'dashboard.view', 'demands.view', 'demands.create', 'demands.edit',
     'demands.export_excel', 'demands.export_pdf',
-    'reports.view', 'reports.export'
+    'reports.view', 'reports.emit', 'reports.export'
   ].filter(k => permMap[k]).map(k => permMap[k]);
   const consultaPerms = [
     'dashboard.view', 'demands.view',
-    'reports.view', 'reports.export'
+    'reports.view', 'reports.emit', 'reports.export'
   ].filter(k => permMap[k]).map(k => permMap[k]);
 
   const rolePerms: Record<string, number[]> = {
@@ -176,7 +176,7 @@ export async function runSeed() {
   const newRolePerms: Record<string, number[]> = {
     diretor: gestorPerms,
     tecnico: analistaPerms,
-    parceiro: ['dashboard.view', 'demands.view', 'reports.view', 'reports.export'].filter(k => permMap[k]).map(k => permMap[k]),
+    parceiro: ['dashboard.view', 'demands.view', 'reports.view', 'reports.emit', 'reports.export'].filter(k => permMap[k]).map(k => permMap[k]),
     cliente: ['dashboard.view', 'demands.view'].filter(k => permMap[k]).map(k => permMap[k]),
     visitante: ['dashboard.view'].filter(k => permMap[k]).map(k => permMap[k]),
   };
