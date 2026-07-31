@@ -122,6 +122,7 @@ export async function runSeed() {
     'dashboard.view', 'demands.view', 'demands.create', 'demands.edit', 'demands.delete',
     'demands.export_excel', 'demands.export_pdf',
     'reports.view', 'reports.emit', 'reports.print', 'reports.export',
+    'users.view', 'users.create', 'users.delete',
     'audit.view', 'sessions.view', 'backups.view', 'monitoring.view', 'lgpd.view'
   ].filter(k => permMap[k]).map(k => permMap[k]);
   const analistaPerms = [
@@ -185,6 +186,20 @@ export async function runSeed() {
       await run(
         'INSERT INTO role_permissions (role, permission_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',
         [role, permId]
+      );
+    }
+  }
+
+  // Sincroniza permissões do perfil para usuários existentes (ON CONFLICT preserva ajustes individuais)
+  const seedUsers = await all<{ id: number; role: string }>('SELECT id, role FROM users WHERE deleted_at IS NULL');
+  for (const su of seedUsers) {
+    const rolePermsForUser = await all<{ permission_id: number }>(
+      'SELECT permission_id FROM role_permissions WHERE role = $1', [su.role]
+    );
+    for (const rp of rolePermsForUser) {
+      await run(
+        'INSERT INTO user_permissions (user_id, permission_id, granted) VALUES ($1, $2, TRUE) ON CONFLICT (user_id, permission_id) DO NOTHING',
+        [su.id, rp.permission_id]
       );
     }
   }

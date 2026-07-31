@@ -1,12 +1,21 @@
 import { Router, Request, Response } from 'express';
 import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
+import rateLimit from 'express-rate-limit';
 import { z } from 'zod';
 import { get, run } from '../database.js';
 import { logAudit, extractMeta } from '../lib/audit.js';
 import { logger } from '../lib/logger.js';
 
 const router = Router();
+
+const resetLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 5,
+  message: { error: 'Muitas tentativas de redefinição. Tente novamente mais tarde.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
 
 const requestResetSchema = z.object({
   email: z.string().email('Email inválido')
@@ -38,14 +47,13 @@ router.post('/request', async (req: Request, res: Response) => {
         [user.id, tokenHash]
       );
 
-      const resetLink = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/reset-password?token=${token}`;
+      const resetLink = `${process.env.FRONTEND_URL || 'https://gruposgd.com.br'}/reset-password?token=${token}`;
       // ✅ CORREÇÃO: Log seguro (não expõe token/link completo)
       if (process.env.NODE_ENV !== 'production') {
         logger.info('Token de reset gerado', { email, expires: '30min' });
       }
 
-      // TODO: Envie o link por email usando um serviço como SendGrid/AWS SES
-      // await sendEmail(email, 'Redefinição de Senha', `Clique aqui: ${resetLink}`);
+
 
       await logAudit({
         entity_type: 'auth', entity_id: String(user.id), action: 'password_reset_requested',
@@ -63,7 +71,7 @@ router.post('/request', async (req: Request, res: Response) => {
   }
 });
 
-router.post('/reset', async (req: Request, res: Response) => {
+router.post('/reset', resetLimiter, async (req: Request, res: Response) => {
   const { ip_address, user_agent } = extractMeta(req);
   try {
     const { token, password } = resetPasswordSchema.parse(req.body);

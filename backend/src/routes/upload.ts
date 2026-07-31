@@ -11,6 +11,8 @@ import { logAudit, extractMeta } from '../lib/audit.js';
 import { logger } from '../lib/logger.js';
 import { addTimelineEvent } from '../lib/helpers.js';
 
+const ORPHAN_CLEANUP_INTERVAL = 24 * 60 * 60 * 1000;
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
@@ -52,11 +54,8 @@ const storage = multer.diskStorage({
 
 function fileFilter(_req: Request, file: Express.Multer.File, cb: FileFilterCallback) {
   const ext = path.extname(file.originalname).toLowerCase();
-  if (!ALLOWED_MIMES.has(file.mimetype) && !ALLOWED_EXTENSIONS.has(ext)) {
+  if (!ALLOWED_MIMES.has(file.mimetype) || !ALLOWED_EXTENSIONS.has(ext)) {
     return cb(new Error(`Tipo de arquivo não permitido: ${file.mimetype || ext}`));
-  }
-  if (!ALLOWED_EXTENSIONS.has(ext)) {
-    return cb(new Error(`Extensão não permitida: ${ext}`));
   }
   cb(null, true);
 }
@@ -68,6 +67,29 @@ const upload = multer({
 });
 
 const router = Router();
+
+async function cleanupOrphanedFiles(): Promise<void> {
+  try {
+    const deletedAttachments = await all<{ file_path: string }>(
+      "SELECT file_path FROM attachments WHERE deleted_at IS NOT NULL AND deleted_at < NOW() - INTERVAL '7 days'"
+    );
+    for (const att of deletedAttachments) {
+      const filePath = path.join(UPLOAD_DIR, path.basename(att.file_path));
+      if (fs.existsSync(filePath)) {
+        fs.unlinkSync(filePath);
+      }
+    }
+    if (deletedAttachments.length > 0) {
+      await run("DELETE FROM attachments WHERE deleted_at IS NOT NULL AND deleted_at < NOW() - INTERVAL '7 days'");
+      logger.info('Cleanup completed', { removed_files: deletedAttachments.length });
+    }
+  } catch (err) {
+    logger.warn('Upload cleanup error (non-critical)', { error: err instanceof Error ? err.message : err });
+  }
+}
+
+setInterval(cleanupOrphanedFiles, ORPHAN_CLEANUP_INTERVAL);
+cleanupOrphanedFiles();
 
 // ✅ CORREÇÃO: Função de validação de path
 function validateFilePath(filePath: string): string | null {
@@ -161,7 +183,11 @@ router.delete('/attachments/:id', authenticateToken, requirePermission('demands.
     const attachment = await get('SELECT * FROM attachments WHERE id = $1 AND deleted_at IS NULL', [parseInt(req.params.id as string)]);
     if (!attachment) return res.status(404).json({ error: 'Anexo não encontrado' });
 
-    await run('UPDATE attachments SET deleted_at = NOW() WHERE id = $1', [attachment.id]);
+    const filePath = path.join(UPLOAD_DIR, path.basename(attachment.file_path));
+    if (fs.existsSync(filePath)) {
+      fs.unlinkSync(filePath);
+    }
+    await run('DELETE FROM attachments WHERE id = $1', [attachment.id]);
     await logAudit({
       entity_type: 'demand', entity_id: attachment.demand_id, action: 'attachment_delete',
       user_id: req.user!.id, user_name: req.user!.name,

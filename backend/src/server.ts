@@ -3,6 +3,7 @@ import cors from 'cors';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import compression from 'compression';
+import cookieParser from 'cookie-parser';
 import dotenv from 'dotenv';
 import { fileURLToPath } from 'url';
 import path from 'path';
@@ -64,6 +65,7 @@ import backupsRoutes from './routes/backups.js';
 import monitoringRoutes from './routes/monitoring.js';
 import lgpdRoutes from './routes/lgpd.js';
 import uploadRoutes from './routes/upload.js';
+import { csrfProtection } from './middleware/csrf.js';
 import { runSeed } from './seed.js';
 import { initDatabase, run } from './database.js';
 
@@ -80,7 +82,7 @@ const cspDirectives = {
   styleSrc: ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
   fontSrc: ["'self'", 'https://fonts.gstatic.com', 'data:'],
   imgSrc: ["'self'", 'data:', 'https://*.amazonaws.com', 'https://*.gov.br'],
-  connectSrc: ["'self'", 'https://api.github.com'],
+  connectSrc: ["'self'"],
   frameAncestors: ["'none'"],
   formAction: ["'self'"],
   baseUri: ["'self'"]
@@ -175,6 +177,9 @@ app.use('/api/auth/login', authLimiter);
 app.use('/api/password-reset/request', passwordResetLimiter);
 app.use('/api/', apiLimiter);
 
+// Cookies
+app.use(cookieParser());
+
 // Body parsing
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
@@ -193,6 +198,7 @@ app.use('/api/sessions', sessionsRoutes);
 app.use('/api/backups', backupsRoutes);
 app.use('/api/monitoring', monitoringRoutes);
 app.use('/api/lgpd', lgpdRoutes);
+app.use('/api', uploadRoutes);
 app.use('/api', uploadRoutes);
 
 // Health check
@@ -228,20 +234,26 @@ app.use((err: any, req: express.Request, res: express.Response, next: express.Ne
 
 // Start server
 async function start() {
-  await initDatabase();
-  await runSeed();
+  try {
+    await initDatabase();
+    await runSeed();
+  } catch (err) {
+    logger.error('Falha na inicialização do banco', { error: err instanceof Error ? err.message : err });
+    process.exit(1);
+  }
 
-  // Cleanup expired/inactive data
-  await run("DELETE FROM active_sessions WHERE active = FALSE AND last_activity < NOW() - INTERVAL '24 hours'");
-  await run("DELETE FROM login_attempts WHERE attempted_at < NOW() - INTERVAL '48 hours'");
-  await run("DELETE FROM token_blacklist WHERE expires_at < NOW()");
-  await run("DELETE FROM refresh_tokens WHERE expires_at < NOW() OR (revoked = TRUE AND created_at < NOW() - INTERVAL '24 hours')");
-  await run("UPDATE active_sessions SET active = FALSE WHERE active = TRUE AND last_activity < NOW() - INTERVAL '24 hours'");
-
-  // ✅ CORREÇÃO: Cleanup de audit_logs antigos (retenção 180 dias)
-  await run("DELETE FROM audit_logs WHERE created_at < NOW() - INTERVAL '180 days'");
-  await run("DELETE FROM monitoring_logs WHERE recorded_at < NOW() - INTERVAL '30 days'");
-  await run("DELETE FROM export_logs WHERE created_at < NOW() - INTERVAL '90 days'");
+  try {
+    await run("DELETE FROM active_sessions WHERE active = FALSE AND last_activity < NOW() - INTERVAL '24 hours'");
+    await run("DELETE FROM login_attempts WHERE attempted_at < NOW() - INTERVAL '48 hours'");
+    await run("DELETE FROM token_blacklist WHERE expires_at < NOW()");
+    await run("DELETE FROM refresh_tokens WHERE expires_at < NOW() OR (revoked = TRUE AND created_at < NOW() - INTERVAL '24 hours')");
+    await run("UPDATE active_sessions SET active = FALSE WHERE active = TRUE AND last_activity < NOW() - INTERVAL '24 hours'");
+    await run("DELETE FROM audit_logs WHERE created_at < NOW() - INTERVAL '180 days'");
+    await run("DELETE FROM monitoring_logs WHERE recorded_at < NOW() - INTERVAL '30 days'");
+    await run("DELETE FROM export_logs WHERE created_at < NOW() - INTERVAL '90 days'");
+  } catch (err) {
+    logger.warn('Cleanup executado com erros (não crítico)', { error: err instanceof Error ? err.message : err });
+  }
 
   app.listen(PORT, () => {
     logger.info('SGD Backend Server Running', { port: PORT, env: process.env.NODE_ENV || 'development' });

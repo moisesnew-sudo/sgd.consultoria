@@ -24,7 +24,7 @@ router.get('/:id/comments', authenticateToken, async (req: Request, res: Respons
     );
     res.json(comments);
   } catch (e) {
-    console.error('List comments error:', e);
+    logger.error('List comments error:', e);
     res.status(500).json({ error: 'Erro ao listar comentários' });
   }
 });
@@ -52,7 +52,7 @@ router.post('/:id/comments', authenticateToken, requirePermission('demands.edit'
     res.status(201).json(comment);
   } catch (e) {
     if (e instanceof z.ZodError) return res.status(400).json({ error: 'Dados inválidos', details: e.errors });
-    console.error('Create comment error:', e);
+    logger.error('Create comment error:', e);
     res.status(500).json({ error: 'Erro ao criar comentário' });
   }
 });

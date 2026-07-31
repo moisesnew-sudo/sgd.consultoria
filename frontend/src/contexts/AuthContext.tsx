@@ -20,19 +20,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    const storedUser = localStorage.getItem('sgd_user');
-    const token = localStorage.getItem('sgd_token');
-
-    if (storedUser && token) {
-      try {
-        const parsedUser = JSON.parse(storedUser);
-        setUser(parsedUser);
-      } catch {
-        localStorage.removeItem('sgd_user');
-        localStorage.removeItem('sgd_token');
-      }
-    }
-    setIsLoading(false);
+    authApi.getMe()
+      .then(setUser)
+      .catch(() => setUser(null))
+      .finally(() => setIsLoading(false));
   }, []);
 
   const hasPermission = useCallback((key: string): boolean => {
@@ -49,9 +40,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const refreshPermissions = async () => {
     try {
       const me = await authApi.getMe();
-      const updatedUser = { ...user!, ...me };
-      setUser(updatedUser);
-      localStorage.setItem('sgd_user', JSON.stringify(updatedUser));
+      setUser(prev => prev ? { ...prev, ...me } : me);
     } catch {
       // ignore
     }

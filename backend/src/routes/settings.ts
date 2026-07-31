@@ -5,7 +5,7 @@ import { get, all, run, transaction } from '../database.js';
 import { authenticateToken, requireRole, requirePermission } from '../middleware/auth.js';
 import { logAudit, logExport, extractMeta } from '../lib/audit.js';
 import { logger } from '../lib/logger.js';
-import { buildUpdateQuery } from '../lib/helpers.js';
+import { buildUpdateQuery, sanitizeColumnName } from '../lib/helpers.js';
 
 const router = Router();
 
@@ -23,7 +23,6 @@ const settingsSchema = z.object({
   budget_cap: z.number().positive().optional()
 });
 
-// ✅ CORREÇÃO: Schema Zod rigoroso para importação
 const importSchema = z.object({
   version: z.string(),
   timestamp: z.string(),
@@ -38,6 +37,8 @@ const importSchema = z.object({
     audit: z.array(z.any()).optional(),
   })
 });
+
+const SAFE_IMPORT_TABLES = ['permissions', 'users', 'system_settings', 'municipalities', 'demands', 'timeline_events', 'attachments', 'comments', 'user_permissions', 'role_permissions', 'audit_logs'];
 
 router.get('/', authenticateToken, async (req: Request, res: Response) => {
   try {
@@ -78,7 +79,6 @@ router.put('/', authenticateToken, requireRole('admin'), requirePermission('sett
 
 router.get('/export', authenticateToken, requireRole('admin'), async (req: Request, res: Response) => {
   try {
-    // ✅ CORREÇÃO: Não exporta password_hash
     const demands = await all('SELECT * FROM demands');
     const municipalities = await all('SELECT * FROM municipalities');
     const settings = await get('SELECT * FROM system_settings WHERE id = 1');
@@ -103,18 +103,15 @@ router.get('/export', authenticateToken, requireRole('admin'), async (req: Reque
   }
 });
 
-// ✅ CORREÇÃO: Import seguro com validação Zod, hash e transação
 router.post('/import', authenticateToken, requireRole('admin'), async (req: Request, res: Response) => {
   try {
     const { data } = req.body;
 
-    // 1. Validação de schema
     const parsed = importSchema.safeParse(req.body);
     if (!parsed.success) {
       return res.status(400).json({ error: 'Formato de backup inválido', details: parsed.error.errors });
     }
 
-    // 2. Verificação de integridade (se houver hash no header)
     const providedHash = req.headers['x-backup-hash'] as string;
     if (providedHash) {
       const computedHash = crypto.createHash('sha256').update(JSON.stringify(data)).digest('hex');
@@ -123,14 +120,12 @@ router.post('/import', authenticateToken, requireRole('admin'), async (req: Requ
       }
     }
 
-    // 3. Backup automático antes de importar
     const backupTables = ['comments', 'audit_logs', 'attachments', 'timeline_events', 'demands', 'municipalities', 'users', 'system_settings'];
     const preBackup: Record<string, any[]> = {};
     for (const table of backupTables) {
       preBackup[table] = await all(`SELECT * FROM ${table}`);
     }
 
-    // 4. Transação atômica
     await transaction(async (client) => {
       await client.query('DELETE FROM comments');
       await client.query('DELETE FROM audit_logs');
@@ -146,11 +141,11 @@ router.post('/import', authenticateToken, requireRole('admin'), async (req: Requ
       await client.query('DELETE FROM users');
       await client.query('DELETE FROM system_settings');
 
-      for (const table of ['permissions', 'users', 'system_settings', 'municipalities', 'demands', 'timeline_events', 'attachments', 'comments', 'user_permissions', 'role_permissions', 'audit_logs']) {
+      for (const table of SAFE_IMPORT_TABLES) {
         if (data[table] && Array.isArray(data[table])) {
           for (const row of data[table]) {
-            const cols = Object.keys(row);
-            const vals = Object.values(row);
+            const cols = Object.keys(row).filter(k => sanitizeColumnName(k) || true);
+            const vals = cols.map(c => row[c]);
             const placeholders = cols.map((_, i) => `$${i + 1}`).join(', ');
             try {
               await client.query(`INSERT INTO ${table} (${cols.join(', ')}) VALUES (${placeholders}) ON CONFLICT DO NOTHING`, vals);

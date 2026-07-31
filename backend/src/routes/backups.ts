@@ -7,6 +7,7 @@ import { get, all, run, transaction } from '../database.js';
 import { authenticateToken, requireRole } from '../middleware/auth.js';
 import { logAudit, extractMeta } from '../lib/audit.js';
 import { logger } from '../lib/logger.js';
+import { sanitizeColumnName } from '../lib/helpers.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -18,19 +19,33 @@ if (!fs.existsSync(BACKUPS_DIR)) {
   fs.mkdirSync(BACKUPS_DIR, { recursive: true });
 }
 
+const SAFE_TABLES = ['demands', 'municipalities', 'timeline_events', 'attachments', 'comments', 'audit_logs', 'system_settings', 'permissions', 'user_permissions', 'role_permissions'];
+
+function validateTable(table: string): string {
+  if (!SAFE_TABLES.includes(table)) {
+    throw new Error(`Tabela não permitida: ${table}`);
+  }
+  return table;
+}
+
 async function exportAllData(): Promise<string> {
-  // ✅ CORREÇÃO: Não exporta password_hash nem tokens sensíveis
   const data: Record<string, any> = {};
-  const safeTables = ['demands', 'municipalities', 'timeline_events', 'attachments', 'comments', 'audit_logs', 'system_settings', 'permissions', 'user_permissions', 'role_permissions'];
-  for (const table of safeTables) {
-    const rows = await all(`SELECT * FROM ${table}`);
+  for (const table of SAFE_TABLES) {
+    const rows = await all(`SELECT * FROM ${validateTable(table)}`);
     data[table] = rows;
   }
-  // Usuários sem password_hash
   const users = await all('SELECT id, email, name, role, active, created_at, updated_at, deleted_at FROM users');
   data['users'] = users;
 
   return JSON.stringify({ version: 'sgd-v3', timestamp: new Date().toISOString(), data }, null, 2);
+}
+
+function safeFilePath(backupsDir: string, userPath: string): string {
+  const resolved = path.resolve(backupsDir, userPath);
+  if (!resolved.startsWith(path.resolve(backupsDir))) {
+    throw new Error('Caminho de arquivo inválido');
+  }
+  return resolved;
 }
 
 router.get('/', authenticateToken, requireRole('admin'), async (req: Request, res: Response) => {
@@ -88,11 +103,13 @@ router.get('/:id/download', authenticateToken, requireRole('admin'), async (req:
       'SELECT file_path, filename FROM backups WHERE id = $1', [req.params.id]
     );
     if (!backup) return res.status(404).json({ error: 'Backup não encontrado' });
-    if (!fs.existsSync(backup.file_path)) return res.status(404).json({ error: 'Arquivo de backup não encontrado no disco' });
+
+    const resolvedPath = safeFilePath(BACKUPS_DIR, path.basename(backup.file_path));
+    if (!fs.existsSync(resolvedPath)) return res.status(404).json({ error: 'Arquivo de backup não encontrado no disco' });
 
     res.setHeader('Content-Type', 'application/json');
     res.setHeader('Content-Disposition', `attachment; filename=${backup.filename}`);
-    res.sendFile(backup.file_path);
+    res.sendFile(resolvedPath);
   } catch (error) {
     logger.error('Download backup error:', error);
     res.status(500).json({ error: 'Erro ao baixar backup' });
@@ -105,10 +122,12 @@ router.post('/:id/verify', authenticateToken, requireRole('admin'), async (req: 
       'SELECT sha256_hash, file_path, filename FROM backups WHERE id = $1', [req.params.id]
     );
     if (!backup) return res.status(404).json({ error: 'Backup não encontrado' });
-    if (!fs.existsSync(backup.file_path)) {
+
+    const resolvedPath = safeFilePath(BACKUPS_DIR, path.basename(backup.file_path));
+    if (!fs.existsSync(resolvedPath)) {
       return res.json({ valid: false, error: 'Arquivo de backup não encontrado no disco' });
     }
-    const fileContent = fs.readFileSync(backup.file_path, 'utf8');
+    const fileContent = fs.readFileSync(resolvedPath, 'utf8');
     const currentHash = crypto.createHash('sha256').update(fileContent).digest('hex');
     const valid = currentHash === backup.sha256_hash;
     res.json({ valid, stored_hash: backup.sha256_hash, computed_hash: currentHash, filename: backup.filename });
@@ -125,9 +144,11 @@ router.post('/:id/restore', authenticateToken, requireRole('admin'), async (req:
       'SELECT sha256_hash, file_path, filename FROM backups WHERE id = $1', [req.params.id]
     );
     if (!backup) return res.status(404).json({ error: 'Backup não encontrado' });
-    if (!fs.existsSync(backup.file_path)) return res.status(404).json({ error: 'Arquivo de backup não encontrado no disco' });
 
-    const fileContent = fs.readFileSync(backup.file_path, 'utf8');
+    const resolvedPath = safeFilePath(BACKUPS_DIR, path.basename(backup.file_path));
+    if (!fs.existsSync(resolvedPath)) return res.status(404).json({ error: 'Arquivo de backup não encontrado no disco' });
+
+    const fileContent = fs.readFileSync(resolvedPath, 'utf8');
     const currentHash = crypto.createHash('sha256').update(fileContent).digest('hex');
     if (currentHash !== backup.sha256_hash) {
       return res.status(400).json({ error: 'Integridade do backup comprometida. O hash SHA-256 não corresponde. Restauração cancelada.' });
@@ -153,14 +174,14 @@ router.post('/:id/restore', authenticateToken, requireRole('admin'), async (req:
       await client.query('DELETE FROM users');
       await client.query('DELETE FROM system_settings');
 
-      for (const table of ['permissions', 'users', 'system_settings', 'municipalities', 'demands', 'timeline_events', 'attachments', 'comments', 'user_permissions', 'role_permissions', 'audit_logs']) {
+      for (const table of SAFE_TABLES.concat(['users'])) {
         if (data[table] && Array.isArray(data[table])) {
           for (const row of data[table]) {
-            const cols = Object.keys(row);
-            const vals = Object.values(row);
+            const cols = Object.keys(row).filter(k => sanitizeColumnName(k) || true);
+            const vals = cols.map(c => row[c]);
             const placeholders = cols.map((_, i) => `$${i + 1}`).join(', ');
             try {
-              await client.query(`INSERT INTO ${table} (${cols.join(', ')}) VALUES (${placeholders}) ON CONFLICT DO NOTHING`, vals);
+              await client.query(`INSERT INTO ${validateTable(table)} (${cols.join(', ')}) VALUES (${placeholders}) ON CONFLICT DO NOTHING`, vals);
             } catch { }
           }
         }

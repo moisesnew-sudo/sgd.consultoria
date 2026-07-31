@@ -51,7 +51,8 @@ export default function PermissionsModal({ userId, userName, onClose, onSaved }:
           p.permission_id === permissionId ? { ...p, granted: !p.granted } : p
         );
       }
-      return [...prev, { permission_id: permissionId, key: '', granted: true }];
+      const found = categories.flatMap(c => c.permissions).find(p => p.id === permissionId);
+      return [...prev, { permission_id: permissionId, key: found?.key || '', granted: true }];
     });
   };
 

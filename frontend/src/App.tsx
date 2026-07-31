@@ -235,8 +235,7 @@ function AppContent() {
           {activeTab === 'settings' && (
             <ErrorBoundary><Suspense fallback={<ViewFallback />}>
               <SettingsView onBackToLogin={() => {
-                localStorage.removeItem('sgd_token');
-                window.location.reload();
+                logout();
               }} />
             </Suspense></ErrorBoundary>
           )}

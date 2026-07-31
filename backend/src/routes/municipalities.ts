@@ -45,7 +45,9 @@ router.get('/:id', authenticateToken, async (req: Request, res: Response) => {
     if (!municipality) return res.status(404).json({ error: 'Município não encontrado' });
 
     const demands = await all(
-      'SELECT * FROM demands WHERE municipality = (SELECT name FROM municipalities WHERE id = $1) AND uf = (SELECT uf FROM municipalities WHERE id = $1) AND deleted_at IS NULL',
+      `SELECT d.* FROM demands d
+       INNER JOIN municipalities m ON m.id = $1
+       WHERE d.municipality = m.name AND d.uf = m.uf AND d.deleted_at IS NULL`,
       [req.params.id]
     );
 

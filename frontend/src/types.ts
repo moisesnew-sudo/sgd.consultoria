@@ -137,3 +137,108 @@ export interface DashboardStats {
   todayCount: number;
   overdue: number;
 }
+
+export interface AuditLog {
+  id: number;
+  entity_type: string;
+  entity_id: string;
+  action: string;
+  user_id: number;
+  user_name: string;
+  details: any;
+  ip_address: string;
+  user_agent: string;
+  created_at: string;
+}
+
+export interface AuditDashboardStats {
+  total_logins: number;
+  active_users: number;
+  recent_exports: number;
+  permission_changes: number;
+  logins_by_day: { date: string; count: number }[];
+  top_users: { user_name: string; count: number }[];
+}
+
+export interface Session {
+  id: number;
+  user_id: number;
+  user_name?: string;
+  token_hash: string;
+  ip_address: string;
+  user_agent: string;
+  browser: string;
+  os: string;
+  active: boolean;
+  last_activity: string;
+  created_at: string;
+}
+
+export interface Backup {
+  id: number;
+  filename: string;
+  file_size: number;
+  sha256_hash: string;
+  backup_type: string;
+  status: string;
+  created_by: number;
+  created_at: string;
+}
+
+export interface BackupCreateResult {
+  id: number;
+  filename: string;
+  file_size: number;
+  sha256_hash: string;
+  backup_type: string;
+  status: string;
+  created_at: string;
+}
+
+export interface BackupVerifyResult {
+  valid: boolean;
+  stored_hash: string;
+  computed_hash: string;
+  filename: string;
+}
+
+export interface HealthCheck {
+  server: { status: string; platform: string; cpu_cores: number; memory_usage_percent: number; total_memory_gb: number; free_memory_gb: number; uptime: string };
+  database: { status: string; response_time_ms: number };
+  api: { status: string; response_time_ms: number };
+  app: { total_demands: number; active_users: number; last_backup: string | null; integrations_24h: number };
+}
+
+export interface MonitoringSnapshot {
+  id: number;
+  server_cpu: number;
+  server_memory: number;
+  api_response_time: number;
+  db_connection_count: number;
+  active_users: number;
+  total_demands: number;
+  last_backup_at: string | null;
+  recorded_at: string;
+}
+
+export interface DemandVersion {
+  id: number;
+  version: number;
+  snapshot: Record<string, unknown>;
+  changed_by_name: string;
+  ip_address: string;
+  created_at: string;
+}
+
+export interface IntegrationInfo {
+  api_url: string;
+  version: string;
+  endpoints: { path: string; method: string; description: string; auth: string }[];
+}
+
+export interface LgpdDashboard {
+  users: { total: number; active: number; by_role: Record<string, number> };
+  data_stored: { audit_logs: number; users: number; demands: number; comments: number; attachments: number };
+  exports_30d: number;
+  consent_rate: number;
+}

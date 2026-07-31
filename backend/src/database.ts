@@ -21,7 +21,7 @@ function getSSLConfig(): any {
   return { rejectUnauthorized: false };
 }
 
-const pool = new pg.Pool({
+export const pool = new pg.Pool({
   connectionString: process.env.DATABASE_URL,
   ssl: getSSLConfig(),
 });

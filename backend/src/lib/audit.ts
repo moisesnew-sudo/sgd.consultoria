@@ -1,4 +1,5 @@
 import { run } from '../database.js';
+import { logger } from './logger.js';
 
 export interface AuditEntry {
   entity_type: string;
@@ -60,7 +61,7 @@ export async function logAudit(entry: AuditEntry): Promise<void> {
       ]
     );
   } catch (err) {
-    console.error('Audit log error (non-fatal):', err);
+    logger.error('Audit log error (non-fatal):', err);
   }
 }
 
@@ -73,6 +74,6 @@ export async function logExport(req: any, user: any, exportType: string, recordC
       [user.id, user.name, exportType, recordCount, filters ? JSON.stringify(filters) : null, ip_address]
     );
   } catch (err) {
-    console.error('Export log error (non-fatal):', err);
+    logger.error('Export log error (non-fatal):', err);
   }
 }

@@ -37,8 +37,7 @@ const cleanupBlacklist = async () => {
 };
 
 export const authenticateToken = async (req: Request, res: Response, next: NextFunction) => {
-  const authHeader = req.headers['authorization'];
-  const token = authHeader && authHeader.split(' ')[1];
+  const token = req.cookies?.token || req.headers['authorization']?.split(' ')[1];
   if (!token) {
     return res.status(401).json({ error: 'Token de acesso não fornecido' });
   }
@@ -77,6 +76,12 @@ export const requirePermission = (permissionKey: string) => {
     if (req.user.role === 'admin' || req.user.role === 'administrador') {
       return next();
     }
+    if (req.user.permissions && req.user.permissions.length > 0) {
+      if (req.user.permissions.includes(permissionKey)) {
+        return next();
+      }
+      return res.status(403).json({ error: 'Acesso negado. Você não possui permissão para executar esta ação.' });
+    }
     try {
       const result = await get<{ granted: boolean }>(
         `SELECT TRUE as granted FROM (
@@ -101,9 +106,9 @@ export const requirePermission = (permissionKey: string) => {
   };
 };
 
-export function signAccessToken(user: { id: number; email: string; name: string; role: string }): string {
+export function signAccessToken(user: { id: number; email: string; name: string; role: string }, permissions?: string[]): string {
   return jwt.sign(
-    { id: user.id, email: user.email, name: user.name, role: user.role },
+    { id: user.id, email: user.email, name: user.name, role: user.role, ...(permissions ? { permissions } : {}) },
     JWT_SECRET!,
     { expiresIn: ACCESS_TOKEN_EXPIRY }
   );
@@ -124,7 +129,7 @@ export function getTokenExpiry(secondsFromNow: number): Date {
 }
 
 export const authenticateRefreshToken = async (req: Request, res: Response, next: NextFunction) => {
-  const { refreshToken } = req.body;
+  const refreshToken = req.cookies?.refresh_token || req.body?.refreshToken;
   if (!refreshToken) {
     return res.status(401).json({ error: 'Refresh token não fornecido' });
   }
@@ -163,17 +168,8 @@ export const authenticateRefreshToken = async (req: Request, res: Response, next
   }
 };
 
-export const requireAdmin = (req: Request, res: Response, next: NextFunction) => {
-  if (!req.user) return res.status(401).json({ error: 'Usuário não autenticado' });
-  if (req.user.role !== 'admin' && req.user.role !== 'administrador') {
-    return res.status(403).json({ error: 'Acesso restrito a administradores' });
-  }
-  next();
-};
-
 export const optionalAuth = (req: Request, res: Response, next: NextFunction) => {
-  const authHeader = req.headers['authorization'];
-  const token = authHeader && authHeader.split(' ')[1];
+  const token = req.cookies?.token || req.headers['authorization']?.split(' ')[1];
   if (token) {
     try {
       const decoded = jwt.verify(token, JWT_SECRET!) as UserResponse;

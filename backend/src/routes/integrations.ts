@@ -20,7 +20,7 @@ const ENDPOINTS = [
 ];
 
 router.get('/', authenticateToken, requireRole('admin'), (req: Request, res: Response) => {
-  const baseUrl = process.env.PUBLIC_API_URL || (req.get('host') ? `${req.protocol}://${req.get('host')}/api` : 'https://sgd-consultoria.onrender.com/api');
+  const baseUrl = process.env.PUBLIC_API_URL || (req.get('host') ? `${req.protocol}://${req.get('host')}/api` : 'https://api.gruposgd.com.br/api');
   // ✅ CORREÇÃO: Não expõe derivado do JWT_SECRET
   res.json({
     baseUrl,

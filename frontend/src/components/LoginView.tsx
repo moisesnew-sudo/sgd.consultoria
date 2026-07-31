@@ -193,20 +193,6 @@ export default function LoginView({ onNavigateToTab }: LoginViewProps) {
               </div>
             </div>
 
-            {/* Remember me */}
-            <div className="flex items-center pt-1">
-              <input
-                id="remember-me"
-                name="remember-me"
-                type="checkbox"
-                defaultChecked
-                  className="h-4 w-4 text-gov-600 focus:ring-gov-500 border-slate-300 rounded-sm"
-              />
-              <label htmlFor="remember-me" className="ml-2 block text-xs font-semibold text-slate-600 cursor-pointer">
-                Manter conectado neste terminal
-              </label>
-            </div>
-
             {/* Submission Button */}
             <div className="pt-2">
               <button

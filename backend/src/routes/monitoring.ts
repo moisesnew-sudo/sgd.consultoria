@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express';
 import os from 'os';
-import { get, all, run } from '../database.js';
+import { get, all, run, pool } from '../database.js';
 import { authenticateToken, requireRole } from '../middleware/auth.js';
 import { logger } from '../lib/logger.js';
 
@@ -76,8 +76,15 @@ router.post('/snapshot', authenticateToken, requireRole('admin'), async (req: Re
 
     const totalMem = os.totalmem();
     const freeMem = os.freemem();
-    const serverCpu = os.loadavg()[0] || 0;
+    const cpus = os.cpus();
+    const cpuUsage = cpus.reduce((acc, cpu) => {
+      const total = Object.values(cpu.times).reduce((a, b) => a + b, 0);
+      const idle = cpu.times.idle;
+      return acc + ((total - idle) / total) * 100;
+    }, 0) / cpus.length;
+    const serverCpu = Math.round(cpuUsage * 10) / 10;
     const serverMemory = ((totalMem - freeMem) / totalMem) * 100;
+    const dbConnectionCount = (pool as any).totalCount || 0;
     const activeUsers = await get<{ count: string }>(
       "SELECT COUNT(*) as count FROM active_sessions WHERE active = TRUE AND last_activity > NOW() - INTERVAL '30 minutes'"
     );
@@ -89,7 +96,7 @@ router.post('/snapshot', authenticateToken, requireRole('admin'), async (req: Re
     await run(
       `INSERT INTO monitoring_logs (server_cpu, server_memory, api_response_time, db_connection_count, active_users, total_demands, last_backup_at)
        VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-      [serverCpu, Math.round(serverMemory * 10) / 10, apiResponseTime, 0, parseInt(activeUsers?.count || '0'), parseInt(totalDemands?.count || '0'), lastBackup?.created_at || null]
+      [serverCpu, Math.round(serverMemory * 10) / 10, apiResponseTime, dbConnectionCount, parseInt(activeUsers?.count || '0'), parseInt(totalDemands?.count || '0'), lastBackup?.created_at || null]
     );
 
     res.json({ message: 'Snapshot recorded' });

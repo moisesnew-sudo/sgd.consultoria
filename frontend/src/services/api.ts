@@ -10,13 +10,38 @@ import {
   TimelineEvent,
   PermissionCategory,
   UserPermission,
-  Attachment
+  Attachment,
+  AuditLog,
+  AuditDashboardStats,
+  Session,
+  Backup,
+  BackupCreateResult,
+  BackupVerifyResult,
+  HealthCheck,
+  MonitoringSnapshot,
+  IntegrationInfo,
+  LgpdDashboard,
+  DemandVersion,
 } from '../types';
 
-const API_BASE = import.meta.env.VITE_API_URL || 'https://sgd-consultoria.onrender.com';
+const API_BASE = import.meta.env.VITE_API_URL || 'https://api.gruposgd.com.br';
 
 let isRefreshing = false;
-let refreshQueue: Array<{ resolve: (token: string) => void; reject: (error: any) => void }> = [];
+let refreshQueue: Array<{ resolve: () => void; reject: (error: any) => void }> = [];
+
+function getCsrfToken(): string | null {
+  const match = document.cookie.match(/(?:^|;\s*)csrf_token=([^;]*)/);
+  return match ? decodeURIComponent(match[1]) : null;
+}
+
+function buildHeaders(method?: string): Record<string, string> {
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  if (method && ['POST', 'PUT', 'DELETE', 'PATCH'].includes(method.toUpperCase())) {
+    const csrf = getCsrfToken();
+    if (csrf) headers['X-CSRF-Token'] = csrf;
+  }
+  return headers;
+}
 
 class ApiError extends Error {
   constructor(public status: number, message: string) {
@@ -25,38 +50,22 @@ class ApiError extends Error {
   }
 }
 
-async function refreshAccessToken(): Promise<string> {
-  const refreshToken = localStorage.getItem('sgd_refresh_token');
-  if (!refreshToken) throw new ApiError(401, 'Sem refresh token');
-
+async function refreshAccessToken(): Promise<void> {
   const response = await fetch(`${API_BASE}/api/auth/refresh`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ refreshToken }),
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': getCsrfToken() || '' },
   });
-
   if (!response.ok) throw new ApiError(401, 'Refresh token inválido');
-
-  const data = await response.json();
-  localStorage.setItem('sgd_token', data.token);
-  if (data.refreshToken) {
-    localStorage.setItem('sgd_refresh_token', data.refreshToken);
-  }
-  return data.token;
-}
-
-function buildHeaders(token?: string): Record<string, string> {
-  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-  if (token) headers['Authorization'] = `Bearer ${token}`;
-  return headers;
 }
 
 async function request<T>(endpoint: string, options?: RequestInit): Promise<T> {
-  const token = localStorage.getItem('sgd_token');
-  const headers = buildHeaders(token || undefined);
+  const method = options?.method || 'GET';
+  const headers = buildHeaders(method);
 
   let response = await fetch(`${API_BASE}/api${endpoint}`, {
     ...options,
+    credentials: 'include',
     headers: { ...headers, ...(options?.headers as Record<string, string> || {}) },
   });
 
@@ -64,33 +73,30 @@ async function request<T>(endpoint: string, options?: RequestInit): Promise<T> {
     if (!isRefreshing) {
       isRefreshing = true;
       try {
-        const newToken = await refreshAccessToken();
+        await refreshAccessToken();
         isRefreshing = false;
-        refreshQueue.forEach(q => q.resolve(newToken));
+        refreshQueue.forEach(q => q.resolve());
         refreshQueue = [];
 
-        const retryHeaders = buildHeaders(newToken);
         response = await fetch(`${API_BASE}/api${endpoint}`, {
           ...options,
-          headers: { ...retryHeaders, ...(options?.headers as Record<string, string> || {}) },
+          credentials: 'include',
+          headers: { ...headers, ...(options?.headers as Record<string, string> || {}) },
         });
       } catch (err) {
         isRefreshing = false;
         refreshQueue.forEach(q => q.reject(err));
         refreshQueue = [];
-        localStorage.removeItem('sgd_token');
-        localStorage.removeItem('sgd_refresh_token');
-        localStorage.removeItem('sgd_user');
         throw new ApiError(401, 'Sessão expirada. Faça login novamente.');
       }
     } else {
-      const newToken = await new Promise<string>((resolve, reject) => {
+      await new Promise<void>((resolve, reject) => {
         refreshQueue.push({ resolve, reject });
       });
-      const queuedHeaders = buildHeaders(newToken);
       response = await fetch(`${API_BASE}/api${endpoint}`, {
         ...options,
-        headers: { ...queuedHeaders, ...(options?.headers as Record<string, string> || {}) },
+        credentials: 'include',
+        headers: { ...headers, ...(options?.headers as Record<string, string> || {}) },
       });
     }
   }
@@ -106,27 +112,17 @@ async function request<T>(endpoint: string, options?: RequestInit): Promise<T> {
 // Auth API
 export const authApi = {
   login: async (email: string, password: string) => {
-    const data = await request<{ token: string; refreshToken: string; user: User }>('/auth/login', {
+    const data = await request<{ user: User; session: any }>('/auth/login', {
       method: 'POST',
       body: JSON.stringify({ email, password }),
     });
-    localStorage.setItem('sgd_token', data.token);
-    if (data.refreshToken) localStorage.setItem('sgd_refresh_token', data.refreshToken);
-    localStorage.setItem('sgd_user', JSON.stringify(data.user));
     return data;
   },
 
   logout: async () => {
-    const refreshToken = localStorage.getItem('sgd_refresh_token');
     try {
-      await request<{ message: string }>('/auth/logout', {
-        method: 'POST',
-        body: JSON.stringify({ refreshToken }),
-      });
+      await request<{ message: string }>('/auth/logout', { method: 'POST' });
     } catch { /* ignore */ }
-    localStorage.removeItem('sgd_token');
-    localStorage.removeItem('sgd_refresh_token');
-    localStorage.removeItem('sgd_user');
   },
 
   getMe: () => request<User>('/auth/me'),
@@ -192,7 +188,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, {
   canManageSettings: boolean;
 }> = {
   admin:    { canCreate: true, canEdit: true, canDelete: true,  canManageUsers: true,  canViewUsers: true,  canManageSettings: true },
-  gestor:   { canCreate: true, canEdit: true, canDelete: true,  canManageUsers: false, canViewUsers: true,  canManageSettings: false },
+  gestor:   { canCreate: true, canEdit: true, canDelete: true,  canManageUsers: true,  canViewUsers: true,  canManageSettings: false },
   analista: { canCreate: true, canEdit: true, canDelete: false, canManageUsers: false, canViewUsers: false, canManageSettings: false },
   consulta: { canCreate: false, canEdit: false, canDelete: false, canManageUsers: false, canViewUsers: false, canManageSettings: false },
   administrador: { canCreate: true, canEdit: true, canDelete: true,  canManageUsers: true,  canViewUsers: true,  canManageSettings: true },
@@ -215,12 +211,13 @@ function normalizeDemand(d: any): Demand {
 
 // Demands API
 async function uploadRequest<T>(endpoint: string, formData: FormData): Promise<T> {
-  const token = localStorage.getItem('sgd_token');
+  const csrf = getCsrfToken();
   const headers: Record<string, string> = {};
-  if (token) headers['Authorization'] = `Bearer ${token}`;
+  if (csrf) headers['X-CSRF-Token'] = csrf;
 
   let response = await fetch(`${API_BASE}/api${endpoint}`, {
     method: 'POST',
+    credentials: 'include',
     headers,
     body: formData,
   });
@@ -229,32 +226,32 @@ async function uploadRequest<T>(endpoint: string, formData: FormData): Promise<T
     if (!isRefreshing) {
       isRefreshing = true;
       try {
-        const newToken = await refreshAccessToken();
+        await refreshAccessToken();
         isRefreshing = false;
-        headers['Authorization'] = `Bearer ${newToken}`;
+        if (csrf) headers['X-CSRF-Token'] = csrf;
         response = await fetch(`${API_BASE}/api${endpoint}`, {
           method: 'POST',
+          credentials: 'include',
           headers,
           body: formData,
         });
-        refreshQueue.forEach(({ resolve }) => resolve(newToken));
+        refreshQueue.forEach(({ resolve }) => resolve());
         refreshQueue = [];
       } catch (error) {
         isRefreshing = false;
         refreshQueue.forEach(({ reject }) => reject(error));
         refreshQueue = [];
-        localStorage.removeItem('sgd_token');
-        localStorage.removeItem('sgd_refresh_token');
         window.location.href = '/login';
         throw error;
       }
     } else {
-      const newToken = await new Promise<string>((resolve, reject) => {
+      await new Promise<void>((resolve, reject) => {
         refreshQueue.push({ resolve, reject });
       });
-      headers['Authorization'] = `Bearer ${newToken}`;
+      if (csrf) headers['X-CSRF-Token'] = csrf;
       response = await fetch(`${API_BASE}/api${endpoint}`, {
         method: 'POST',
+        credentials: 'include',
         headers,
         body: formData,
       });
@@ -362,7 +359,7 @@ export const auditApi = {
       });
     }
     const qs = searchParams.toString();
-    const res = await request<any>(`/audit${qs ? '?' + qs : ''}`);
+    const res = await request<AuditLog[] | { data: AuditLog[] }>(`/audit${qs ? '?' + qs : ''}`);
     return Array.isArray(res) ? res : (res.data || []);
   },
   getDashboardStats: (params?: { start_date?: string; end_date?: string }) => {
@@ -373,7 +370,7 @@ export const auditApi = {
       });
     }
     const qs = searchParams.toString();
-    return request<any>(`/audit/dashboard-stats${qs ? '?' + qs : ''}`);
+    return request<AuditDashboardStats>(`/audit/dashboard-stats${qs ? '?' + qs : ''}`);
   },
 };
 
@@ -393,41 +390,41 @@ export const passwordResetApi = {
 
 // Sessions API
 export const sessionsApi = {
-  list: () => request<any[]>('/sessions'),
+  list: () => request<Session[]>('/sessions'),
   terminate: (id: number) => request<{ message: string }>(`/sessions/${id}`, { method: 'DELETE' }),
-  mySessions: () => request<any[]>('/sessions/my-sessions'),
+  mySessions: () => request<Session[]>('/sessions/my-sessions'),
 };
 
 // Backups API
 export const backupsApi = {
-  list: () => request<any[]>('/backups'),
+  list: () => request<Backup[]>('/backups'),
   create: (type: string = 'manual') =>
-    request<any>('/backups', { method: 'POST', body: JSON.stringify({ type }) }),
+    request<BackupCreateResult>('/backups', { method: 'POST', body: JSON.stringify({ type }) }),
   download: (id: number) => `${API_BASE}/api/backups/${id}/download`,
-  verify: (id: number) => request<{ valid: boolean; stored_hash: string; computed_hash: string; filename: string }>(`/backups/${id}/verify`, { method: 'POST' }),
+  verify: (id: number) => request<BackupVerifyResult>(`/backups/${id}/verify`, { method: 'POST' }),
   restore: (id: number) => request<{ message: string }>(`/backups/${id}/restore`, { method: 'POST' }),
 };
 
 // Monitoring API
 export const monitoringApi = {
-  health: () => request<any>('/monitoring/health'),
-  snapshot: () => request<any>('/monitoring/snapshot', { method: 'POST' }),
-  history: (limit?: number) => request<any[]>(`/monitoring/history${limit ? '?limit=' + limit : ''}`),
+  health: () => request<HealthCheck>('/monitoring/health'),
+  snapshot: () => request<{ message: string }>('/monitoring/snapshot', { method: 'POST' }),
+  history: (limit?: number) => request<MonitoringSnapshot[]>(`/monitoring/history${limit ? '?limit=' + limit : ''}`),
 };
 
 // LGPD API
 export const lgpdApi = {
-  dashboard: () => request<any>('/lgpd/dashboard'),
+  dashboard: () => request<LgpdDashboard>('/lgpd/dashboard'),
 };
 
 // Demand Versions API
 export const demandVersionsApi = {
-  list: (demandId: string) => request<any[]>(`/demands/${demandId}/versions`),
+  list: (demandId: string) => request<DemandVersion[]>(`/demands/${demandId}/versions`),
 };
 
 // Integration API
 export const integrationsApi = {
-  getInfo: () => request<any>('/integrations'),
+  getInfo: () => request<IntegrationInfo>('/integrations'),
 };
 
 // Municipalities API
@@ -482,9 +479,9 @@ export const settingsApi = {
       body: JSON.stringify(data),
     }),
 
-  export: () => request<any>('/settings/export'),
+  export: () => request<Record<string, unknown>>('/settings/export'),
 
-  importData: (data: any) =>
+  importData: (data: Record<string, unknown>) =>
     request<{ message: string }>('/settings/import', {
       method: 'POST',
       body: JSON.stringify(data),

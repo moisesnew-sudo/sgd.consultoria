@@ -8,6 +8,7 @@ import { UserResponse, USER_ROLES } from '../types.js';
 import { authenticateToken, authenticateRefreshToken, requirePermission, signAccessToken, signRefreshToken } from '../middleware/auth.js';
 import { logAudit, extractMeta } from '../lib/audit.js';
 import { logger } from '../lib/logger.js';
+import { setTokenCookies, clearTokenCookies, setCsrfCookie } from '../lib/cookies.js';
 
 const router = Router();
 
@@ -116,7 +117,7 @@ router.post('/login', async (req: Request, res: Response) => {
       id: user.id, email: user.email, name: user.name, role: user.role, permissions
     };
 
-    const accessToken = signAccessToken(user);
+    const accessToken = signAccessToken(user, permissions);
     const refreshFamily = crypto.randomBytes(16).toString('hex');
     const refreshToken = signRefreshToken(user.id, refreshFamily);
     const refreshHash = crypto.createHash('sha256').update(refreshToken).digest('hex');
@@ -152,7 +153,9 @@ router.post('/login', async (req: Request, res: Response) => {
       details: { ip: ip_address, browser, os }, ip_address, user_agent
     });
 
-    res.json({ token: accessToken, refreshToken, user: userResponse, session: { browser, os, ip: ip_address } });
+    const csrfToken = setCsrfCookie(res);
+    setTokenCookies(res, accessToken, refreshToken);
+    res.json({ token: accessToken, refreshToken, csrfToken, user: userResponse, session: { browser, os, ip: ip_address } });
   } catch (error) {
     if (error instanceof z.ZodError) {
       return res.status(400).json({ error: 'Dados inválidos', details: error.errors });
@@ -165,13 +168,26 @@ router.post('/login', async (req: Request, res: Response) => {
 router.post('/refresh', authenticateRefreshToken, async (req: Request, res: Response) => {
   try {
     const { ip_address, user_agent } = extractMeta(req);
-    const oldRefreshToken = req.body.refreshToken;
+    const oldRefreshToken = req.cookies?.refresh_token || req.body?.refreshToken;
     const oldHash = crypto.createHash('sha256').update(oldRefreshToken).digest('hex');
 
     const user = await get('SELECT * FROM users WHERE id = $1 AND active = TRUE AND deleted_at IS NULL', [req.user!.id]);
     if (!user) return res.status(401).json({ error: 'Usuário não encontrado' });
 
-    const newAccessToken = signAccessToken(user);
+    let permissions: string[] = [];
+    if (user.role === 'admin') {
+      const allPerms = await all<{ key: string }>('SELECT key FROM permissions');
+      permissions = allPerms.map(p => p.key);
+    } else {
+      const userPerms = await all<{ key: string }>(
+        `SELECT p.key FROM user_permissions up
+         JOIN permissions p ON p.id = up.permission_id
+         WHERE up.user_id = $1 AND up.granted = TRUE`, [user.id]
+      );
+      permissions = userPerms.map(p => p.key);
+    }
+
+    const newAccessToken = signAccessToken(user, permissions);
     const newRefreshToken = signRefreshToken(user.id, req.refreshFamily!);
     const newRefreshHash = crypto.createHash('sha256').update(newRefreshToken).digest('hex');
 
@@ -187,6 +203,7 @@ router.post('/refresh', authenticateRefreshToken, async (req: Request, res: Resp
       user_id: user.id, user_name: user.name, details: { ip: ip_address }, ip_address, user_agent
     });
 
+    setTokenCookies(res, newAccessToken, newRefreshToken);
     res.json({ token: newAccessToken, refreshToken: newRefreshToken });
   } catch (error) {
     logger.error('Refresh error', { error: error instanceof Error ? error.message : error });
@@ -197,8 +214,7 @@ router.post('/refresh', authenticateRefreshToken, async (req: Request, res: Resp
 router.post('/logout', authenticateToken, async (req: Request, res: Response) => {
   try {
     const { ip_address, user_agent } = extractMeta(req);
-    const authHeader = req.headers['authorization'];
-    const token = authHeader?.split(' ')[1];
+    const token = req.cookies?.token || req.headers['authorization']?.split(' ')[1];
     if (token) {
       const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
       const decoded = jwt.decode(token) as { exp?: number };
@@ -209,11 +225,12 @@ router.post('/logout', authenticateToken, async (req: Request, res: Response) =>
       );
       await run('UPDATE active_sessions SET active = FALSE WHERE token_hash = $1', [tokenHash]);
     }
-    const { refreshToken } = req.body;
+    const refreshToken = req.cookies?.refresh_token || req.body?.refreshToken;
     if (refreshToken) {
       const refreshHash = crypto.createHash('sha256').update(refreshToken).digest('hex');
       await run('UPDATE refresh_tokens SET revoked = TRUE WHERE token_hash = $1', [refreshHash]);
     }
+    clearTokenCookies(res);
     await logAudit({
       entity_type: 'auth', entity_id: String(req.user!.id), action: 'logout',
       user_id: req.user!.id, user_name: req.user!.name, details: {}, ip_address, user_agent
@@ -357,11 +374,14 @@ router.get('/users', authenticateToken, requirePermission('users.view'), async (
 
 router.post('/users', authenticateToken, requirePermission('users.create'), async (req: Request, res: Response) => {
   try {
-    if (req.user?.role !== 'admin' && req.user?.role !== 'administrador') {
-      return res.status(403).json({ error: 'Apenas administradores podem criar usuários' });
+    if (req.user?.role !== 'admin' && req.user?.role !== 'administrador' && req.user?.role !== 'gestor') {
+      return res.status(403).json({ error: 'Apenas administradores e gestores podem criar usuários' });
     }
     const { ip_address, user_agent } = extractMeta(req);
     const { email, password, name, role } = registerSchema.parse(req.body);
+    if (req.user?.role === 'gestor' && (role === 'admin' || role === 'administrador')) {
+      return res.status(403).json({ error: 'Gestores não podem criar usuários administradores' });
+    }
     const existingUser = await get('SELECT id FROM users WHERE email = $1', [email]);
     if (existingUser) {
       return res.status(409).json({ error: 'Email já cadastrado' });
@@ -465,8 +485,8 @@ router.put('/users/:id', authenticateToken, requirePermission('users.edit'), asy
 
 router.delete('/users/:id', authenticateToken, requirePermission('users.delete'), async (req: Request, res: Response) => {
   try {
-    if (req.user?.role !== 'admin' && req.user?.role !== 'administrador') {
-      return res.status(403).json({ error: 'Apenas administradores podem excluir usuários' });
+    if (req.user?.role !== 'admin' && req.user?.role !== 'administrador' && req.user?.role !== 'gestor') {
+      return res.status(403).json({ error: 'Apenas administradores e gestores podem excluir usuários' });
     }
     const { ip_address, user_agent } = extractMeta(req);
     const id = parseInt(req.params.id as string);
@@ -475,6 +495,9 @@ router.delete('/users/:id', authenticateToken, requirePermission('users.delete')
     }
     const existing = await get('SELECT id, role FROM users WHERE id = $1 AND deleted_at IS NULL', [id]);
     if (!existing) return res.status(404).json({ error: 'Usuário não encontrado' });
+    if (req.user?.role === 'gestor' && (existing.role === 'admin' || existing.role === 'administrador')) {
+      return res.status(403).json({ error: 'Gestores não podem excluir usuários administradores' });
+    }
     await run('UPDATE users SET deleted_at = NOW(), active = FALSE WHERE id = $1', [id]);
     await run('UPDATE active_sessions SET active = FALSE WHERE user_id = $1', [id]);
     await logAudit({

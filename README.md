@@ -1,7 +1,7 @@
 # SGD — Sistema de Gestão de Demandas (Consultoria)
 
 Plataforma estilo CRM para gestão de demandas governamentais.
-Frontend (Vercel) + Backend (Render + PostgreSQL).
+Frontend (`gruposgd.com.br`) + Backend (`api.gruposgd.com.br`).
 
 ## Stack
 - **Frontend:** React 19 + Vite 6 + Tailwind v4 + Recharts + lucide-react
@@ -39,11 +39,11 @@ Frontend (Vercel) + Backend (Render + PostgreSQL).
   NODE_ENV=production
   DATABASE_URL=<postgresql://...>
   JWT_SECRET=<string_32+_caracteres>
-  CORS_ORIGIN=<https://frontend.vercel.app,http://localhost:3000>
+  CORS_ORIGIN=<https://gruposgd.com.br,https://www.gruposgd.com.br,http://localhost:3000>
   ```
 - Opcionais:
   ```
-  PUBLIC_API_URL=https://sgd-consultoria.onrender.com/api
+  PUBLIC_API_URL=https://api.gruposgd.com.br/api
   LOG_LEVEL=info           # debug | info | warn | error
   SEED_DEFAULT_PASSWORD=   # senha padrão do seed
   ```

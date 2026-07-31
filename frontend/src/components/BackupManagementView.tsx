@@ -3,11 +3,13 @@ import { HardDrive, Download, RotateCcw, ShieldCheck, AlertTriangle, RefreshCw, 
 import { backupsApi } from '../services/api';
 import { formatDate } from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
+import { useToast } from '../contexts/ToastContext';
 import { Skeleton } from './ui/Skeleton';
 import { ConfirmModal } from './ui/ConfirmModal';
 
 export default function BackupManagementView() {
   const { user } = useAuth();
+  const { toast } = useToast();
   const [backups, setBackups] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
@@ -50,9 +52,9 @@ export default function BackupManagementView() {
     try {
       await backupsApi.restore(confirmRestore);
       setConfirmRestore(null);
-      alert('Backup restaurado com sucesso!');
+      toast('success', 'Backup restaurado com sucesso!');
     } catch (e: any) {
-      alert('Erro ao restaurar: ' + e.message);
+      toast('error', 'Erro ao restaurar', e.message);
     } finally { setRestoring(null); }
   };
 

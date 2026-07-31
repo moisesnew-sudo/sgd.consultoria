@@ -20,10 +20,14 @@ export default function ExecutiveReport({ demands, filters, onClose }: Props) {
       const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
       const url = URL.createObjectURL(blob);
       const w = window.open(url, '_blank');
+      const cleanup = () => { try { URL.revokeObjectURL(url); } catch {} };
       if (w) {
-        w.onload = () => { URL.revokeObjectURL(url); };
+        w.onload = cleanup;
+        const checkClosed = setInterval(() => {
+          if (w.closed) { cleanup(); clearInterval(checkClosed); }
+        }, 2000);
       } else {
-        URL.revokeObjectURL(url);
+        cleanup();
       }
       onClose();
     }, 600);

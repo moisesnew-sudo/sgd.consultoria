@@ -19,6 +19,6 @@ services:
       - key: JWT_SECRET
         sync: false
       - key: CORS_ORIGIN
-        value: https://sgd-consultoria.vercel.app,http://localhost:3000
+        value: https://gruposgd.com.br,https://www.gruposgd.com.br,http://localhost:3000
       - key: PUBLIC_API_URL
-        value: https://sgd-consultoria.onrender.com/api
+        value: https://api.gruposgd.com.br/api

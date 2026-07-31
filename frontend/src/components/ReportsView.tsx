@@ -83,14 +83,19 @@ export default function ReportsView({ demands }: ReportsViewProps) {
   const [showReport, setShowReport] = useState(false);
 
   const handleExportCsv = () => {
+    const esc = (v: any) => {
+      const s = String(v ?? '');
+      return `"${s.replace(/"/g, '""')}"`;
+    };
     const headers = ['ID', 'Título', 'Município', 'UF', 'Ano', 'Status', 'Prioridade', 'Valor Solicitado', 'Órgão'];
     const rows = filtered.map(d => [
-      d.id, `"${d.title}"`, `"${d.municipality}"`, d.uf, d.ano || '',
-      STATUS_LABELS[d.status],
-      PRIORITY_LABELS[d.priority] || d.priority, d.requested_value || 0, `"${d.organ || ''}"`
+      esc(d.id), esc(d.title), esc(d.municipality), esc(d.uf), esc(d.ano || ''),
+      esc(STATUS_LABELS[d.status]),
+      esc(PRIORITY_LABELS[d.priority] || d.priority), esc(d.requested_value || 0), esc(d.organ || '')
     ]);
+    const bom = '\uFEFF';
     const csv = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const blob = new Blob([bom + csv], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;

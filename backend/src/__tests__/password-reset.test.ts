@@ -20,14 +20,14 @@ describe('Password Reset', () => {
   it('deve rejeitar token inválido no reset', async () => {
     const res = await request(app)
       .post('/api/password-reset/reset')
-      .send({ token: 'token_invalido', new_password: 'NovaSenha123!' });
+      .send({ token: 'token_invalido', password: 'NovaSenha123!' });
     expect(res.status).toBe(400);
   });
 
   it('deve rejeitar senha fraca no reset', async () => {
     const res = await request(app)
       .post('/api/password-reset/reset')
-      .send({ token: 'qualquer', new_password: '123' });
+      .send({ token: 'qualquer', password: '123' });
     expect(res.status).toBe(400);
   });
 });
