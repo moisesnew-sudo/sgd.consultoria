@@ -249,7 +249,11 @@ function AppContent() {
 
           {activeTab === 'calendar' && (
             <ErrorBoundary><Suspense fallback={<ViewFallback />}>
-              <CalendarView />
+              <CalendarView onOpenDemand={(id) => {
+                const d = demands.find(x => x.id === id);
+                if (d) handleSelectDemandFromDashboard(d);
+                else setActiveTab('demands');
+              }} />
             </Suspense></ErrorBoundary>
           )}
 

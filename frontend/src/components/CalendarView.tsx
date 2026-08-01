@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import {
-  Calendar as CalendarIcon, ChevronLeft, ChevronRight, FolderKanban, Clock, RefreshCw,
+  Calendar as CalendarIcon, ChevronLeft, ChevronRight, FolderKanban,   Clock, RefreshCw,
   Plus, Search, SlidersHorizontal, X, Check, AlertTriangle, CalendarDays, CheckCircle2,
   PanelRight, Pencil, Trash2, Flag, Paperclip, User, MapPin, ListFilter, FilterX,
-  RotateCcw, GripVertical
+  RotateCcw, GripVertical, Bell, ShieldAlert, Hourglass, PlusCircle, Undo2, FileText
 } from 'lucide-react';
 import { demandsApi, formatDateShort } from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
@@ -70,13 +70,43 @@ const BRAZILIAN_STATES = [
   'RS', 'RO', 'RR', 'SC', 'SP', 'SE', 'TO'
 ];
 
-const TYPE_META: Record<EventType, { label: string; bar: string; chip: string; dot: string }> = {
-  demanda:      { label: 'Demandas',     bar: 'bg-blue-500',        chip: 'bg-blue-100 text-blue-700 border-blue-200 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-800/50',     dot: 'bg-blue-500' },
-  atualizacao:  { label: 'Atualizações', bar: 'bg-emerald-500',     chip: 'bg-emerald-100 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800/50', dot: 'bg-emerald-500' },
-  prazo:        { label: 'Prazos',       bar: 'bg-amber-400',       chip: 'bg-amber-100 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800/50',     dot: 'bg-amber-400' },
-  reuniao:      { label: 'Reuniões',     bar: 'bg-purple-500',      chip: 'bg-purple-100 text-purple-700 border-purple-200 dark:bg-purple-950/40 dark:text-purple-300 dark:border-purple-800/50', dot: 'bg-purple-500' },
-  alerta:       { label: 'Alertas',      bar: 'bg-red-500',         chip: 'bg-red-100 text-red-700 border-red-200 dark:bg-red-950/40 dark:text-red-300 dark:border-red-800/50',               dot: 'bg-red-500' },
-  outros:       { label: 'Outros',       bar: 'bg-slate-400',       chip: 'bg-slate-100 text-slate-600 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700',           dot: 'bg-slate-400' }
+const TYPE_META: Record<EventType, { label: string; barCls: string; chip: string; dot: string }> = {
+  demanda: {
+    label: 'Demandas',
+    barCls: 'bg-blue-100 text-blue-900 border-blue-200 hover:bg-blue-200 dark:bg-blue-900/60 dark:text-blue-100 dark:border-blue-800/60 dark:hover:bg-blue-800/60',
+    chip: 'bg-blue-100 text-blue-700 border-blue-200 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-800/50',
+    dot: 'bg-blue-500'
+  },
+  atualizacao: {
+    label: 'Atualizações',
+    barCls: 'bg-emerald-100 text-emerald-900 border-emerald-200 hover:bg-emerald-200 dark:bg-emerald-900/60 dark:text-emerald-100 dark:border-emerald-800/60 dark:hover:bg-emerald-800/60',
+    chip: 'bg-emerald-100 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800/50',
+    dot: 'bg-emerald-500'
+  },
+  prazo: {
+    label: 'Prazos',
+    barCls: 'bg-amber-100 text-amber-900 border-amber-200 hover:bg-amber-200 dark:bg-amber-900/50 dark:text-amber-100 dark:border-amber-800/60 dark:hover:bg-amber-800/50',
+    chip: 'bg-amber-100 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800/50',
+    dot: 'bg-amber-400'
+  },
+  reuniao: {
+    label: 'Reuniões',
+    barCls: 'bg-purple-100 text-purple-900 border-purple-200 hover:bg-purple-200 dark:bg-purple-900/60 dark:text-purple-100 dark:border-purple-800/60 dark:hover:bg-purple-800/60',
+    chip: 'bg-purple-100 text-purple-700 border-purple-200 dark:bg-purple-950/40 dark:text-purple-300 dark:border-purple-800/50',
+    dot: 'bg-purple-500'
+  },
+  alerta: {
+    label: 'Alertas',
+    barCls: 'bg-red-100 text-red-900 border-red-200 hover:bg-red-200 dark:bg-red-900/60 dark:text-red-100 dark:border-red-800/60 dark:hover:bg-red-800/60',
+    chip: 'bg-red-100 text-red-700 border-red-200 dark:bg-red-950/40 dark:text-red-300 dark:border-red-800/50',
+    dot: 'bg-red-500'
+  },
+  outros: {
+    label: 'Outros',
+    barCls: 'bg-slate-200 text-slate-800 border-slate-300 hover:bg-slate-300 dark:bg-slate-800 dark:text-slate-200 dark:border-slate-700 dark:hover:bg-slate-700',
+    chip: 'bg-slate-100 text-slate-600 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700',
+    dot: 'bg-slate-400'
+  }
 };
 
 const STATUS_LABELS: Record<DemandStatus, string> = {
@@ -97,6 +127,61 @@ const STATUS_BADGE: Record<string, string> = {
 const COLOR_SWATCHES = [
   '#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ef4444', '#64748b'
 ];
+
+// ---------------------------------------------------------------------------
+// Alerts model
+// ---------------------------------------------------------------------------
+
+const ALERTS_READ_KEY = 'sgd_calendar_alerts_read_v1';
+const ALERTS_HISTORY_KEY = 'sgd_calendar_alerts_history_v1';
+
+type AlertCategory = 'pendente' | 'prazo' | 'atualizacao' | 'cadastro' | 'conclusao';
+type AlertLevel = 'atrasado' | 'proximo' | 'critico' | 'parado' | 'info';
+
+interface AlertItem {
+  id: string;
+  category: AlertCategory;
+  level: AlertLevel;
+  title: string;
+  description?: string;
+  date: string;
+  timeStart?: string;
+  municipality?: string;
+  proposalNumber?: string;
+  responsible?: string;
+  demandId?: string;
+  read: boolean;
+  readAt?: string;
+  readBy?: string;
+  createdAt: string;
+}
+
+const ALERT_FILTERS: { key: 'todos' | 'nao_lidos' | 'lidos' | AlertCategory; label: string }[] = [
+  { key: 'todos', label: 'Todos' },
+  { key: 'nao_lidos', label: 'Não lidos' },
+  { key: 'lidos', label: 'Lidos' },
+  { key: 'pendente', label: 'Pendentes' },
+  { key: 'prazo', label: 'Prazo' },
+  { key: 'atualizacao', label: 'Atualizações' },
+  { key: 'cadastro', label: 'Cadastro' },
+  { key: 'conclusao', label: 'Conclusão' }
+];
+
+const ALERT_LEVEL_META: Record<AlertLevel, { label: string; icon: React.ReactNode; cls: string }> = {
+  atrasado: { label: 'Vencido', icon: <AlertTriangle size={14} className="text-red-500" />, cls: 'border-red-200 dark:border-red-800/50 bg-red-50 dark:bg-red-950/30' },
+  proximo: { label: 'Próximo', icon: <Clock size={14} className="text-amber-500" />, cls: 'border-amber-200 dark:border-amber-800/50 bg-amber-50 dark:bg-amber-950/30' },
+  critico: { label: 'Crítico', icon: <ShieldAlert size={14} className="text-purple-500" />, cls: 'border-purple-200 dark:border-purple-800/50 bg-purple-50 dark:bg-purple-950/30' },
+  parado: { label: 'Parado', icon: <Hourglass size={14} className="text-slate-500" />, cls: 'border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50' },
+  info: { label: 'Informativo', icon: <Bell size={14} className="text-blue-500" />, cls: 'border-blue-200 dark:border-blue-800/50 bg-blue-50 dark:bg-blue-950/30' }
+};
+
+const CATEGORY_LABELS: Record<AlertCategory, string> = {
+  pendente: 'Pendente', prazo: 'Prazo', atualizacao: 'Atualização', cadastro: 'Cadastro', conclusao: 'Conclusão'
+};
+
+const CATEGORY_TYPE: Record<AlertCategory, EventType> = {
+  pendente: 'alerta', prazo: 'prazo', atualizacao: 'atualizacao', cadastro: 'demanda', conclusao: 'outros'
+};
 
 const WEEK_DAYS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
 
@@ -442,7 +527,7 @@ function EventFormModal({
 // Main View
 // ---------------------------------------------------------------------------
 
-export default function CalendarView() {
+export default function CalendarView({ onOpenDemand }: { onOpenDemand?: (demandId: string) => void }) {
   const { user } = useAuth();
   const { toast } = useToast();
 
@@ -469,6 +554,17 @@ export default function CalendarView() {
   );
   const [demands, setDemands] = useState<Demand[]>([]);
   const [detailTimeline, setDetailTimeline] = useState<any[]>([]);
+
+  // ---- Alerts state (read/history persisted) ----
+  const [readIds, setReadIds] = useState<string[]>(() => {
+    try { return JSON.parse(localStorage.getItem(ALERTS_READ_KEY) || '[]') as string[]; } catch { return []; }
+  });
+  const [history, setHistory] = useState<AlertItem[]>(() => {
+    try { return JSON.parse(localStorage.getItem(ALERTS_HISTORY_KEY) || '[]') as AlertItem[]; } catch { return []; }
+  });
+  const [closingId, setClosingId] = useState<string | null>(null);
+  const [alertTab, setAlertTab] = useState<'ativos' | 'historico'>('ativos');
+  const [alertFilter, setAlertFilter] = useState<'todos' | 'nao_lidos' | 'lidos' | AlertCategory>('todos');
 
   // ---- Load data ----
   const load = async () => {
@@ -579,32 +675,76 @@ export default function CalendarView() {
     return { eventosMes: inMonth.length, pendentes, concluidas };
   }, [filteredEvents, monthKey]);
 
-  const alerts = useMemo(() => {
-    const list: { id: string; level: 'atrasado' | 'proximo' | 'critico' | 'parado'; title: string; date: string; timeStart?: string }[] = [];
-    const seen: Record<string, boolean> = {};
+  const derivedAlerts = useMemo(() => {
+    const list: AlertItem[] = [];
+    const demandById = new Map(demands.map(d => [d.id, d]));
+    const enrich = (e: CalEvent): Partial<AlertItem> => {
+      const d = e.demandId ? demandById.get(e.demandId) : undefined;
+      return {
+        demandId: e.demandId,
+        municipality: d?.municipality || e.municipality,
+        proposalNumber: d?.proposal_number,
+        responsible: d?.responsible_name || e.responsible
+      };
+    };
     filteredEvents.forEach(e => {
       if (e.done) return;
       const diff = dayDiff(e.date);
+      const meta = enrich(e);
       if (e.type === 'prazo' || e.type === 'alerta' || e.type === 'reuniao') {
         if (diff < 0) {
-          list.push({ id: `atras-${e.id}`, level: 'atrasado', title: e.title, date: e.date, timeStart: e.timeStart });
+          list.push({ id: `prazo-atrasado-${e.id}`, category: 'prazo', level: 'atrasado', title: `Prazo vencido: ${e.title}`, description: e.description, date: e.date, timeStart: e.timeStart, createdAt: e.createdAt, read: false, ...meta });
         } else if (diff <= 7) {
-          list.push({ id: `prox-${e.id}`, level: 'proximo', title: e.title, date: e.date, timeStart: e.timeStart });
+          list.push({ id: `prazo-proximo-${e.id}`, category: 'prazo', level: 'proximo', title: `Prazo próximo: ${e.title}`, description: e.description, date: e.date, timeStart: e.timeStart, createdAt: e.createdAt, read: false, ...meta });
         }
       }
       if ((e.priority === 'urgente' || e.priority === 'alta') && e.status && ['pendente', 'analise'].includes(e.status)) {
-        list.push({ id: `crit-${e.id}`, level: 'critico', title: e.title, date: e.date });
+        list.push({ id: `critico-${e.id}`, category: 'pendente', level: 'critico', title: `Demanda crítica: ${e.title}`, date: e.date, timeStart: e.timeStart, createdAt: e.createdAt, read: false, ...meta });
       }
     });
     apiEvents
-      .filter(e => e.type === 'atualizacao' && e.status && ['pendente', 'analise'].includes(e.status) && dayDiff(e.date) < -15 && !seen[e.demandId!])
-      .slice(0, 10)
+      .filter(e => e.type === 'atualizacao' && e.status && ['pendente', 'analise'].includes(e.status) && dayDiff(e.date) < -15)
+      .slice(0, 8)
       .forEach(e => {
-        seen[e.demandId!] = true;
-        list.push({ id: `parado-${e.id}`, level: 'parado', title: `Sem atualização há +15 dias: ${e.title}`, date: e.date });
+        list.push({ id: `parado-${e.id}`, category: 'atualizacao', level: 'parado', title: `Sem atualização há +15 dias: ${e.title}`, date: e.date, createdAt: e.createdAt, read: false, ...enrich(e) });
       });
-    return list.sort((a, b) => a.date.localeCompare(b.date)).slice(0, 12);
-  }, [filteredEvents, apiEvents]);
+    demands
+      .filter(d => (d.priority === 'urgente' || d.priority === 'alta') && ['pendente', 'analise'].includes(d.status))
+      .filter(d => { const df = dayDiff(toDateStr(new Date(d.created_at))); return df >= -3 && df <= 0; })
+      .slice(0, 8)
+      .forEach(d => {
+        list.push({ id: `cadastro-${d.id}`, category: 'cadastro', level: 'info', title: `Nova demanda: ${d.title}`, municipality: d.municipality, proposalNumber: d.proposal_number, responsible: d.responsible_name, demandId: d.id, date: toDateStr(new Date(d.created_at)), createdAt: d.created_at, read: false });
+      });
+    apiEvents
+      .filter(e => e.type === 'atualizacao' && e.status === 'concluido')
+      .filter(e => { const df = dayDiff(e.date); return df >= 0 && df <= 3; })
+      .slice(0, 8)
+      .forEach(e => {
+        list.push({ id: `conclusao-${e.id}`, category: 'conclusao', level: 'info', title: `Demanda concluída: ${e.title}`, date: e.date, createdAt: e.createdAt, read: false, ...enrich(e) });
+      });
+    const order: Record<AlertLevel, number> = { atrasado: 0, critico: 1, proximo: 2, parado: 3, info: 4 };
+    return list.sort((a, b) => (order[a.level] - order[b.level]) || (a.date + (a.timeStart || '99')).localeCompare(b.date + (b.timeStart || '99')));
+  }, [filteredEvents, apiEvents, demands]);
+
+  const activeAlerts = useMemo(
+    () => derivedAlerts.filter(a => !readIds.includes(a.id)),
+    [derivedAlerts, readIds]
+  );
+
+  const filteredActiveAlerts = useMemo(() => {
+    if (alertFilter === 'todos' || alertFilter === 'nao_lidos' || alertFilter === 'lidos') return activeAlerts;
+    return activeAlerts.filter(a => a.category === alertFilter);
+  }, [activeAlerts, alertFilter]);
+
+  const filteredHistoryAlerts = useMemo(() => {
+    let list = [...history].sort((a, b) => (b.readAt || '').localeCompare(a.readAt || ''));
+    if (alertFilter === 'nao_lidos') list = list.filter(a => !a.read);
+    else if (alertFilter === 'lidos') list = list.filter(a => a.read);
+    else if (alertFilter !== 'todos') list = list.filter(a => a.category === alertFilter);
+    return list;
+  }, [history, alertFilter]);
+
+  const unreadCount = activeAlerts.length;
 
   const upcoming = useMemo(() => {
     const todayStr = toDateStr(new Date());
@@ -684,6 +824,64 @@ export default function CalendarView() {
     setModalOpen(true);
   };
 
+  // ---- Alerts handlers ----
+  const markAlertRead = (a: AlertItem) => {
+    setClosingId(a.id);
+    window.setTimeout(() => {
+      setReadIds(prev => {
+        const next = prev.includes(a.id) ? prev : [...prev, a.id];
+        localStorage.setItem(ALERTS_READ_KEY, JSON.stringify(next));
+        return next;
+      });
+      setHistory(prev => {
+        const next = prev.filter(x => x.id !== a.id);
+        next.push({ ...a, read: true, readAt: new Date().toISOString(), readBy: user?.name || '—' });
+        localStorage.setItem(ALERTS_HISTORY_KEY, JSON.stringify(next));
+        return next;
+      });
+      setClosingId(null);
+    }, 200);
+  };
+
+  const openAlertDemand = (a: AlertItem) => {
+    markAlertRead(a);
+    if (a.demandId && onOpenDemand) onOpenDemand(a.demandId);
+  };
+
+  const restoreAlert = (a: AlertItem) => {
+    setHistory(prev => {
+      const next = prev.filter(x => x.id !== a.id);
+      localStorage.setItem(ALERTS_HISTORY_KEY, JSON.stringify(next));
+      return next;
+    });
+    setReadIds(prev => {
+      const next = prev.filter(x => x !== a.id);
+      localStorage.setItem(ALERTS_READ_KEY, JSON.stringify(next));
+      return next;
+    });
+    toast('success', 'Alerta restaurado');
+  };
+
+  const deleteAlertPermanently = (a: AlertItem) => {
+    setHistory(prev => {
+      const next = prev.filter(x => x.id !== a.id);
+      localStorage.setItem(ALERTS_HISTORY_KEY, JSON.stringify(next));
+      return next;
+    });
+    setReadIds(prev => {
+      const next = prev.includes(a.id) ? prev : [...prev, a.id];
+      localStorage.setItem(ALERTS_READ_KEY, JSON.stringify(next));
+      return next;
+    });
+    toast('success', 'Alerta excluído permanentemente');
+  };
+
+  const renderAlertIcon = (a: AlertItem) => {
+    if (a.category === 'cadastro') return <PlusCircle size={14} className="text-blue-500" />;
+    if (a.category === 'conclusao') return <CheckCircle2 size={14} className="text-emerald-500" />;
+    return ALERT_LEVEL_META[a.level].icon;
+  };
+
   // Drag & Drop
   const handleDragStart = (e: React.DragEvent, ev: CalEvent) => {
     if (ev.source !== 'user') { e.preventDefault(); return; }
@@ -747,10 +945,10 @@ export default function CalendarView() {
 
   // ---- Event bar (shared by views) ----
   const renderEventBar = (e: CalEvent, compact: boolean) => {
-    const color = e.color || TYPE_META[e.type].bar;
+    const isCustom = !!e.color;
     const cls = compact
-      ? `inline-flex items-center gap-1 max-w-full rounded px-1 py-[3px] text-[9px] font-bold text-white truncate cursor-pointer hover:brightness-110 transition-all`
-      : `inline-flex items-center gap-1 max-w-full rounded px-1.5 py-1 text-[10px] font-bold text-white truncate cursor-pointer hover:brightness-110 transition-all`;
+      ? `inline-flex items-center gap-1 max-w-full rounded px-1 py-[3px] text-[9px] font-bold truncate cursor-pointer hover:brightness-110 transition-all border ${isCustom ? 'text-white border-transparent' : TYPE_META[e.type].barCls}`
+      : `inline-flex items-center gap-1 max-w-full rounded px-1.5 py-1 text-[10px] font-bold truncate cursor-pointer hover:brightness-110 transition-all border ${isCustom ? 'text-white border-transparent' : TYPE_META[e.type].barCls}`;
     return (
       <button
         key={e.id}
@@ -761,7 +959,7 @@ export default function CalendarView() {
         onClick={() => setSelectedEvent(e)}
         title={`${e.title}${e.timeStart ? ` — ${e.timeStart}` : ''}${e.responsible ? ` — ${e.responsible}` : ''}`}
         className={`${cls} ${e.done ? 'opacity-50 line-through' : ''}`}
-        style={{ backgroundColor: color }}
+        style={isCustom ? { backgroundColor: e.color } : undefined}
       >
         {e.source === 'user' && <GripVertical size={compact ? 8 : 10} className="shrink-0 opacity-70" />}
         {e.timeStart && <span className="shrink-0 font-black">{e.timeStart}</span>}
@@ -962,12 +1160,12 @@ export default function CalendarView() {
           </div>
         </div>
         <div className="bg-white dark:bg-[#111a2e] border border-slate-100 dark:border-slate-700/50 rounded-2xl p-3.5 shadow-sm flex items-center gap-3">
-          <span className={`w-9 h-9 shrink-0 rounded-xl flex items-center justify-center ${alerts.length > 0 ? 'bg-red-50 dark:bg-red-950/40' : 'bg-slate-100 dark:bg-slate-800'}`}>
-            <AlertTriangle size={16} className={alerts.length > 0 ? 'text-red-600 dark:text-red-400' : 'text-slate-400'} />
+          <span className={`w-9 h-9 shrink-0 rounded-xl flex items-center justify-center ${unreadCount > 0 ? 'bg-red-50 dark:bg-red-950/40' : 'bg-slate-100 dark:bg-slate-800'}`}>
+            <AlertTriangle size={16} className={unreadCount > 0 ? 'text-red-600 dark:text-red-400' : 'text-slate-400'} />
           </span>
           <div className="min-w-0">
-            <p className="text-[9px] font-bold uppercase tracking-wider text-slate-400">Alertas de Prazo</p>
-            <p className={`text-lg font-black leading-tight ${alerts.length > 0 ? 'text-red-600 dark:text-red-400' : 'text-slate-800 dark:text-white'}`}>{alerts.length}</p>
+            <p className="text-[9px] font-bold uppercase tracking-wider text-slate-400">Alertas Ativos</p>
+            <p className={`text-lg font-black leading-tight ${unreadCount > 0 ? 'text-red-600 dark:text-red-400' : 'text-slate-800 dark:text-white'}`}>{unreadCount}</p>
           </div>
         </div>
       </div>
@@ -1064,34 +1262,152 @@ export default function CalendarView() {
             </div>
           </div>
 
-          {/* Alerts */}
+          {/* Alerts Center */}
           <div className="bg-white dark:bg-[#111a2e] border border-slate-100 dark:border-slate-700/50 rounded-2xl p-4 shadow-sm space-y-3">
             <h3 className="text-xs font-black text-slate-800 dark:text-white flex items-center gap-1.5">
-              <AlertTriangle size={14} className="text-red-500" /> Alertas
+              <Bell size={14} className="text-brand-600" /> Central de Alertas
+              {unreadCount > 0 && (
+                <span className="ml-auto inline-flex items-center justify-center min-w-[22px] h-[22px] px-1.5 rounded-full bg-red-500 text-white text-[10px] font-black animate-alert-in">
+                  {unreadCount}
+                </span>
+              )}
             </h3>
-            {alerts.length === 0 ? (
-              <p className="text-[11px] text-slate-400 italic">Nenhum alerta ativo. Tudo em dia!</p>
+
+            {/* Filters */}
+            <div className="flex flex-wrap gap-1">
+              {ALERT_FILTERS.map(f => (
+                <button
+                  key={f.key}
+                  onClick={() => setAlertFilter(f.key)}
+                  className={`px-2 py-1 rounded-full text-[9px] font-bold border transition-colors ${
+                    alertFilter === f.key
+                      ? 'bg-slate-900 text-white border-slate-950 dark:bg-brand-600 dark:border-brand-600'
+                      : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700'
+                  }`}
+                >
+                  {f.label}
+                </button>
+              ))}
+            </div>
+
+            {/* Tabs */}
+            <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-xl">
+              <button
+                onClick={() => setAlertTab('ativos')}
+                className={`flex-1 py-1.5 rounded-lg text-[10px] font-bold transition-all ${
+                  alertTab === 'ativos' ? 'bg-white dark:bg-slate-600 text-slate-800 dark:text-white shadow-xs' : 'text-slate-500 dark:text-slate-400'
+                }`}
+              >
+                Ativos{activeAlerts.length > 0 ? ` (${activeAlerts.length})` : ''}
+              </button>
+              <button
+                onClick={() => setAlertTab('historico')}
+                className={`flex-1 py-1.5 rounded-lg text-[10px] font-bold transition-all ${
+                  alertTab === 'historico' ? 'bg-white dark:bg-slate-600 text-slate-800 dark:text-white shadow-xs' : 'text-slate-500 dark:text-slate-400'
+                }`}
+              >
+                Histórico{history.length > 0 ? ` (${history.length})` : ''}
+              </button>
+            </div>
+
+            {/* Active list */}
+            {alertTab === 'ativos' ? (
+              filteredActiveAlerts.length === 0 ? (
+                <p className="text-[11px] text-slate-400 italic">Nenhum alerta ativo. Tudo em dia!</p>
+              ) : (
+                <div className="space-y-2 max-h-[280px] overflow-y-auto custom-scrollbar pr-1">
+                  {filteredActiveAlerts.map(a => (
+                    <div
+                      key={a.id}
+                      className={`flex items-start gap-2 p-2 rounded-lg border text-[10px] ${ALERT_LEVEL_META[a.level].cls} ${closingId === a.id ? 'animate-alert-out' : 'animate-alert-in'}`}
+                    >
+                      <span className="mt-0.5 shrink-0">{renderAlertIcon(a)}</span>
+                      <div className="min-w-0 flex-1">
+                        <button
+                          type="button"
+                          onClick={() => (a.demandId ? openAlertDemand(a) : markAlertRead(a))}
+                          className={`text-left font-bold truncate block w-full ${a.demandId ? 'hover:underline' : ''} ${
+                            a.level === 'atrasado' ? 'text-red-800 dark:text-red-200'
+                            : a.level === 'proximo' ? 'text-amber-800 dark:text-amber-200'
+                            : a.level === 'critico' ? 'text-purple-800 dark:text-purple-200'
+                            : 'text-slate-800 dark:text-slate-200'
+                          }`}
+                          title={a.demandId ? 'Abrir demanda' : undefined}
+                        >
+                          {a.title}
+                        </button>
+                        {a.description && <p className="text-[9px] opacity-80 mt-0.5 line-clamp-2">{a.description}</p>}
+                        <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 mt-1 text-[9px] text-slate-500 dark:text-slate-400 font-mono">
+                          <span className="inline-flex items-center gap-0.5"><CalendarDays size={9} /> {formatDateShort(a.date)}{a.timeStart ? ` ${a.timeStart}` : ''}</span>
+                          {a.municipality && <span className="inline-flex items-center gap-0.5"><MapPin size={9} /> {a.municipality}</span>}
+                          {a.proposalNumber && <span className="inline-flex items-center gap-0.5"><FileText size={9} /> {a.proposalNumber}</span>}
+                          {a.responsible && <span className="inline-flex items-center gap-0.5"><User size={9} /> {a.responsible}</span>}
+                        </div>
+                        <span className={`mt-1 inline-block px-1.5 py-0.5 rounded-full text-[8px] font-black uppercase tracking-wide ${
+                          a.read ? 'bg-slate-200 text-slate-500 dark:bg-slate-700 dark:text-slate-300' : 'bg-brand-600 text-white'
+                        }`}>
+                          {a.read ? 'Lido' : 'Novo'}
+                        </span>
+                      </div>
+                      <div className="flex flex-col gap-1 shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => markAlertRead(a)}
+                          title="Marcar como lido"
+                          className="p-1 rounded-md text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 transition-colors"
+                        >
+                          <Check size={12} />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => markAlertRead(a)}
+                          title="Fechar alerta"
+                          className="p-1 rounded-md text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                        >
+                          <X size={12} />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )
+            ) : filteredHistoryAlerts.length === 0 ? (
+              <p className="text-[11px] text-slate-400 italic">Histórico vazio.</p>
             ) : (
-              <div className="space-y-2 max-h-[220px] overflow-y-auto custom-scrollbar pr-1">
-                {alerts.map(a => (
-                  <div key={a.id} className={`flex items-start gap-2 p-2 rounded-lg border text-[10px] ${
-                    a.level === 'atrasado'
-                      ? 'bg-red-50 dark:bg-red-950/30 border-red-200 dark:border-red-800/50 text-red-700 dark:text-red-300'
-                      : a.level === 'proximo'
-                      ? 'bg-amber-50 dark:bg-amber-950/30 border-amber-200 dark:border-amber-800/50 text-amber-700 dark:text-amber-300'
-                      : a.level === 'critico'
-                      ? 'bg-purple-50 dark:bg-purple-950/30 border-purple-200 dark:border-purple-800/50 text-purple-700 dark:text-purple-300'
-                      : 'bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300'
-                  }`}>
-                    <span className={`mt-0.5 w-1.5 h-1.5 rounded-full shrink-0 ${
-                      a.level === 'atrasado' ? 'bg-red-500' : a.level === 'proximo' ? 'bg-amber-400' : a.level === 'critico' ? 'bg-purple-500' : 'bg-slate-400'
-                    }`} />
-                    <div className="min-w-0">
-                      <p className="font-bold truncate">{a.title}</p>
-                      <p className="text-[9px] opacity-75 font-mono">
-                        {formatDateShort(a.date)}{a.timeStart ? ` às ${a.timeStart}` : ''} ·{' '}
-                        {a.level === 'atrasado' ? 'Atrasado' : a.level === 'proximo' ? 'Próximo' : a.level === 'critico' ? 'Crítico' : 'Sem atualização'}
+              <div className="space-y-2 max-h-[280px] overflow-y-auto custom-scrollbar pr-1">
+                {filteredHistoryAlerts.map(a => (
+                  <div key={a.id} className="flex items-start gap-2 p-2 rounded-lg border border-slate-100 dark:border-slate-700/50 bg-slate-50/60 dark:bg-slate-800/40 text-[10px] animate-alert-in">
+                    <span className="mt-0.5 shrink-0 opacity-70">{renderAlertIcon(a)}</span>
+                    <div className="min-w-0 flex-1">
+                      <p className="font-bold text-slate-700 dark:text-slate-200 truncate">{a.title}</p>
+                      <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 mt-1 text-[9px] text-slate-400 font-mono">
+                        <span className="inline-flex items-center gap-0.5"><CalendarDays size={9} /> {formatDateShort(a.date)}{a.timeStart ? ` ${a.timeStart}` : ''}</span>
+                        {a.municipality && <span className="inline-flex items-center gap-0.5"><MapPin size={9} /> {a.municipality}</span>}
+                        {a.proposalNumber && <span className="inline-flex items-center gap-0.5"><FileText size={9} /> {a.proposalNumber}</span>}
+                      </div>
+                      <p className="text-[9px] text-slate-400 mt-1 flex flex-wrap items-center gap-1.5">
+                        <span className="inline-flex items-center gap-0.5"><Check size={9} className="text-emerald-500" /> {a.readAt ? `Lido em ${formatDateShort(a.readAt.slice(0, 10))} ${a.readAt.slice(11, 16)}` : 'Lido'}</span>
+                        <span className="inline-flex items-center gap-0.5"><User size={9} /> {a.readBy || '—'}</span>
+                        <span className={`px-1 py-0.5 rounded border font-bold ${TYPE_META[CATEGORY_TYPE[a.category]].chip}`}>{CATEGORY_LABELS[a.category]}</span>
                       </p>
+                    </div>
+                    <div className="flex flex-col gap-1 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => restoreAlert(a)}
+                        title="Restaurar alerta"
+                        className="p-1 rounded-md text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/40 transition-colors"
+                      >
+                        <Undo2 size={12} />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => deleteAlertPermanently(a)}
+                        title="Excluir permanentemente"
+                        className="p-1 rounded-md text-red-500 hover:bg-red-50 dark:hover:bg-red-950/40 transition-colors"
+                      >
+                        <Trash2 size={12} />
+                      </button>
                     </div>
                   </div>
                 ))}

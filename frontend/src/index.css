@@ -328,3 +328,18 @@ textarea:focus-visible {
   outline: 2px solid var(--ring-focus);
   outline-offset: 2px;
 }
+
+@keyframes alert-in {
+  from { opacity: 0; transform: translateY(-6px) scale(0.98); }
+  to { opacity: 1; transform: none; }
+}
+.animate-alert-in {
+  animation: alert-in 0.2s ease-out both;
+}
+@keyframes alert-out {
+  from { opacity: 1; transform: none; }
+  to { opacity: 0; transform: translateX(24px); }
+}
+.animate-alert-out {
+  animation: alert-out 0.2s ease-in both;
+}
