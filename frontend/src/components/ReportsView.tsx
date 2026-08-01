@@ -1,11 +1,13 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
-  BarChart3, Download, Filter, TrendingUp, AlertTriangle, CheckCircle2, Clock, FileText, Sparkles
+  BarChart3, Download, TrendingUp, AlertTriangle, CheckCircle2, Clock, FileText, Sparkles,
+  Search, X, SlidersHorizontal, Check, FilterX, FileJson
 } from 'lucide-react';
 import { Demand, DemandStatus } from '../types';
 import { formatCurrency } from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
 import ExecutiveReport from './ExecutiveReport';
+import ExportMenu, { ExportMenuItem } from './ui/ExportMenu';
 
 interface ReportsViewProps {
   demands: Demand[];
@@ -49,6 +51,40 @@ export default function ReportsView({ demands }: ReportsViewProps) {
     createdFrom: '', createdTo: '', updatedFrom: '', updatedTo: '',
     valueMin: '', valueMax: '', responsible: '',
   });
+
+  const [isFiltersOpen, setIsFiltersOpen] = useState(false);
+  const [draft, setDraft] = useState({ ...filters });
+
+  useEffect(() => {
+    if (!isFiltersOpen) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') closeFilters(); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [isFiltersOpen]);
+
+  const openFilters = () => {
+    setDraft({ ...filters });
+    setIsFiltersOpen(true);
+  };
+  const closeFilters = () => setIsFiltersOpen(false);
+  const applyFilters = () => {
+    setFilters({ ...draft });
+    setIsFiltersOpen(false);
+  };
+  const setDraftFilter = (key: keyof typeof filters) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+    setDraft(prev => ({ ...prev, [key]: e.target.value }));
+  };
+  const clearDraftFilters = () => {
+    setDraft({
+      search: '', uf: '', municipality: '', organ: '', proposal: '', object: '',
+      status: '', priority: '', ano: '',
+      createdFrom: '', createdTo: '', updatedFrom: '', updatedTo: '',
+      valueMin: '', valueMax: '', responsible: '',
+    });
+  };
+  const setFilterValue = (key: keyof typeof filters, value: string) => {
+    setFilters(prev => ({ ...prev, [key]: value }));
+  };
 
   const filtered = useMemo(() => {
     const f = filters;
@@ -152,6 +188,50 @@ export default function ReportsView({ demands }: ReportsViewProps) {
     URL.revokeObjectURL(url);
   };
 
+  const exportItems: ExportMenuItem[] = [
+    {
+      id: 'csv',
+      label: 'Exportar CSV',
+      description: 'Dados filtrados (.csv)',
+      icon: <FileText size={16} className="text-emerald-600 dark:text-emerald-400" />,
+      onSelect: () => { handleExportCsv(); },
+    },
+    {
+      id: 'json',
+      label: 'Exportar JSON',
+      description: 'Dados filtrados (.json)',
+      icon: <FileJson size={16} className="text-blue-600 dark:text-blue-400" />,
+      onSelect: () => { handleExportJson(); },
+    },
+  ];
+
+  const chipDefs: Array<[keyof typeof filters, string]> = [
+    ['search', `Busca: ${filters.search}`],
+    ['uf', `UF: ${filters.uf}`],
+    ['municipality', `Município: ${filters.municipality}`],
+    ['organ', `Órgão: ${filters.organ}`],
+    ['proposal', `Proposta: ${filters.proposal}`],
+    ['object', `Objeto: ${filters.object}`],
+    ['status', `Status: ${STATUS_LABELS[filters.status as DemandStatus] || filters.status}`],
+    ['priority', `Prioridade: ${PRIORITY_LABELS[filters.priority] || filters.priority}`],
+    ['ano', `Ano: ${filters.ano}`],
+    ['createdFrom', `Cadastro de: ${filters.createdFrom}`],
+    ['createdTo', `Cadastro até: ${filters.createdTo}`],
+    ['updatedFrom', `Atualização de: ${filters.updatedFrom}`],
+    ['updatedTo', `Atualização até: ${filters.updatedTo}`],
+    ['valueMin', `Valor mín.: ${filters.valueMin}`],
+    ['valueMax', `Valor máx.: ${filters.valueMax}`],
+    ['responsible', `Responsável: ${filters.responsible}`],
+  ];
+  const activeChips = chipDefs
+    .filter(([k]) => String(filters[k] ?? '').trim() !== '')
+    .map(([k, label]) => ({ id: k, label, onRemove: () => setFilterValue(k, '') }));
+
+  const clearAllFilters = () => {
+    clearFilters();
+    setIsFiltersOpen(false);
+  };
+
   const maxBarValue = byUf.length > 0 ? Math.max(...byUf.map(([, v]) => v.value), 1) : 1;
 
   return (
@@ -166,13 +246,62 @@ export default function ReportsView({ demands }: ReportsViewProps) {
             Dados consolidados de {filtered.length} demandas
           </p>
         </div>
-        <div className="flex flex-wrap gap-2">
+      </div>
+
+      {/* ACTION BAR */}
+      <div className="bg-white dark:bg-[#111a2e] border border-slate-100 dark:border-slate-700/50 rounded-2xl p-3 shadow-sm flex flex-col sm:flex-row flex-wrap items-stretch sm:items-center gap-2">
+        <div className="relative flex-1 min-w-[200px]">
+          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+          <input
+            type="text"
+            value={filters.search}
+            onChange={setFilter('search')}
+            placeholder="Pesquisa: ID, proposta, objeto, município, órgão, responsável..."
+            className="w-full pl-10 pr-8 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-900/60 text-sm text-slate-800 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-600 focus:border-transparent"
+          />
+          {filters.search && (
+            <button
+              onClick={() => setFilterValue('search', '')}
+              aria-label="Limpar pesquisa"
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 p-0.5 rounded-full text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800"
+            >
+              <X size={14} />
+            </button>
+          )}
+        </div>
+
+        <div className="flex items-center gap-2 flex-wrap">
+          <button
+            onClick={openFilters}
+            className={`flex items-center gap-2 px-3 py-2.5 rounded-xl border text-xs font-bold transition-colors relative ${
+              activeFilterCount > 0
+                ? 'bg-brand-50 dark:bg-brand-950/30 border-brand-300 dark:border-brand-800 text-brand-700 dark:text-brand-300'
+                : 'bg-white dark:bg-[#111a2e] border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800'
+            }`}
+          >
+            <SlidersHorizontal size={15} />
+            Filtros
+            {activeFilterCount > 0 && (
+              <span className="min-w-[18px] h-[18px] px-1 rounded-full bg-brand-600 text-white text-[9px] font-black flex items-center justify-center">
+                {activeFilterCount}
+              </span>
+            )}
+          </button>
+
+          {canExport && (
+            <ExportMenu
+              items={exportItems}
+              buttonLabel="Exportar"
+              buttonIcon={<Download size={15} />}
+            />
+          )}
+
           {canEmit && (
             <>
               <select
                 value={reportType}
                 onChange={(e) => setReportType(e.target.value)}
-                className="px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-600 text-xs text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 focus:ring-2 focus:ring-brand-600 focus:outline-none"
+                className="px-3 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-900/60 text-xs text-slate-700 dark:text-slate-200 bg-white focus:ring-2 focus:ring-brand-600 focus:outline-none"
                 title="Tipo de Relatório"
               >
                 <option value="executivo">Executivo Geral (IA)</option>
@@ -182,173 +311,188 @@ export default function ReportsView({ demands }: ReportsViewProps) {
               </select>
               <button
                 onClick={() => setShowReport(true)}
-                className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-gradient-to-r from-brand-600 to-brand-700 hover:from-brand-700 hover:to-brand-800 text-white text-xs font-bold uppercase tracking-wider cursor-pointer"
+                className="flex items-center gap-1.5 px-3 py-2.5 rounded-xl bg-gradient-to-r from-brand-600 to-brand-700 hover:from-brand-700 hover:to-brand-800 text-white text-xs font-bold uppercase tracking-wider cursor-pointer shadow-sm"
               >
-                <Sparkles size={14} /> RELATÓRIO
+                <Sparkles size={14} /> Gerar Relatório
               </button>
             </>
           )}
-          {canExport && (
-            <button
-              onClick={handleExportCsv}
-              className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 text-xs font-bold uppercase tracking-wider cursor-pointer"
-            >
-              <Download size={14} /> CSV
-            </button>
-          )}
-          {canExport && (
-            <button
-              onClick={handleExportJson}
-              className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-brand-700 hover:bg-brand-800 text-white text-xs font-bold uppercase tracking-wider cursor-pointer"
-            >
-              <Download size={14} /> JSON
-            </button>
-          )}
         </div>
       </div>
 
-      {/* Filtros avançados */}
-      <div className="bg-white dark:bg-[#111a2e] border border-slate-100 dark:border-slate-700/50 rounded-2xl p-4 shadow-sm space-y-4">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-center gap-2">
-            <Filter size={14} className="text-slate-400 dark:text-slate-500" />
-            <span className="text-xs font-extrabold text-slate-600 dark:text-slate-300 uppercase tracking-widest">Filtros Avançados</span>
-            {activeFilterCount > 0 && (
-              <span className="px-2 py-0.5 rounded-full bg-brand-600 text-white text-[10px] font-bold">{activeFilterCount} ativo(s)</span>
-            )}
-          </div>
+      {/* ACTIVE FILTER CHIPS */}
+      {activeChips.length > 0 && (
+        <div className="flex flex-wrap items-center gap-1.5">
+          {activeChips.map(chip => (
+            <button
+              key={chip.id}
+              onClick={chip.onRemove}
+              title={`Remover filtro ${chip.label}`}
+              className="inline-flex items-center gap-1.5 pl-2.5 pr-1.5 py-1 rounded-full bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-[10px] font-semibold text-slate-600 dark:text-slate-300 hover:border-brand-400 hover:text-brand-700 dark:hover:text-brand-300 transition-colors"
+            >
+              {chip.label}
+              <span className="p-0.5 rounded-full bg-slate-200/70 dark:bg-slate-700 text-slate-500 dark:text-slate-300 hover:bg-red-100 hover:text-red-600 transition-colors">
+                <X size={11} />
+              </span>
+            </button>
+          ))}
           <button
-            onClick={clearFilters}
-            className={`text-[10px] font-bold uppercase tracking-wider cursor-pointer px-3 py-1.5 rounded-lg border transition-colors ${
-              activeFilterCount > 0
-                ? 'text-red-500 border-red-200 dark:border-red-800 hover:bg-red-50 dark:hover:bg-red-900/20'
-                : 'text-slate-300 dark:text-slate-600 border-slate-100 dark:border-slate-800 cursor-not-allowed'
-            }`}
-            disabled={activeFilterCount === 0}
+            onClick={clearAllFilters}
+            className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-[10px] font-bold text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 transition-colors"
           >
-            Limpar Filtros
+            <FilterX size={12} /> Limpar todos
           </button>
         </div>
+      )}
 
-        {/* Palavra-chave (pesquisa geral) */}
-        <div className="relative">
-          <input
-            type="text"
-            value={filters.search}
-            onChange={setFilter('search')}
-            placeholder="Palavra-chave: pesquise por ID, proposta, objeto, município, órgão, responsável..."
-            className="w-full px-4 py-2.5 pr-10 rounded-xl border border-slate-200 dark:border-slate-600 text-xs text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 focus:ring-2 focus:ring-brand-600 focus:outline-none"
-          />
+      {/* FILTERS DRAWER */}
+      {isFiltersOpen && draft && (
+        <div className="fixed inset-0 z-[70]">
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-xs animate-fade-in" onClick={closeFilters} />
+          <aside
+            role="dialog"
+            aria-modal="true"
+            aria-label="Filtros de relatórios"
+            className="absolute right-0 top-0 h-full w-full max-w-md bg-white dark:bg-[#111a2e] shadow-2xl animate-drawer flex flex-col"
+          >
+            <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 dark:border-slate-700/50 shrink-0">
+              <h3 className="text-sm font-black text-slate-800 dark:text-white flex items-center gap-2">
+                <SlidersHorizontal size={16} className="text-brand-600" /> Filtros
+              </h3>
+              <button
+                onClick={closeFilters}
+                aria-label="Fechar filtros"
+                className="text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto px-5 py-4 space-y-5">
+              {/* Palavra-chave */}
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 block">Palavra-chave</label>
+                <input
+                  type="text"
+                  value={draft.search}
+                  onChange={setDraftFilter('search')}
+                  placeholder="ID, proposta, objeto, município, órgão, responsável..."
+                  className="w-full px-3 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-900/60 text-xs text-slate-700 dark:text-slate-200 bg-white focus:outline-none focus:ring-2 focus:ring-brand-600"
+                />
+              </div>
+
+              {/* Localização */}
+              <div className="space-y-2">
+                <label className="text-[10px] font-extrabold text-brand-700 dark:text-brand-400 uppercase tracking-widest block">Localização</label>
+                <select value={draft.uf} onChange={setDraftFilter('uf')} className="w-full px-3 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-900/60 text-xs text-slate-700 dark:text-slate-200 bg-white focus:outline-none focus:ring-2 focus:ring-brand-600">
+                  <option value="">Todas as UFs</option>
+                  {ufs.map(uf => <option key={uf} value={uf}>{uf}</option>)}
+                </select>
+                <select value={draft.municipality} onChange={setDraftFilter('municipality')} className="w-full px-3 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-900/60 text-xs text-slate-700 dark:text-slate-200 bg-white focus:outline-none focus:ring-2 focus:ring-brand-600">
+                  <option value="">Todos os Municípios</option>
+                  {municipalities.map(m => <option key={m} value={m}>{m}</option>)}
+                </select>
+              </div>
+
+              {/* Dados da Proposta */}
+              <div className="space-y-2">
+                <label className="text-[10px] font-extrabold text-brand-700 dark:text-brand-400 uppercase tracking-widest block">Dados da Proposta</label>
+                <select value={draft.organ} onChange={setDraftFilter('organ')} className="w-full px-3 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-900/60 text-xs text-slate-700 dark:text-slate-200 bg-white focus:outline-none focus:ring-2 focus:ring-brand-600">
+                  <option value="">Todos os Órgãos</option>
+                  {organs.map(o => <option key={o} value={o}>{o}</option>)}
+                </select>
+                <input type="text" value={draft.proposal} onChange={setDraftFilter('proposal')} placeholder="Número da proposta (ex.: 2025.0001)"
+                  className="w-full px-3 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-900/60 text-xs text-slate-700 dark:text-slate-200 bg-white focus:outline-none focus:ring-2 focus:ring-brand-600" />
+                <input type="text" value={draft.object} onChange={setDraftFilter('object')} placeholder="Objeto da demanda (texto)"
+                  className="w-full px-3 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-900/60 text-xs text-slate-700 dark:text-slate-200 bg-white focus:outline-none focus:ring-2 focus:ring-brand-600" />
+                <select value={draft.ano} onChange={setDraftFilter('ano')} className="w-full px-3 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-900/60 text-xs text-slate-700 dark:text-slate-200 bg-white focus:outline-none focus:ring-2 focus:ring-brand-600">
+                  <option value="">Todos os Anos</option>
+                  {years.map(y => <option key={y} value={String(y)}>{y}</option>)}
+                </select>
+              </div>
+
+              {/* Situação */}
+              <div className="space-y-2">
+                <label className="text-[10px] font-extrabold text-brand-700 dark:text-brand-400 uppercase tracking-widest block">Situação</label>
+                <select value={draft.status} onChange={setDraftFilter('status')} className="w-full px-3 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-900/60 text-xs text-slate-700 dark:text-slate-200 bg-white focus:outline-none focus:ring-2 focus:ring-brand-600">
+                  <option value="">Todas as Situações</option>
+                  {Object.entries(STATUS_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+                </select>
+                <select value={draft.priority} onChange={setDraftFilter('priority')} className="w-full px-3 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-900/60 text-xs text-slate-700 dark:text-slate-200 bg-white focus:outline-none focus:ring-2 focus:ring-brand-600">
+                  <option value="">Todas as Prioridades</option>
+                  {Object.entries(PRIORITY_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+                </select>
+              </div>
+
+              {/* Datas */}
+              <div className="space-y-2">
+                <label className="text-[10px] font-extrabold text-brand-700 dark:text-brand-400 uppercase tracking-widest block">Datas</label>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <label className="text-[9px] font-bold text-slate-400 dark:text-slate-500 uppercase">Cadastro de</label>
+                    <input type="date" value={draft.createdFrom} onChange={setDraftFilter('createdFrom')} className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-900/60 text-xs text-slate-700 dark:text-slate-200 bg-white focus:outline-none focus:ring-2 focus:ring-brand-600" />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[9px] font-bold text-slate-400 dark:text-slate-500 uppercase">até</label>
+                    <input type="date" value={draft.createdTo} onChange={setDraftFilter('createdTo')} className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-900/60 text-xs text-slate-700 dark:text-slate-200 bg-white focus:outline-none focus:ring-2 focus:ring-brand-600" />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[9px] font-bold text-slate-400 dark:text-slate-500 uppercase">Atualização de</label>
+                    <input type="date" value={draft.updatedFrom} onChange={setDraftFilter('updatedFrom')} className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-900/60 text-xs text-slate-700 dark:text-slate-200 bg-white focus:outline-none focus:ring-2 focus:ring-brand-600" />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[9px] font-bold text-slate-400 dark:text-slate-500 uppercase">até</label>
+                    <input type="date" value={draft.updatedTo} onChange={setDraftFilter('updatedTo')} className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-900/60 text-xs text-slate-700 dark:text-slate-200 bg-white focus:outline-none focus:ring-2 focus:ring-brand-600" />
+                  </div>
+                </div>
+              </div>
+
+              {/* Valores */}
+              <div className="space-y-2">
+                <label className="text-[10px] font-extrabold text-brand-700 dark:text-brand-400 uppercase tracking-widest block">Valores</label>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <label className="text-[9px] font-bold text-slate-400 dark:text-slate-500 uppercase">Valor mín. (R$)</label>
+                    <input type="number" min="0" step="0.01" value={draft.valueMin} onChange={setDraftFilter('valueMin')} placeholder="0,00"
+                      className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-900/60 text-xs text-slate-700 dark:text-slate-200 bg-white focus:outline-none focus:ring-2 focus:ring-brand-600" />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[9px] font-bold text-slate-400 dark:text-slate-500 uppercase">Valor máx. (R$)</label>
+                    <input type="number" min="0" step="0.01" value={draft.valueMax} onChange={setDraftFilter('valueMax')} placeholder="0,00"
+                      className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-900/60 text-xs text-slate-700 dark:text-slate-200 bg-white focus:outline-none focus:ring-2 focus:ring-brand-600" />
+                  </div>
+                </div>
+                <p className="text-[9px] text-slate-400 dark:text-slate-500">Faixa de valor global da demanda.</p>
+              </div>
+
+              {/* Usuário */}
+              <div className="space-y-2">
+                <label className="text-[10px] font-extrabold text-brand-700 dark:text-brand-400 uppercase tracking-widest block">Usuário</label>
+                <select value={draft.responsible} onChange={setDraftFilter('responsible')} className="w-full px-3 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-900/60 text-xs text-slate-700 dark:text-slate-200 bg-white focus:outline-none focus:ring-2 focus:ring-brand-600">
+                  <option value="">Todos os Responsáveis</option>
+                  {responsibles.map(r => <option key={r} value={r}>{r}</option>)}
+                </select>
+                <p className="text-[9px] text-slate-400 dark:text-slate-500">Responsável / usuário pelo cadastro.</p>
+              </div>
+            </div>
+
+            <div className="px-5 py-4 border-t border-slate-100 dark:border-slate-700/50 flex gap-2 shrink-0">
+              <button
+                onClick={clearDraftFilters}
+                className="px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 text-xs font-bold hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors flex items-center gap-1.5"
+              >
+                <FilterX size={14} /> Limpar
+              </button>
+              <button
+                onClick={applyFilters}
+                className="flex-1 px-4 py-2.5 rounded-xl bg-brand-600 hover:bg-brand-700 text-white font-bold text-xs uppercase tracking-wider shadow-sm transition-all flex items-center justify-center gap-1.5"
+              >
+                <Check size={14} /> Aplicar
+              </button>
+            </div>
+          </aside>
         </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
-          {/* Localização */}
-          <div className="border border-slate-100 dark:border-slate-700/50 rounded-xl p-3 space-y-3 bg-slate-50/50 dark:bg-slate-800/30">
-            <p className="text-[10px] font-extrabold text-brand-700 dark:text-brand-400 uppercase tracking-widest">Localização</p>
-            <div className="space-y-2">
-              <select value={filters.uf} onChange={setFilter('uf')} className="w-full px-2.5 py-2 rounded-lg border border-slate-200 dark:border-slate-600 text-xs text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 focus:ring-2 focus:ring-brand-600 focus:outline-none">
-                <option value="">Todas as UFs</option>
-                {ufs.map(uf => <option key={uf} value={uf}>{uf}</option>)}
-              </select>
-              <select value={filters.municipality} onChange={setFilter('municipality')} className="w-full px-2.5 py-2 rounded-lg border border-slate-200 dark:border-slate-600 text-xs text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 focus:ring-2 focus:ring-brand-600 focus:outline-none">
-                <option value="">Todos os Municípios</option>
-                {municipalities.map(m => <option key={m} value={m}>{m}</option>)}
-              </select>
-            </div>
-          </div>
-
-          {/* Dados da Proposta */}
-          <div className="border border-slate-100 dark:border-slate-700/50 rounded-xl p-3 space-y-3 bg-slate-50/50 dark:bg-slate-800/30">
-            <p className="text-[10px] font-extrabold text-brand-700 dark:text-brand-400 uppercase tracking-widest">Dados da Proposta</p>
-            <div className="space-y-2">
-              <select value={filters.organ} onChange={setFilter('organ')} className="w-full px-2.5 py-2 rounded-lg border border-slate-200 dark:border-slate-600 text-xs text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 focus:ring-2 focus:ring-brand-600 focus:outline-none">
-                <option value="">Todos os Órgãos</option>
-                {organs.map(o => <option key={o} value={o}>{o}</option>)}
-              </select>
-              <input type="text" value={filters.proposal} onChange={setFilter('proposal')} placeholder="Número da proposta (ex.: 2025.0001)"
-                className="w-full px-2.5 py-2 rounded-lg border border-slate-200 dark:border-slate-600 text-xs text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 focus:ring-2 focus:ring-brand-600 focus:outline-none" />
-              <input type="text" value={filters.object} onChange={setFilter('object')} placeholder="Objeto da demanda (texto)"
-                className="w-full px-2.5 py-2 rounded-lg border border-slate-200 dark:border-slate-600 text-xs text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 focus:ring-2 focus:ring-brand-600 focus:outline-none" />
-              <select value={filters.ano} onChange={setFilter('ano')} className="w-full px-2.5 py-2 rounded-lg border border-slate-200 dark:border-slate-600 text-xs text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 focus:ring-2 focus:ring-brand-600 focus:outline-none">
-                <option value="">Todos os Anos</option>
-                {years.map(y => <option key={y} value={String(y)}>{y}</option>)}
-              </select>
-            </div>
-          </div>
-
-          {/* Situação */}
-          <div className="border border-slate-100 dark:border-slate-700/50 rounded-xl p-3 space-y-3 bg-slate-50/50 dark:bg-slate-800/30">
-            <p className="text-[10px] font-extrabold text-brand-700 dark:text-brand-400 uppercase tracking-widest">Situação</p>
-            <div className="space-y-2">
-              <select value={filters.status} onChange={setFilter('status')} className="w-full px-2.5 py-2 rounded-lg border border-slate-200 dark:border-slate-600 text-xs text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 focus:ring-2 focus:ring-brand-600 focus:outline-none">
-                <option value="">Todas as Situações</option>
-                {Object.entries(STATUS_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-              </select>
-              <select value={filters.priority} onChange={setFilter('priority')} className="w-full px-2.5 py-2 rounded-lg border border-slate-200 dark:border-slate-600 text-xs text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 focus:ring-2 focus:ring-brand-600 focus:outline-none">
-                <option value="">Todas as Prioridades</option>
-                {Object.entries(PRIORITY_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-              </select>
-            </div>
-          </div>
-
-          {/* Datas */}
-          <div className="border border-slate-100 dark:border-slate-700/50 rounded-xl p-3 space-y-3 bg-slate-50/50 dark:bg-slate-800/30">
-            <p className="text-[10px] font-extrabold text-brand-700 dark:text-brand-400 uppercase tracking-widest">Datas</p>
-            <div className="space-y-2">
-              <div className="grid grid-cols-2 gap-2">
-                <div className="space-y-1">
-                  <label className="text-[9px] font-bold text-slate-400 dark:text-slate-500 uppercase">Cadastro de</label>
-                  <input type="date" value={filters.createdFrom} onChange={setFilter('createdFrom')} className="w-full px-2 py-1.5 rounded-lg border border-slate-200 dark:border-slate-600 text-xs text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 focus:ring-2 focus:ring-brand-600 focus:outline-none" />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-[9px] font-bold text-slate-400 dark:text-slate-500 uppercase">até</label>
-                  <input type="date" value={filters.createdTo} onChange={setFilter('createdTo')} className="w-full px-2 py-1.5 rounded-lg border border-slate-200 dark:border-slate-600 text-xs text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 focus:ring-2 focus:ring-brand-600 focus:outline-none" />
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-2">
-                <div className="space-y-1">
-                  <label className="text-[9px] font-bold text-slate-400 dark:text-slate-500 uppercase">Atualização de</label>
-                  <input type="date" value={filters.updatedFrom} onChange={setFilter('updatedFrom')} className="w-full px-2 py-1.5 rounded-lg border border-slate-200 dark:border-slate-600 text-xs text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 focus:ring-2 focus:ring-brand-600 focus:outline-none" />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-[9px] font-bold text-slate-400 dark:text-slate-500 uppercase">até</label>
-                  <input type="date" value={filters.updatedTo} onChange={setFilter('updatedTo')} className="w-full px-2 py-1.5 rounded-lg border border-slate-200 dark:border-slate-600 text-xs text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 focus:ring-2 focus:ring-brand-600 focus:outline-none" />
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Valores */}
-          <div className="border border-slate-100 dark:border-slate-700/50 rounded-xl p-3 space-y-3 bg-slate-50/50 dark:bg-slate-800/30">
-            <p className="text-[10px] font-extrabold text-brand-700 dark:text-brand-400 uppercase tracking-widest">Valores</p>
-            <div className="grid grid-cols-2 gap-2">
-              <div className="space-y-1">
-                <label className="text-[9px] font-bold text-slate-400 dark:text-slate-500 uppercase">Valor mín. (R$)</label>
-                <input type="number" min="0" step="0.01" value={filters.valueMin} onChange={setFilter('valueMin')} placeholder="0,00"
-                  className="w-full px-2 py-1.5 rounded-lg border border-slate-200 dark:border-slate-600 text-xs text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 focus:ring-2 focus:ring-brand-600 focus:outline-none" />
-              </div>
-              <div className="space-y-1">
-                <label className="text-[9px] font-bold text-slate-400 dark:text-slate-500 uppercase">Valor máx. (R$)</label>
-                <input type="number" min="0" step="0.01" value={filters.valueMax} onChange={setFilter('valueMax')} placeholder="0,00"
-                  className="w-full px-2 py-1.5 rounded-lg border border-slate-200 dark:border-slate-600 text-xs text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 focus:ring-2 focus:ring-brand-600 focus:outline-none" />
-              </div>
-            </div>
-            <p className="text-[9px] text-slate-400 dark:text-slate-500">Faixa de valor global da demanda.</p>
-          </div>
-
-          {/* Usuário */}
-          <div className="border border-slate-100 dark:border-slate-700/50 rounded-xl p-3 space-y-3 bg-slate-50/50 dark:bg-slate-800/30">
-            <p className="text-[10px] font-extrabold text-brand-700 dark:text-brand-400 uppercase tracking-widest">Usuário</p>
-            <div className="space-y-2">
-              <select value={filters.responsible} onChange={setFilter('responsible')} className="w-full px-2.5 py-2 rounded-lg border border-slate-200 dark:border-slate-600 text-xs text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 focus:ring-2 focus:ring-brand-600 focus:outline-none">
-                <option value="">Todos os Responsáveis</option>
-                {responsibles.map(r => <option key={r} value={r}>{r}</option>)}
-              </select>
-            </div>
-            <p className="text-[9px] text-slate-400 dark:text-slate-500">Responsável / usuário pelo cadastro.</p>
-          </div>
-        </div>
-      </div>
+      )}
 
       {/* Summary Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">

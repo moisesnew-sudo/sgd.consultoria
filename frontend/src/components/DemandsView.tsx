@@ -57,15 +57,15 @@ interface DemandsViewProps {
 }
 
 const CATEGORIES = [
-  'ConstruÃ§Ã£o de Creche',
+  'Construção de Creche',
   'Transporte Escolar',
   'Reforma Estrutural',
   'Infraestrutura e Conforto',
   'Tecnologia Educacional',
-  'EducaÃ§Ã£o Especial',
-  'MobiliÃ¡rio e Parquinhos',
-  'ConstruÃ§Ã£o e AmpliaÃ§Ã£o',
-  'CapacitaÃ§Ã£o Docente'
+  'Educação Especial',
+  'Mobiliário e Parquinhos',
+  'Construção e Ampliação',
+  'Capacitação Docente'
 ];
 
 export default function DemandsView({ 
@@ -145,7 +145,7 @@ export default function DemandsView({
         ...detailedDemand,
         attachments: [...(detailedDemand.attachments || []), ...uploaded]
       });
-      toast('success', 'Upload concluÃ­do', `${uploaded.length} arquivo(s) anexado(s)`);
+      toast('success', 'Upload concluído', `${uploaded.length} arquivo(s) anexado(s)`);
     } catch (error: any) {
       toast('error', 'Erro no upload', error?.message || 'Erro ao enviar arquivos');
     } finally {
@@ -354,12 +354,12 @@ export default function DemandsView({
   if (priorityFilter !== 'all') activeChips.push({ id: 'priority', label: `Prioridade: ${priorityFilter}`, onRemove: () => setPriorityFilter('all') });
   if (categoryFilter !== 'all') activeChips.push({ id: 'category', label: `Categoria: ${categoryFilter}`, onRemove: () => setCategoryFilter('all') });
   if (ufFilter !== 'all') activeChips.push({ id: 'uf', label: `UF: ${ufFilter}`, onRemove: () => setUfFilter('all') });
-  if (responsibleFilter !== 'all') activeChips.push({ id: 'responsible', label: `ResponsÃ¡vel: ${responsibleFilter}`, onRemove: () => setResponsibleFilter('all') });
+  if (responsibleFilter !== 'all') activeChips.push({ id: 'responsible', label: `Responsável: ${responsibleFilter}`, onRemove: () => setResponsibleFilter('all') });
   if (anoFilter !== 'all') activeChips.push({ id: 'ano', label: `Ano: ${anoFilter}`, onRemove: () => setAnoFilter('all') });
   if (dateFrom) activeChips.push({ id: 'dateFrom', label: `De: ${dateFrom}`, onRemove: () => setDateFrom('') });
-  if (dateTo) activeChips.push({ id: 'dateTo', label: `AtÃ©: ${dateTo}`, onRemove: () => setDateTo('') });
-  if (valueMin) activeChips.push({ id: 'valueMin', label: `Valor mÃ­n.: R$ ${valueMin}`, onRemove: () => setValueMin('') });
-  if (valueMax) activeChips.push({ id: 'valueMax', label: `Valor mÃ¡x.: R$ ${valueMax}`, onRemove: () => setValueMax('') });
+  if (dateTo) activeChips.push({ id: 'dateTo', label: `Até: ${dateTo}`, onRemove: () => setDateTo('') });
+  if (valueMin) activeChips.push({ id: 'valueMin', label: `Valor mín.: R$ ${valueMin}`, onRemove: () => setValueMin('') });
+  if (valueMax) activeChips.push({ id: 'valueMax', label: `Valor máx.: R$ ${valueMax}`, onRemove: () => setValueMax('') });
 
   useEffect(() => {
     if (!isFiltersOpen) return;
@@ -418,8 +418,8 @@ export default function DemandsView({
   // Kanban Columns
   const KANBAN_COLUMNS: { id: DemandStatus; title: string; color: string }[] = [
     { id: 'pendente', title: 'Pendentes', color: 'border-t-amber-500 bg-amber-50/20' },
-    { id: 'analise', title: 'Em AnÃ¡lise', color: 'border-t-blue-500 bg-blue-50/20' },
-    { id: 'concluido', title: 'ConcluÃ­das', color: 'border-t-green-500 bg-green-50/20' },
+    { id: 'analise', title: 'Em Análise', color: 'border-t-blue-500 bg-blue-50/20' },
+    { id: 'concluido', title: 'Concluídas', color: 'border-t-green-500 bg-green-50/20' },
     { id: 'rejeitado', title: 'Rejeitadas', color: 'border-t-red-500 bg-red-50/20' }
   ];
 
@@ -446,8 +446,8 @@ export default function DemandsView({
   const getStatusLabel = (status: DemandStatus) => {
     switch (status) {
       case 'pendente': return 'Pendente';
-      case 'analise': return 'Em AnÃ¡lise';
-      case 'concluido': return 'ConcluÃ­do';
+      case 'analise': return 'Em Análise';
+      case 'concluido': return 'Concluído';
       case 'rejeitado': return 'Rejeitado';
     }
   };
@@ -461,7 +461,7 @@ export default function DemandsView({
     try {
       const event = await demandsApi.addTimelineEvent(detailedDemand.id, {
         title: newEventTitle,
-        description: newEventDesc || 'Nenhuma descriÃ§Ã£o tÃ©cnica informada.',
+        description: newEventDesc || 'Nenhuma descrição técnica informada.',
         status_changed_to: newEventStatus !== 'no-change' ? newEventStatus : undefined
       });
 
@@ -480,7 +480,7 @@ export default function DemandsView({
       setNewEventTitle('');
       setNewEventDesc('');
       setNewEventStatus('no-change');
-      toast('success', 'Evento adicionado Ã  linha do tempo');
+      toast('success', 'Evento adicionado à linha do tempo');
     } catch (error) {
       console.error('Error adding timeline event:', error);
       toast('error', 'Erro ao adicionar evento', 'Tente novamente.');
@@ -497,7 +497,7 @@ export default function DemandsView({
       const updated = await demandsApi.update(detailedDemand.id, { notes: adminNotes.trim() || undefined });
       setDetailedDemand({ ...detailedDemand, ...updated });
       setIsEditingNotes(false);
-      toast('success', 'AnotaÃ§Ãµes salvas');
+      toast('success', 'Anotações salvas');
     } catch (error) {
       console.error('Error saving notes:', error);
       toast('error', 'Erro ao salvar notas', 'Tente novamente.');
@@ -515,10 +515,10 @@ export default function DemandsView({
         comments: [...(detailedDemand.comments || []), comment],
       });
       setNewComment('');
-      toast('success', 'ComentÃ¡rio adicionado');
+      toast('success', 'Comentário adicionado');
     } catch (error) {
       console.error('Error adding comment:', error);
-      toast('error', 'Erro ao adicionar comentÃ¡rio', 'Tente novamente.');
+      toast('error', 'Erro ao adicionar comentário', 'Tente novamente.');
     } finally {
       setCommentLoading(false);
     }
@@ -536,7 +536,7 @@ export default function DemandsView({
       setDetailedDemand(null);
       onDeleteDemand?.(deleteTarget);
       setDeleteTarget(null);
-      toast('success', 'Demanda excluÃ­da com sucesso.');
+      toast('success', 'Demanda excluída com sucesso.');
     } catch (error: any) {
       toast('error', 'Erro ao excluir demanda');
     } finally {
@@ -567,8 +567,8 @@ export default function DemandsView({
       <button
         onClick={() => handleOpenHistory(demand)}
         className="p-2 rounded-lg text-slate-500 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-500/10 transition-colors"
-        title="HistÃ³rico"
-        aria-label={`HistÃ³rico da demanda ${demand.id}`}
+        title="Histórico"
+        aria-label={`Histórico da demanda ${demand.id}`}
       >
         <History size={15} />
       </button>
@@ -597,9 +597,9 @@ export default function DemandsView({
           <div className="flex items-start gap-3">
             <AlertCircle className="text-amber-600 mt-0.5 shrink-0" size={18} />
             <div>
-              <h4 className="text-xs font-bold">Portal de Consulta PÃºblica (Modo Leitura)</h4>
+              <h4 className="text-xs font-bold">Portal de Consulta Pública (Modo Leitura)</h4>
               <p className="text-[10px] text-amber-700 leading-relaxed mt-0.5">
-                VocÃª estÃ¡ visualizando a fila de demandas no modo pÃºblico. Para cadastrar ou editar, faÃ§a login.
+                Você está visualizando a fila de demandas no modo público. Para cadastrar ou editar, faça login.
               </p>
             </div>
           </div>
@@ -617,7 +617,7 @@ export default function DemandsView({
             Fila Geral de Demandas
           </h2>
           <p className="text-sm text-slate-500">
-            Filtre, pesquise e acompanhe o trÃ¢mite processual das solicitaÃ§Ãµes de recursos municipais.
+            Filtre, pesquise e acompanhe o trâmite processual das solicitações de recursos municipais.
           </p>
         </div>
 
@@ -651,7 +651,7 @@ export default function DemandsView({
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Pesquisa: ID, tÃ­tulo, municÃ­pio, Ã³rgÃ£o, responsÃ¡vel..."
+            placeholder="Pesquisa: ID, título, município, órgão, responsável..."
             className="w-full pl-10 pr-8 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-900/60 text-sm text-slate-800 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-600 focus:border-transparent"
           />
           {search && (
@@ -773,7 +773,7 @@ export default function DemandsView({
             <MapPin size={16} className="text-blue-600 dark:text-blue-400" />
           </span>
           <div className="min-w-0">
-            <p className="text-[9px] font-bold uppercase tracking-wider text-slate-400">MunicÃ­pios</p>
+            <p className="text-[9px] font-bold uppercase tracking-wider text-slate-400">Municípios</p>
             <p className="text-lg font-black text-slate-800 dark:text-white leading-tight">
               {new Set(filteredDemands.map(d => d.municipality)).size}
             </p>
@@ -784,7 +784,7 @@ export default function DemandsView({
             <Building2 size={16} className="text-purple-600 dark:text-purple-400" />
           </span>
           <div className="min-w-0">
-            <p className="text-[9px] font-bold uppercase tracking-wider text-slate-400">Ã“rgÃ£os</p>
+            <p className="text-[9px] font-bold uppercase tracking-wider text-slate-400">Órgãos</p>
             <p className="text-lg font-black text-slate-800 dark:text-white leading-tight">
               {new Set(filteredDemands.map(d => d.organ).filter(Boolean)).size}
             </p>
@@ -829,7 +829,7 @@ export default function DemandsView({
                       value={nlQuery}
                       onChange={(e) => setNlQuery(e.target.value)}
                       onKeyDown={(e) => { if (e.key === 'Enter') runSmartSearch(); }}
-                      placeholder='"demandas urgentes de SP acima de 1 milhÃ£o"'
+                      placeholder='"demandas urgentes de SP acima de 1 milhão"'
                       className="w-full pl-8 pr-3 py-2 rounded-xl border border-brand-200 dark:border-brand-800/60 bg-brand-50/40 dark:bg-brand-950/10 text-xs text-slate-800 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-600"
                     />
                   </div>
@@ -848,15 +848,15 @@ export default function DemandsView({
                 )}
               </div>
 
-              {/* Status rÃ¡pido */}
+              {/* Status rápido */}
               <div className="space-y-2">
                 <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 block">Status</label>
                 <div className="flex flex-wrap gap-1.5">
                   {[
                     { id: 'all', label: `Todas (${demands.length})` },
                     { id: 'pendente', label: `Pendentes (${demands.filter(d => d.status === 'pendente').length})` },
-                    { id: 'analise', label: `Em AnÃ¡lise (${demands.filter(d => d.status === 'analise').length})` },
-                    { id: 'concluido', label: `ConcluÃ­das (${demands.filter(d => d.status === 'concluido').length})` },
+                    { id: 'analise', label: `Em Análise (${demands.filter(d => d.status === 'analise').length})` },
+                    { id: 'concluido', label: `Concluídas (${demands.filter(d => d.status === 'concluido').length})` },
                     { id: 'rejeitado', label: `Rejeitadas (${demands.filter(d => d.status === 'rejeitado').length})` }
                   ].map(pill => (
                     <button
@@ -884,7 +884,7 @@ export default function DemandsView({
                 >
                   <option value="all">Todas Prioridades</option>
                   <option value="baixa">Prioridade Baixa</option>
-                  <option value="media">Prioridade MÃ©dia</option>
+                  <option value="media">Prioridade Média</option>
                   <option value="alta">Prioridade Alta</option>
                   <option value="urgente">Prioridade Urgente</option>
                 </select>
@@ -920,15 +920,15 @@ export default function DemandsView({
                 </select>
               </div>
 
-              {/* ResponsÃ¡vel */}
+              {/* Responsável */}
               <div className="space-y-1.5">
-                <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 block">ResponsÃ¡vel</label>
+                <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 block">Responsável</label>
                 <select
                   value={draft.responsible}
                   onChange={(e) => setDraft({ ...draft, responsible: e.target.value })}
                   className="w-full px-3 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-900/60 text-xs text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-600"
                 >
-                  <option value="all">ResponsÃ¡veis (Todos)</option>
+                  <option value="all">Responsáveis (Todos)</option>
                   {uniqueResponsibles.map(r => (
                     <option key={r} value={r}>{r}</option>
                   ))}
@@ -949,7 +949,7 @@ export default function DemandsView({
                 />
               </div>
 
-              {/* OrdenaÃ§Ã£o */}
+              {/* Ordenação */}
               <div className="space-y-1.5">
                 <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 block">Ordenar por</label>
                 <select
@@ -967,7 +967,7 @@ export default function DemandsView({
               {/* Datas */}
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1.5">
-                  <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 block">Data de criaÃ§Ã£o (de)</label>
+                  <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 block">Data de criação (de)</label>
                   <input
                     type="date"
                     value={draft.dateFrom}
@@ -976,7 +976,7 @@ export default function DemandsView({
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 block">Data de criaÃ§Ã£o (atÃ©)</label>
+                  <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 block">Data de criação (até)</label>
                   <input
                     type="date"
                     value={draft.dateTo}
@@ -989,7 +989,7 @@ export default function DemandsView({
               {/* Valores */}
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1.5">
-                  <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 block">Valor mÃ­n. (R$)</label>
+                  <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 block">Valor mín. (R$)</label>
                   <input
                     type="number"
                     value={draft.valueMin}
@@ -999,7 +999,7 @@ export default function DemandsView({
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 block">Valor mÃ¡x. (R$)</label>
+                  <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 block">Valor máx. (R$)</label>
                   <input
                     type="number"
                     value={draft.valueMax}
@@ -1051,7 +1051,7 @@ export default function DemandsView({
                   <div key={demand.id} className="p-4 space-y-3">
                     <div className="flex items-center justify-between gap-2">
                       <span className="font-mono text-[10px] font-bold text-slate-500 bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded-md truncate max-w-[55%]">
-                        NÂº {demand.proposal_number || 'S/N'}
+                        Nº {demand.proposal_number || 'S/N'}
                       </span>
                       <span className={`inline-block px-2.5 py-1 rounded-full text-[9px] font-bold uppercase tracking-wider border whitespace-nowrap ${getStatusBadgeClass(demand.status)}`}>
                         {getStatusLabel(demand.status)}
@@ -1074,7 +1074,7 @@ export default function DemandsView({
                         {formatCurrency(demand.requested_value)}
                       </span>
                       <span className="text-[10px] text-slate-400 font-mono">
-                        {demand.updated_at ? formatDate(demand.updated_at) : 'â€”'}
+                        {demand.updated_at ? formatDate(demand.updated_at) : '—'}
                       </span>
                     </div>
 
@@ -1088,14 +1088,14 @@ export default function DemandsView({
                 <table className="w-full text-left border-collapse min-w-[880px]" id="demands-table">
                   <thead>
                     <tr className="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-100 dark:border-slate-700/50 text-[10px] font-bold text-slate-400 uppercase tracking-wider sticky top-0 z-10">
-                      <th className="py-3.5 px-4 w-[120px]">NÂº Proposta</th>
-                      <th className="py-3.5 px-4 w-[150px]">MunicÃ­pio</th>
+                      <th className="py-3.5 px-4 w-[120px]">Nº Proposta</th>
+                      <th className="py-3.5 px-4 w-[150px]">Município</th>
                       <th className="py-3.5 px-4 w-[50px] text-center">UF</th>
                       <th className="py-3.5 px-4 min-w-[220px]">Objeto</th>
                       <th className="py-3.5 px-4 w-[110px] text-center">Status</th>
                       <th className="py-3.5 px-4 w-[130px] text-right">Valor Global</th>
-                      <th className="py-3.5 px-4 w-[120px] text-center hidden lg:table-cell">Ãšltima AtualizaÃ§Ã£o</th>
-                      <th className="py-3.5 px-4 w-[130px] text-right">AÃ§Ãµes</th>
+                      <th className="py-3.5 px-4 w-[120px] text-center hidden lg:table-cell">Última Atualização</th>
+                      <th className="py-3.5 px-4 w-[130px] text-right">Ações</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 dark:divide-slate-700/50 text-xs text-slate-600">
@@ -1139,7 +1139,7 @@ export default function DemandsView({
                           {formatCurrency(demand.requested_value)}
                         </td>
                         <td className="py-3.5 px-4 text-center whitespace-nowrap text-slate-500 dark:text-slate-400 hidden lg:table-cell">
-                          {demand.updated_at ? formatDate(demand.updated_at) : 'â€”'}
+                          {demand.updated_at ? formatDate(demand.updated_at) : '—'}
                         </td>
                         <td className="py-3.5 px-4 text-right whitespace-nowrap">
                           {renderRowActions(demand)}
@@ -1240,7 +1240,7 @@ export default function DemandsView({
                 </div>
                 <h3 className="text-lg font-black tracking-tight mt-1 max-w-2xl">{detailedDemand.title}</h3>
                 <p className="text-xs text-blue-200">
-                  Cadastrado em {formatDate(detailedDemand.created_at)} â€¢ {detailedDemand.municipality} - {detailedDemand.uf}
+                  Cadastrado em {formatDate(detailedDemand.created_at)} • {detailedDemand.municipality} - {detailedDemand.uf}
                 </p>
               </div>
 
@@ -1273,12 +1273,12 @@ export default function DemandsView({
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-1">
-                      <label className="text-xs font-bold text-slate-700 block">TÃ­tulo *</label>
+                      <label className="text-xs font-bold text-slate-700 block">Título *</label>
                       <input type="text" value={editTitle} onChange={(e) => setEditTitle(e.target.value.toUpperCase())}
                         className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-brand-600 focus:outline-none" />
                     </div>
                     <div className="space-y-1">
-                      <label className="text-xs font-bold text-slate-700 block">MunicÃ­pio *</label>
+                      <label className="text-xs font-bold text-slate-700 block">Município *</label>
                       <input type="text" value={editMunicipality} onChange={(e) => setEditMunicipality(e.target.value.toUpperCase())}
                         className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-brand-600 focus:outline-none" />
                     </div>
@@ -1292,8 +1292,8 @@ export default function DemandsView({
                       <select value={editStatus} onChange={(e) => setEditStatus(e.target.value as DemandStatus)}
                         className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm bg-white focus:ring-2 focus:ring-brand-600 focus:outline-none">
                         <option value="pendente">Pendente</option>
-                        <option value="analise">Em AnÃ¡lise</option>
-                        <option value="concluido">ConcluÃ­do</option>
+                        <option value="analise">Em Análise</option>
+                        <option value="concluido">Concluído</option>
                         <option value="rejeitado">Rejeitado</option>
                       </select>
                     </div>
@@ -1302,7 +1302,7 @@ export default function DemandsView({
                       <select value={editPriority} onChange={(e) => setEditPriority(e.target.value as DemandPriority)}
                         className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm bg-white focus:ring-2 focus:ring-brand-600 focus:outline-none">
                         <option value="baixa">Baixa</option>
-                        <option value="media">MÃ©dia</option>
+                        <option value="media">Média</option>
                         <option value="alta">Alta</option>
                         <option value="urgente">Urgente</option>
                       </select>
@@ -1324,7 +1324,7 @@ export default function DemandsView({
                         className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-brand-600 focus:outline-none" />
                     </div>
                     <div className="space-y-1">
-                      <label className="text-xs font-bold text-slate-700 block">Ã“rgÃ£o</label>
+                      <label className="text-xs font-bold text-slate-700 block">Órgão</label>
                       <input type="text" value={editOrgan} onChange={(e) => setEditOrgan(e.target.value.toUpperCase())}
                         className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-brand-600 focus:outline-none" />
                     </div>
@@ -1334,7 +1334,7 @@ export default function DemandsView({
                         className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-brand-600 focus:outline-none" />
                     </div>
                     <div className="space-y-1">
-                      <label className="text-xs font-bold text-slate-700 block">NÂº Proposta</label>
+                      <label className="text-xs font-bold text-slate-700 block">Nº Proposta</label>
                       <input type="text" value={editProposalNumber} onChange={(e) => setEditProposalNumber(e.target.value.toUpperCase())}
                         className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-brand-600 focus:outline-none" />
                     </div>
@@ -1344,22 +1344,22 @@ export default function DemandsView({
                         className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-brand-600 focus:outline-none" />
                     </div>
                     <div className="space-y-1">
-                      <label className="text-xs font-bold text-slate-700 block">ResponsÃ¡vel</label>
+                      <label className="text-xs font-bold text-slate-700 block">Responsável</label>
                       <input type="text" value={editResponsibleName} onChange={(e) => setEditResponsibleName(e.target.value.toUpperCase())}
                         className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-brand-600 focus:outline-none" />
                     </div>
                     <div className="space-y-1">
-                      <label className="text-xs font-bold text-slate-700 block">E-mail ResponsÃ¡vel</label>
+                      <label className="text-xs font-bold text-slate-700 block">E-mail Responsável</label>
                       <input type="email" value={editResponsibleEmail} onChange={(e) => setEditResponsibleEmail(e.target.value)}
                         className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-brand-600 focus:outline-none" />
                     </div>
                     <div className="space-y-1 md:col-span-2">
-                      <label className="text-xs font-bold text-slate-700 block">DescriÃ§Ã£o</label>
+                      <label className="text-xs font-bold text-slate-700 block">Descrição</label>
                       <textarea rows={3} value={editDescription} onChange={(e) => setEditDescription(e.target.value.toUpperCase())}
                         className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-brand-600 focus:outline-none" />
                     </div>
                     <div className="space-y-1 md:col-span-2">
-                      <label className="text-xs font-bold text-slate-700 block">ObservaÃ§Ãµes</label>
+                      <label className="text-xs font-bold text-slate-700 block">Observações</label>
                       <textarea rows={2} value={editNotes} onChange={(e) => setEditNotes(e.target.value.toUpperCase())}
                         className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-brand-600 focus:outline-none" />
                     </div>
@@ -1372,7 +1372,7 @@ export default function DemandsView({
                     </button>
                     <button onClick={handleSaveEdit} disabled={isSavingEdit}
                       className="py-2.5 px-6 rounded-xl bg-brand-700 hover:bg-brand-800 text-white font-bold text-xs uppercase tracking-wider disabled:opacity-50">
-                      {isSavingEdit ? 'Salvando...' : 'Salvar AlteraÃ§Ãµes'}
+                      {isSavingEdit ? 'Salvando...' : 'Salvar Alterações'}
                     </button>
                   </div>
                 </div>
@@ -1387,15 +1387,15 @@ export default function DemandsView({
                   </span>
                 </div>
                 <div className="bg-slate-50 p-4 rounded-xl border border-slate-100">
-                  <span className="text-[10px] text-slate-400 block uppercase font-bold">NÂº da Proposta</span>
+                  <span className="text-[10px] text-slate-400 block uppercase font-bold">Nº da Proposta</span>
                   <span className="text-xs font-extrabold text-slate-800 block mt-1 font-mono truncate">
                     {detailedDemand.proposal_number || 'S/N Proposta'}
                   </span>
                 </div>
                 <div className="bg-slate-50 p-4 rounded-xl border border-slate-100">
-                  <span className="text-[10px] text-slate-400 block uppercase font-bold">Ã“rgÃ£o Destino</span>
+                  <span className="text-[10px] text-slate-400 block uppercase font-bold">Órgão Destino</span>
                   <span className="text-xs font-extrabold text-blue-800 block mt-1 font-mono uppercase">
-                    {detailedDemand.organ || 'NÃ£o informado'}
+                    {detailedDemand.organ || 'Não informado'}
                   </span>
                 </div>
                 <div className="bg-slate-50 p-4 rounded-xl border border-slate-100">
@@ -1426,14 +1426,14 @@ export default function DemandsView({
                       Acessar Processo <ExternalLink size={12} />
                     </a>
                   ) : (
-                    <span className="text-slate-400 font-semibold italic">NÃ£o informado</span>
+                    <span className="text-slate-400 font-semibold italic">Não informado</span>
                   )}
                 </div>
               </div>
 
               {/* Description */}
               <div className="space-y-2">
-                <h4 className="text-xs font-black text-slate-800 uppercase tracking-wider">DescriÃ§Ã£o TÃ©cnica</h4>
+                <h4 className="text-xs font-black text-slate-800 uppercase tracking-wider">Descrição Técnica</h4>
                 <p className="text-xs text-slate-600 leading-relaxed bg-slate-50 p-4 rounded-2xl border border-slate-100">
                   {detailedDemand.description}
                 </p>
@@ -1446,7 +1446,7 @@ export default function DemandsView({
                     <User size={16} />
                   </div>
                   <div>
-                    <span className="text-[9px] text-slate-400 block">ResponsÃ¡vel</span>
+                    <span className="text-[9px] text-slate-400 block">Responsável</span>
                     <strong className="text-slate-700">{detailedDemand.responsible_name}</strong>
                   </div>
                 </div>
@@ -1480,14 +1480,14 @@ export default function DemandsView({
                   </div>
                   <div>
                     <h4 className="text-xs font-black text-brand-700 dark:text-brand-200 uppercase tracking-wider">Assistente IA</h4>
-                    <p className="text-[10px] text-slate-500 dark:text-slate-400">AnÃ¡lise automÃ¡tica da demanda</p>
+                    <p className="text-[10px] text-slate-500 dark:text-slate-400">Análise automática da demanda</p>
                   </div>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="bg-white dark:bg-slate-900/50 rounded-xl p-4 border border-slate-100 dark:border-slate-700/50">
                     <div className="flex items-center gap-1.5 text-[10px] font-bold text-brand-700 dark:text-brand-300 uppercase mb-2">
-                      <BrainCircuit size={13} /> Resumo AutomÃ¡tico
+                      <BrainCircuit size={13} /> Resumo Automático
                     </div>
                     <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
                       {summarizeDemand(detailedDemand)}
@@ -1496,7 +1496,7 @@ export default function DemandsView({
 
                   <div className="bg-white dark:bg-slate-900/50 rounded-xl p-4 border border-slate-100 dark:border-slate-700/50">
                     <div className="flex items-center gap-1.5 text-[10px] font-bold text-brand-700 dark:text-brand-300 uppercase mb-2">
-                      <BrainCircuit size={13} /> SugestÃ£o de Prioridade
+                      <BrainCircuit size={13} /> Sugestão de Prioridade
                     </div>
                     <AISuggestion demand={detailedDemand} />
                   </div>
@@ -1508,9 +1508,9 @@ export default function DemandsView({
               {/* Detail Tabs */}
               <div className="flex items-center gap-1 border-b border-slate-200 dark:border-slate-700">
                 {[
-                  { id: 'timeline', label: 'TrÃ¢mites' },
-                  { id: 'comments', label: 'ComentÃ¡rios' },
-                  { id: 'history', label: 'HistÃ³rico' },
+                  { id: 'timeline', label: 'Trâmites' },
+                  { id: 'comments', label: 'Comentários' },
+                  { id: 'history', label: 'Histórico' },
                 ].map(tab => (
                   <button key={tab.id} onClick={() => setDetailTab(tab.id)}
                     className={`text-xs font-bold px-4 py-2.5 border-b-2 transition-colors ${
@@ -1532,15 +1532,15 @@ export default function DemandsView({
                 
                 <div className="lg:col-span-8 space-y-6">
                   <div>
-                    <h4 className="text-xs font-black text-slate-800 uppercase tracking-wider">HistÃ³rico de TrÃ¢mites</h4>
-                    <p className="text-[10px] text-slate-400">Linha do tempo oficial auditÃ¡vel</p>
+                    <h4 className="text-xs font-black text-slate-800 uppercase tracking-wider">Histórico de Trâmites</h4>
+                    <p className="text-[10px] text-slate-400">Linha do tempo oficial auditável</p>
                   </div>
 
                   {canEdit ? (
                     <form onSubmit={handleAddTimelineEvent} className="bg-slate-50 border border-slate-100 p-4 rounded-2xl space-y-3">
                       <span className="text-[10px] font-bold text-brand-700 uppercase tracking-wider flex items-center gap-1">
                         <CornerDownRight size={12} />
-                        Registrar Despacho / Parecer TÃ©cnico
+                        Registrar Despacho / Parecer Técnico
                       </span>
                       
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -1559,8 +1559,8 @@ export default function DemandsView({
                         >
                           <option value="no-change">Manter Status Atual</option>
                           <option value="pendente">Mudar para Pendente</option>
-                          <option value="analise">Mudar para Em AnÃ¡lise</option>
-                          <option value="concluido">Mudar para ConcluÃ­do</option>
+                          <option value="analise">Mudar para Em Análise</option>
+                          <option value="concluido">Mudar para Concluído</option>
                           <option value="rejeitado">Mudar para Rejeitado</option>
                         </select>
                       </div>
@@ -1569,7 +1569,7 @@ export default function DemandsView({
                         rows={2}
                         value={newEventDesc}
                         onChange={(e) => setNewEventDesc(e.target.value)}
-                        placeholder="Descreva as deliberaÃ§Ãµes ou pendÃªncias..."
+                        placeholder="Descreva as deliberações ou pendências..."
                         className="w-full px-3 py-1.5 rounded-lg border border-slate-200 text-xs bg-white text-slate-800 focus:outline-none focus:ring-1 focus:ring-brand-600"
                       />
 
@@ -1589,9 +1589,9 @@ export default function DemandsView({
                   ) : (
                     <div className="bg-slate-50 border border-slate-200/60 p-5 rounded-2xl text-center space-y-2">
                       <ShieldCheck className="mx-auto text-slate-400" size={20} />
-                      <h5 className="text-xs font-bold text-slate-700">TrÃ¢mite Restrito</h5>
+                      <h5 className="text-xs font-bold text-slate-700">Trâmite Restrito</h5>
                       <p className="text-[10px] text-slate-500 max-w-md mx-auto leading-relaxed">
-                        FaÃ§a login com permissÃ£o de administrador para registrar pareceres tÃ©cnicos.
+                        Faça login com permissão de administrador para registrar pareceres técnicos.
                       </p>
                     </div>
                   )}
@@ -1613,7 +1613,7 @@ export default function DemandsView({
                             <span>Agente: <strong>{item.user_name}</strong></span>
                             {item.status_changed_to && (
                               <>
-                                <span>â€¢</span>
+                                <span>•</span>
                                 <span className="text-blue-700 bg-blue-50 font-semibold uppercase px-1.5 rounded">
                                   Novo Status: {getStatusLabel(item.status_changed_to)}
                                 </span>
@@ -1705,7 +1705,7 @@ export default function DemandsView({
                           rows={4}
                           value={adminNotes}
                           onChange={(e) => setAdminNotes(e.target.value)}
-                          placeholder="AnotaÃ§Ãµes privadas..."
+                          placeholder="Anotações privadas..."
                           className="w-full p-2 bg-white border border-amber-200 text-xs text-slate-700 focus:outline-none focus:ring-1 focus:ring-amber-500 rounded-lg font-sans"
                         />
                         <div className="flex justify-end gap-1.5">
@@ -1730,7 +1730,7 @@ export default function DemandsView({
                       </div>
                     ) : (
                       <p className="text-[11px] text-slate-600 leading-relaxed italic">
-                        {detailedDemand.notes || 'Nenhuma anotaÃ§Ã£o registrada.'}
+                        {detailedDemand.notes || 'Nenhuma anotação registrada.'}
                       </p>
                     )}
                   </div>
@@ -1739,13 +1739,13 @@ export default function DemandsView({
                   <div className="bg-blue-50/40 border border-blue-100 rounded-2xl p-4 space-y-3">
                     <h4 className="text-[10px] font-extrabold text-blue-900 uppercase tracking-widest flex items-center gap-1">
                       <MessageSquare size={12} />
-                      ComentÃ¡rios Internos
+                      Comentários Internos
                     </h4>
 
                     <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
                       {(detailedDemand.comments || []).length === 0 ? (
                         <p className="text-[10px] text-slate-400 italic">
-                          Nenhum comentÃ¡rio. Use para alinhar com a equipe.
+                          Nenhum comentário. Use para alinhar com a equipe.
                         </p>
                       ) : (
                         (detailedDemand.comments || []).map((c) => (
@@ -1766,7 +1766,7 @@ export default function DemandsView({
                           rows={2}
                           value={newComment}
                           onChange={(e) => setNewComment(e.target.value)}
-                          placeholder="Escreva um comentÃ¡rio..."
+                          placeholder="Escreva um comentário..."
                           className="w-full p-2 bg-white border border-blue-200 text-xs text-slate-700 focus:outline-none focus:ring-1 focus:ring-brand-500 rounded-lg font-sans"
                         />
                         <div className="flex justify-end">
@@ -1823,7 +1823,7 @@ export default function DemandsView({
               </div>
               <div>
                 <h3 className="text-base font-black text-slate-900 dark:text-white">Excluir Demanda</h3>
-                <p className="text-xs text-slate-500">Tem certeza que deseja excluir esta demanda? Esta aÃ§Ã£o nÃ£o poderÃ¡ ser desfeita.</p>
+                <p className="text-xs text-slate-500">Tem certeza que deseja excluir esta demanda? Esta ação não poderá ser desfeita.</p>
               </div>
             </div>
             <div className="flex gap-2 justify-end">
@@ -1900,7 +1900,7 @@ function AISimilar({ demand, all, onSelect }: { demand: Demand; all: Demand[]; o
             className="text-left px-3 py-2 rounded-lg bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 hover:border-brand-300 dark:hover:border-brand-600 transition-colors flex-1 min-w-[200px]"
           >
             <p className="text-[11px] font-bold text-slate-700 dark:text-slate-200 truncate">{d.title}</p>
-            <p className="text-[9px] text-slate-400 font-mono mt-0.5">{d.id} â€¢ {d.municipality}/{d.uf}</p>
+            <p className="text-[9px] text-slate-400 font-mono mt-0.5">{d.id} • {d.municipality}/{d.uf}</p>
           </button>
         ))}
       </div>
