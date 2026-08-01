@@ -6,7 +6,6 @@ import {
   X, 
   ExternalLink, 
   AlertCircle, 
-  Calendar, 
   User, 
   Phone, 
   Mail, 
@@ -14,7 +13,6 @@ import {
   Paperclip, 
   Plus, 
   CornerDownRight, 
-  CheckCircle,
   Printer,
   Edit2,
   FolderKanban,
@@ -23,7 +21,11 @@ import {
   Trash2,
   MessageSquare,
   Send,
-  AlertTriangle
+  AlertTriangle,
+  Eye,
+  History,
+  MapPin,
+  Pencil
 } from 'lucide-react';
 import { Demand, DemandStatus, DemandPriority, TimelineEvent, PaginatedResponse } from '../types';
 import { demandsApi, formatCurrency, formatDate } from '../services/api';
@@ -208,6 +210,16 @@ export default function DemandsView({
     setEditNotes(demand.notes || '');
     setEditAno(demand.ano ?? new Date().getFullYear());
     setIsEditingDemand(true);
+  };
+
+  const handleQuickEdit = (demand: Demand) => {
+    handleOpenDetail(demand);
+    handleStartEdit(demand);
+  };
+
+  const handleOpenHistory = (demand: Demand) => {
+    handleOpenDetail(demand);
+    setDetailTab('history');
   };
 
   const handleSaveEdit = async () => {
@@ -437,6 +449,47 @@ export default function DemandsView({
       setDeleting(false);
     }
   };
+
+  const renderRowActions = (demand: Demand) => (
+    <div className="flex items-center justify-end gap-0.5" onClick={(e) => e.stopPropagation()}>
+      <button
+        onClick={() => handleOpenDetail(demand)}
+        className="p-2 rounded-lg text-slate-500 hover:text-brand-700 hover:bg-brand-50 dark:hover:bg-brand-500/10 transition-colors"
+        title="Visualizar"
+        aria-label={`Visualizar demanda ${demand.id}`}
+      >
+        <Eye size={15} />
+      </button>
+      {canEdit && (
+        <button
+          onClick={() => handleQuickEdit(demand)}
+          className="p-2 rounded-lg text-slate-500 hover:text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-500/10 transition-colors"
+          title="Editar"
+          aria-label={`Editar demanda ${demand.id}`}
+        >
+          <Pencil size={15} />
+        </button>
+      )}
+      <button
+        onClick={() => handleOpenHistory(demand)}
+        className="p-2 rounded-lg text-slate-500 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-500/10 transition-colors"
+        title="Histórico"
+        aria-label={`Histórico da demanda ${demand.id}`}
+      >
+        <History size={15} />
+      </button>
+      {canDelete && (
+        <button
+          onClick={() => setDeleteTarget(demand.id)}
+          className="p-2 rounded-lg text-slate-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors"
+          title="Excluir"
+          aria-label={`Excluir demanda ${demand.id}`}
+        >
+          <Trash2 size={15} />
+        </button>
+      )}
+    </div>
+  );
 
   if (isLoading) {
     return <TableSkeleton rows={8} />;
@@ -734,99 +787,112 @@ export default function DemandsView({
               <p className="text-xs text-slate-400">Tente ajustar seus filtros ou mude o termo pesquisado.</p>
             </div>
           ) : (
-            <div className="overflow-auto custom-scrollbar max-h-[calc(100vh-310px)]">
-              <table className="w-full text-left border-collapse min-w-[1500px]" id="demands-table">
-                <thead>
-                  <tr className="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-100 dark:border-slate-700/50 text-[10px] font-bold text-slate-400 uppercase tracking-wider sticky top-0 z-10">
-                    <th className="py-4 px-5 w-[60px]">ID</th>
-                    <th className="py-4 px-5 min-w-[200px]">Título da Demanda</th>
-                    <th className="py-4 px-5 w-[160px]">Município / UF</th>
-                    <th className="py-4 px-5 w-[140px] hidden md:table-cell">Valor Solicitado</th>
-                    <th className="py-4 px-5 w-[70px] text-center hidden sm:table-cell">Ano</th>
-                    <th className="py-4 px-5 w-[110px] hidden md:table-cell">Criticidade</th>
-                    <th className="py-4 px-5 w-[120px]">Status</th>
-                    <th className="py-4 px-5 w-[130px] text-right">Ação</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 dark:divide-slate-700/50 text-xs text-slate-600">
-                  {sortedDemands.map((demand, index) => (
-                    <tr 
-                      key={demand.id} 
-                      className={`${
-                        index % 2 === 0
-                          ? 'bg-white dark:bg-transparent'
-                          : 'bg-slate-50/40 dark:bg-slate-800/10'
-                      } hover:bg-slate-100/60 dark:hover:bg-slate-700/20 transition-colors cursor-pointer`}
-                      onClick={() => handleOpenDetail(demand)}
-                    >
-                      <td className="py-4 px-5 font-mono font-bold text-slate-500 dark:text-slate-400 whitespace-nowrap">
-                        {demand.id}
-                      </td>
-                      <td className="py-4 px-5 max-w-[310px]">
-                        <p
-                          className="font-extrabold text-slate-800 dark:text-slate-200 truncate"
-                          title={demand.title}
-                        >
-                          {demand.title}
-                        </p>
-                        {demand.category && (
-                          <p
-                            className="text-[10px] text-slate-400 mt-0.5 truncate"
-                            title={demand.category}
-                          >
-                            {demand.category}
-                          </p>
-                        )}
-                      </td>
-                      <td className="py-4 px-5 max-w-[130px]">
-                        <div
-                          className="font-semibold text-slate-800 dark:text-slate-200 truncate"
-                          title={demand.municipality}
-                        >
-                          {demand.municipality}
-                        </div>
-                        <div className="text-[10px] text-slate-400 mt-0.5">{demand.uf}</div>
-                      </td>
-                      <td className="py-4 px-5 whitespace-nowrap font-mono font-semibold text-slate-800 dark:text-slate-200 tabular-nums hidden md:table-cell">
+            <>
+              {/* MOBILE: CARD LIST */}
+              <div className="sm:hidden divide-y divide-slate-100 dark:divide-slate-700/50" id="demands-card-list">
+                {sortedDemands.map((demand) => (
+                  <div key={demand.id} className="p-4 space-y-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-mono text-[10px] font-bold text-slate-500 bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded-md truncate max-w-[55%]">
+                        Nº {demand.proposal_number || 'S/N'}
+                      </span>
+                      <span className={`inline-block px-2.5 py-1 rounded-full text-[9px] font-bold uppercase tracking-wider border whitespace-nowrap ${getStatusBadgeClass(demand.status)}`}>
+                        {getStatusLabel(demand.status)}
+                      </span>
+                    </div>
+
+                    <div className="cursor-pointer space-y-2" onClick={() => handleOpenDetail(demand)}>
+                      <p className="text-sm font-extrabold text-slate-800 dark:text-slate-200 line-clamp-2" title={demand.title}>
+                        {demand.title}
+                      </p>
+                      <p className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400">
+                        <MapPin size={12} className="shrink-0" />
+                        <span className="truncate">{demand.municipality}</span>
+                        <span className="font-mono text-[10px] text-slate-400 shrink-0">({demand.uf})</span>
+                      </p>
+                    </div>
+
+                    <div className="flex items-center justify-between pt-2 border-t border-slate-100 dark:border-slate-700/50">
+                      <span className="font-mono text-sm font-bold text-slate-900 dark:text-slate-100 tabular-nums">
                         {formatCurrency(demand.requested_value)}
-                      </td>
-                      <td className="py-4 px-5 whitespace-nowrap font-mono text-slate-500 dark:text-slate-400 text-center hidden sm:table-cell">
-                        {demand.ano || '—'}
-                      </td>
-                      <td className="py-4 px-5 whitespace-nowrap hidden md:table-cell">
-                        <span className={`inline-block px-2.5 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider border whitespace-nowrap ${getPriorityBadgeClass(demand.priority)}`}>
-                          {demand.priority}
-                        </span>
-                      </td>
-                      <td className="py-4 px-5 whitespace-nowrap">
-                        <span className={`inline-block px-2.5 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider border whitespace-nowrap ${getStatusBadgeClass(demand.status)}`}>
-                          {getStatusLabel(demand.status)}
-                        </span>
-                      </td>
-                      <td className="py-4 px-5 text-right whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
-                        <div className="flex items-center justify-end gap-1.5">
-                          <button
-                            onClick={() => handleOpenDetail(demand)}
-                            className="px-3 py-1.5 rounded-lg bg-blue-50 dark:bg-blue-500/10 text-blue-700 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-500/20 text-[10px] font-bold transition-all flex items-center gap-1.5 border border-blue-100 dark:border-blue-500/20"
-                          >
-                            Detalhes <ExternalLink size={12} />
-                          </button>
-                          {canDelete && (
-                            <button
-                              onClick={() => setDeleteTarget(demand.id)}
-                              className="p-1.5 rounded-lg bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-500/20 transition-all border border-red-100 dark:border-red-500/20"
-                              title="Excluir demanda"
-                            >
-                              <Trash2 size={14} />
-                            </button>
-                          )}
-                        </div>
-                      </td>
+                      </span>
+                      <span className="text-[10px] text-slate-400 font-mono">
+                        {demand.updated_at ? formatDate(demand.updated_at) : '—'}
+                      </span>
+                    </div>
+
+                    {renderRowActions(demand)}
+                  </div>
+                ))}
+              </div>
+
+              {/* TABLET & DESKTOP: TABLE */}
+              <div className="hidden sm:block overflow-x-auto custom-scrollbar max-h-[calc(100vh-310px)]" id="demands-table-wrapper">
+                <table className="w-full text-left border-collapse min-w-[880px]" id="demands-table">
+                  <thead>
+                    <tr className="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-100 dark:border-slate-700/50 text-[10px] font-bold text-slate-400 uppercase tracking-wider sticky top-0 z-10">
+                      <th className="py-3.5 px-4 w-[120px]">Nº Proposta</th>
+                      <th className="py-3.5 px-4 w-[150px]">Município</th>
+                      <th className="py-3.5 px-4 w-[50px] text-center">UF</th>
+                      <th className="py-3.5 px-4 min-w-[220px]">Objeto</th>
+                      <th className="py-3.5 px-4 w-[110px] text-center">Status</th>
+                      <th className="py-3.5 px-4 w-[130px] text-right">Valor Global</th>
+                      <th className="py-3.5 px-4 w-[120px] text-center hidden lg:table-cell">Última Atualização</th>
+                      <th className="py-3.5 px-4 w-[130px] text-right">Ações</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-700/50 text-xs text-slate-600">
+                    {sortedDemands.map((demand, index) => (
+                      <tr
+                        key={demand.id}
+                        onClick={() => handleOpenDetail(demand)}
+                        className={`${
+                          index % 2 === 0
+                            ? 'bg-white dark:bg-transparent'
+                            : 'bg-slate-50/40 dark:bg-slate-800/10'
+                        } hover:bg-slate-100/70 dark:hover:bg-slate-700/20 transition-colors cursor-pointer`}
+                      >
+                        <td className="py-3.5 px-4 whitespace-nowrap font-mono font-bold text-slate-600 dark:text-slate-400">
+                          {demand.proposal_number || 'S/N'}
+                        </td>
+                        <td className="py-3.5 px-4 max-w-[150px]">
+                          <span className="block truncate font-semibold text-slate-800 dark:text-slate-200" title={demand.municipality}>
+                            {demand.municipality}
+                          </span>
+                        </td>
+                        <td className="py-3.5 px-4 text-center whitespace-nowrap font-mono text-slate-500 dark:text-slate-400">
+                          {demand.uf}
+                        </td>
+                        <td className="py-3.5 px-4 max-w-[420px]">
+                          <p className="font-extrabold text-slate-800 dark:text-slate-200 truncate" title={demand.title}>
+                            {demand.title}
+                          </p>
+                          {demand.category && (
+                            <p className="text-[10px] text-slate-400 mt-0.5 truncate" title={demand.category}>
+                              {demand.category}
+                            </p>
+                          )}
+                        </td>
+                        <td className="py-3.5 px-4 text-center whitespace-nowrap">
+                          <span className={`inline-block px-2.5 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider border whitespace-nowrap ${getStatusBadgeClass(demand.status)}`}>
+                            {getStatusLabel(demand.status)}
+                          </span>
+                        </td>
+                        <td className="py-3.5 px-4 text-right whitespace-nowrap font-mono font-bold text-slate-800 dark:text-slate-200 tabular-nums">
+                          {formatCurrency(demand.requested_value)}
+                        </td>
+                        <td className="py-3.5 px-4 text-center whitespace-nowrap text-slate-500 dark:text-slate-400 hidden lg:table-cell">
+                          {demand.updated_at ? formatDate(demand.updated_at) : '—'}
+                        </td>
+                        <td className="py-3.5 px-4 text-right whitespace-nowrap">
+                          {renderRowActions(demand)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
           )}
         </div>
       ) : (
