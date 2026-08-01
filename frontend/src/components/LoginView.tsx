@@ -27,7 +27,7 @@ export default function LoginView({ onNavigateToTab }: LoginViewProps) {
   // Redirect if already authenticated
   React.useEffect(() => {
     if (isAuthenticated) {
-      onNavigateToTab('demands');
+      onNavigateToTab('dashboard');
     }
   }, [isAuthenticated, onNavigateToTab]);
 
@@ -50,7 +50,7 @@ export default function LoginView({ onNavigateToTab }: LoginViewProps) {
 
     try {
       await login(cleanEmail, cleanPassword);
-      onNavigateToTab('demands');
+      onNavigateToTab('dashboard');
     } catch (err: any) {
       setError(err.message || 'Credenciais inválidas. Usuário ou senha incorretos.');
     } finally {

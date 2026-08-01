@@ -13,6 +13,7 @@ Frontend (`gruposgd.com.br`) + Backend (`api.gruposgd.com.br`).
 - `backend/` — API Express (deploy Render, start = `npm start`)
 
 ## Funcionalidades
+- **Dashboard como página inicial oficial** — todos os usuários, independentemente do perfil, são direcionados ao Dashboard após o login (visão geral do sistema)
 - CRUD de demandas com timeline e anexos
 - Dashboard com gráficos (Power BI style)
 - Relatórios PDF e Excel
