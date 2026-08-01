@@ -196,8 +196,8 @@ body {
 }
 
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 12px;
+  height: 12px;
 }
 ::-webkit-scrollbar-track {
   background: transparent;
@@ -205,7 +205,7 @@ body {
 ::-webkit-scrollbar-thumb {
   background: var(--surface-card-border);
   border-radius: 9999px;
-  border: 2px solid transparent;
+  border: 3px solid transparent;
   background-clip: padding-box;
 }
 ::-webkit-scrollbar-thumb:hover {
@@ -214,7 +214,7 @@ body {
 }
 
 .custom-scrollbar::-webkit-scrollbar {
-  height: 6px;
+  height: 12px;
 }
 .custom-scrollbar::-webkit-scrollbar-track {
   background: transparent;
@@ -224,13 +224,23 @@ body {
 .custom-scrollbar::-webkit-scrollbar-thumb {
   background: var(--surface-card-border);
   border-radius: 9999px;
-  border: 2px solid transparent;
+  border: 3px solid transparent;
   background-clip: padding-box;
   min-width: 60px;
 }
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
   background: var(--text-faint);
   background-clip: padding-box;
+}
+
+html {
+  scrollbar-width: auto;
+  scrollbar-color: var(--surface-card-border) transparent;
+}
+
+.custom-scrollbar {
+  scrollbar-width: auto;
+  scrollbar-color: var(--surface-card-border) transparent;
 }
 
 .custom-scrollbar thead {
