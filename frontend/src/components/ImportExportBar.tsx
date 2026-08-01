@@ -1,10 +1,11 @@
 import React, { useState, useRef } from 'react';
 import * as XLSX from 'xlsx-js-style';
-import { UploadCloud, Download, FileText, X, Loader2, CheckCircle2, AlertTriangle } from 'lucide-react';
+import { UploadCloud, Download, FileText, FileSpreadsheet, Printer, Sparkles, X, Loader2, CheckCircle2, AlertTriangle } from 'lucide-react';
 import { Demand } from '../types';
 import { demandsApi, formatDate, logExport } from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../contexts/ToastContext';
+import ExportMenu, { ExportMenuItem } from './ui/ExportMenu';
 import { LOGO_B64 } from './reports/logoBase64';
 
 interface FiltersState {
@@ -178,6 +179,91 @@ export default function ImportExportBar({ rows, filters, onImported }: ImportExp
     logExport('pdf', rows.length, filters);
   };
 
+  const exportFullReport = async () => {
+    const { buildPdfReport } = await import('./reports/pdfAutoReport');
+    await buildPdfReport({
+      demands: rows,
+      filters: filters as FiltersState,
+      userLabel: user?.name || '—',
+      mode: 'full',
+      open: true,
+      title: 'RELATÓRIO EXECUTIVO DE DEMANDAS',
+      fileName: `sgd-relatorio-executivo-${new Date().toISOString().slice(0, 10)}.pdf`,
+    });
+    logExport('pdf', rows.length, filters);
+  };
+
+  const printPdf = async () => {
+    const w = window.open('', '_blank');
+    if (!w) {
+      throw new Error('Impressão bloqueada pelo navegador. Permita pop-ups ou use a opção PDF.');
+    }
+    w.document.write(
+      '<!doctype html><html><head><meta charset="utf-8">' +
+      '<title>Imprimir — SGD</title>' +
+      '<style>body{margin:0;background:#f1f5f9}#pdf{display:block;width:100vw;height:100vh;border:0}</style>' +
+      '</head><body><iframe id="pdf"></iframe></body></html>'
+    );
+    w.document.close();
+    try {
+      const { buildPdfReport } = await import('./reports/pdfAutoReport');
+      const doc = await buildPdfReport({
+        demands: rows,
+        filters: filters as FiltersState,
+        userLabel: user?.name || '—',
+        mode: 'compact',
+        fileName: `sgd-demandas-${new Date().toISOString().slice(0, 10)}.pdf`,
+      });
+      const url = doc.output('bloburl');
+      const frame = w.document.getElementById('pdf') as HTMLIFrameElement | null;
+      if (frame) {
+        frame.onload = () => {
+          try {
+            frame.contentWindow?.focus();
+            frame.contentWindow?.print();
+          } catch {
+            /* viewer nativo permanece para impressão manual */
+          }
+        };
+        frame.src = url;
+      }
+    } catch (e: any) {
+      w.close();
+      throw new Error(e?.message || 'Não foi possível gerar o relatório para impressão.');
+    }
+  };
+
+  const exportItems: ExportMenuItem[] = [
+    ...(canExportExcel ? [{
+      id: 'excel',
+      label: 'Exportar para Excel',
+      description: 'Planilha .xlsx com as demandas filtradas',
+      icon: <FileSpreadsheet size={16} className="text-emerald-600 dark:text-emerald-400" />,
+      onSelect: exportExcel,
+    }] : []),
+    ...(canExportPdf ? [{
+      id: 'pdf',
+      label: 'Exportar para PDF',
+      description: 'Relatório compacto em .pdf',
+      icon: <FileText size={16} className="text-red-600 dark:text-red-400" />,
+      onSelect: exportPdf,
+    }] : []),
+    ...(canExportPdf ? [{
+      id: 'report',
+      label: 'Relatório',
+      description: 'Relatório executivo completo em .pdf',
+      icon: <Sparkles size={16} className="text-purple-600 dark:text-purple-400" />,
+      onSelect: exportFullReport,
+    }] : []),
+    ...(canExportPdf ? [{
+      id: 'print',
+      label: 'Imprimir',
+      description: 'Abre o diálogo de impressão do navegador',
+      icon: <Printer size={16} className="text-blue-600 dark:text-blue-400" />,
+      onSelect: printPdf,
+    }] : []),
+  ];
+
   return (
     <>
       <div className="flex items-center gap-2">
@@ -187,32 +273,13 @@ export default function ImportExportBar({ rows, filters, onImported }: ImportExp
         >
           <UploadCloud size={15} /> Importar
         </button>
-        <div className="relative group">
-          <button
-            onClick={exportExcel}
-            className="flex items-center gap-2 px-3 py-2 rounded-xl bg-brand-600 hover:bg-brand-700 text-white text-xs font-bold transition-colors"
-          >
-            <Download size={15} /> Exportar
-          </button>
-          <div className="absolute right-0 top-full mt-1 min-w-[180px] bg-white dark:bg-[#111a2e] border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl z-50 hidden group-hover:block overflow-hidden">
-            {canExportExcel && (
-              <button
-                onClick={exportExcel}
-                className="w-full text-left px-4 py-2.5 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center gap-2 border-b border-slate-100 dark:border-slate-700/50"
-              >
-                <FileText size={14} className="text-green-600" /> Exportar Excel
-              </button>
-            )}
-            {canExportPdf && (
-              <button
-                onClick={exportPdf}
-                className="w-full text-left px-4 py-2.5 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center gap-2"
-              >
-                <FileText size={14} className="text-red-600" /> Exportar PDF
-              </button>
-            )}
-          </div>
-        </div>
+        <ExportMenu
+          items={exportItems}
+          buttonLabel="Exportar"
+          buttonIcon={<Download size={15} />}
+          menuTitle="Exportar demandas"
+          buttonClassName="flex items-center gap-2 px-3 py-2 rounded-xl bg-brand-600 hover:bg-brand-700 text-white text-xs font-bold transition-colors"
+        />
       </div>
 
       {isOpen && (

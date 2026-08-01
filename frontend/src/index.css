@@ -56,6 +56,13 @@
   .animate-scale-in {
     animation: scaleIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
   }
+  .animate-dropdown {
+    animation: dropdownIn 0.18s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    transform-origin: top right;
+  }
+  .animate-sheet-up {
+    animation: sheetUp 0.28s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  }
 }
 
 @keyframes spin-slow {
@@ -76,6 +83,16 @@
 @keyframes scaleIn {
   from { opacity: 0; transform: scale(0.95); }
   to { opacity: 1; transform: scale(1); }
+}
+
+@keyframes dropdownIn {
+  from { opacity: 0; transform: translateY(-6px) scale(0.97); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes sheetUp {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
 }
 
 @keyframes slideDown {

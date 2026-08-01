@@ -642,7 +642,7 @@ function drawChartsSection(
 
 /* ---------- Builder principal ---------- */
 
-export async function buildPdfReport(opts: PdfReportOptions): Promise<void> {
+export async function buildPdfReport(opts: PdfReportOptions): Promise<any> {
   const [{ jsPDF }, autoTableMod] = await Promise.all([
     import('jspdf'),
     import('jspdf-autotable'),
@@ -878,4 +878,6 @@ export async function buildPdfReport(opts: PdfReportOptions): Promise<void> {
   } else {
     doc.save(`${baseName}.pdf`);
   }
+
+  return doc;
 }
