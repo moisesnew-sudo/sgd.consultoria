@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { Search, X, SlidersHorizontal, FilterX, RefreshCw, ScrollText, ChevronLeft, ChevronRight, AlertCircle } from 'lucide-react';
+import { Search, X, SlidersHorizontal, FilterX, RefreshCw, ScrollText, AlertCircle } from 'lucide-react';
 import { auditApi, formatDate } from '../services/api';
+import { Badge, Input, Select, FiltersDrawer, Table, TableHead, Th, TableBody, Tr, Td, TableEmpty, Pagination } from './ui';
 import { TableSkeleton } from './ui/Skeleton';
 
 interface AuditRow {
@@ -15,14 +16,14 @@ interface AuditRow {
   created_at: string;
 }
 
-const ACTION_META: Record<string, { label: string; cls: string }> = {
-  create: { label: 'Criação', cls: 'bg-emerald-100 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800/50' },
-  update: { label: 'Edição', cls: 'bg-blue-100 text-blue-700 border-blue-200 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-800/50' },
-  delete: { label: 'Exclusão', cls: 'bg-red-100 text-red-700 border-red-200 dark:bg-red-950/40 dark:text-red-300 dark:border-red-800/50' },
-  comment: { label: 'Comentário', cls: 'bg-amber-100 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800/50' },
-  login: { label: 'Login', cls: 'bg-purple-100 text-purple-700 border-purple-200 dark:bg-purple-950/40 dark:text-purple-300 dark:border-purple-800/50' },
-  login_failed: { label: 'Falha de Login', cls: 'bg-rose-100 text-rose-700 border-rose-200 dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-800/50' },
-  update_permissions: { label: 'Permissões', cls: 'bg-cyan-100 text-cyan-700 border-cyan-200 dark:bg-cyan-950/40 dark:text-cyan-300 dark:border-cyan-800/50' },
+const ACTION_META: Record<string, { label: string; variant: 'neutral' | 'brand' | 'success' | 'warning' | 'danger' | 'info' }> = {
+  create: { label: 'Criação', variant: 'success' },
+  update: { label: 'Edição', variant: 'info' },
+  delete: { label: 'Exclusão', variant: 'danger' },
+  comment: { label: 'Comentário', variant: 'warning' },
+  login: { label: 'Login', variant: 'brand' },
+  login_failed: { label: 'Falha de Login', variant: 'danger' },
+  update_permissions: { label: 'Permissões', variant: 'info' },
 };
 
 const ENTITY_LABELS: Record<string, string> = {
@@ -150,9 +151,6 @@ export default function AuditTrail() {
   if (filters.dateFrom || filters.dateTo) chips.push({ id: 'period', label: `Período: ${filters.dateFrom || '…'} → ${filters.dateTo || '…'}`, onRemove: () => removeFilter('dateFrom') });
   if (filters.userName !== 'all') chips.push({ id: 'userName', label: `Usuário: ${filters.userName}`, onRemove: () => removeFilter('userName') });
 
-  const selectCls = 'w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-900/60 text-xs text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-brand-600';
-  const dateCls = 'w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-900/60 text-xs text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-brand-600';
-
   return (
     <div className="bg-white dark:bg-[#111a2e] border border-slate-100 dark:border-slate-700/50 rounded-2xl shadow-sm overflow-hidden">
       {/* Action bar */}
@@ -175,7 +173,7 @@ export default function AuditTrail() {
               value={search}
               onChange={e => setSearch(e.target.value)}
               placeholder="Pesquisar: usuário, entidade, detalhes..."
-              className="w-full pl-9 pr-8 py-2 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-900/60 text-xs text-slate-800 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-600"
+              className="w-full h-[40px] pl-9 pr-8 rounded-xl border text-sm bg-white dark:bg-slate-900/60 text-slate-800 dark:text-slate-100 placeholder:text-slate-400 transition-colors focus:outline-none focus:ring-2 focus:ring-brand-600 focus:border-transparent border-slate-200 dark:border-slate-700"
             />
             {search && (
               <button onClick={() => setSearch('')} aria-label="Limpar pesquisa" className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 rounded-full text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800">
@@ -186,7 +184,7 @@ export default function AuditTrail() {
           <div className="flex items-center gap-2">
             <button
               onClick={() => setFiltersOpen(true)}
-              className={`flex items-center gap-2 px-3 py-2 rounded-xl border text-xs font-bold transition-colors ${
+              className={`flex items-center gap-2 px-3 h-[40px] rounded-xl border text-xs font-bold transition-colors ${
                 activeFilterCount > 0
                   ? 'bg-brand-50 dark:bg-brand-950/30 border-brand-300 dark:border-brand-800 text-brand-700 dark:text-brand-300'
                   : 'bg-white dark:bg-[#111a2e] border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800'
@@ -200,7 +198,7 @@ export default function AuditTrail() {
                 </span>
               )}
             </button>
-            <button onClick={load} title="Atualizar" className="p-2 rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300">
+            <button onClick={load} title="Atualizar" className="p-2 h-[40px] aspect-square rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300">
               <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
             </button>
           </div>
@@ -242,150 +240,80 @@ export default function AuditTrail() {
           </button>
         </div>
       ) : loading ? (
-        <TableSkeleton rows={6} />
+        <TableSkeleton rows={6} cols={5} />
       ) : (
         <>
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[820px] text-sm">
-              <thead>
-                <tr className="bg-slate-50/80 dark:bg-slate-800/50 text-left text-[10px] uppercase font-bold text-slate-500 dark:text-slate-400 tracking-wider">
-                  <th className="px-5 py-3.5">Data/Hora</th>
-                  <th className="px-5 py-3.5">Usuário</th>
-                  <th className="px-5 py-3.5">Ação</th>
-                  <th className="px-5 py-3.5">Entidade</th>
-                  <th className="px-5 py-3.5">Detalhes</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 dark:divide-slate-700/50">
-                {filtered.map(log => (
-                  <tr key={log.id} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/30 transition-colors">
-                    <td className="px-5 py-3 text-xs font-mono text-slate-500 dark:text-slate-400 whitespace-nowrap">
-                      {log.created_at ? formatDate(log.created_at) : '—'}
-                    </td>
-                    <td className="px-5 py-3 whitespace-nowrap">
-                      <p className="text-xs font-semibold text-slate-700 dark:text-slate-200">{log.user_name || '—'}</p>
-                      {log.ip_address && <p className="text-[9px] font-mono text-slate-400 mt-0.5">{log.ip_address}</p>}
-                    </td>
-                    <td className="px-5 py-3">
-                      <span className={`inline-block px-2 py-1 rounded-full border text-[9px] font-bold uppercase tracking-wide whitespace-nowrap ${ACTION_META[log.action]?.cls || 'bg-slate-100 text-slate-600 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700'}`}>
-                        {ACTION_META[log.action]?.label || log.action || '—'}
-                      </span>
-                    </td>
-                    <td className="px-5 py-3 text-xs font-mono text-slate-500 dark:text-slate-400 whitespace-nowrap">
-                      <span className="text-slate-400 dark:text-slate-500">{ENTITY_LABELS[log.entity_type] || log.entity_type || '?'}</span>
-                      <span className="mx-1 opacity-50">/</span>
-                      <span className="text-slate-700 dark:text-slate-300">{log.entity_id || '?'}</span>
-                    </td>
-                    <td className="px-5 py-3 text-[11px] font-mono text-slate-500 dark:text-slate-400 max-w-[380px] truncate" title={fmtDetails(log.details)}>
-                      {fmtDetails(log.details)}
-                    </td>
-                  </tr>
-                ))}
-                {filtered.length === 0 && (
-                  <tr>
-                    <td colSpan={5} className="px-5 py-12 text-center text-sm text-slate-400 italic">Nenhum registro de auditoria encontrado.</td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
+          <Table minWidth={820}>
+            <TableHead>
+              <Th>Data/Hora</Th>
+              <Th>Usuário</Th>
+              <Th>Ação</Th>
+              <Th>Entidade</Th>
+              <Th>Detalhes</Th>
+            </TableHead>
+            <TableBody>
+              {filtered.map(log => (
+                <Tr key={log.id}>
+                  <Td className="text-xs font-mono text-slate-500 dark:text-slate-400 whitespace-nowrap">
+                    {log.created_at ? formatDate(log.created_at) : '—'}
+                  </Td>
+                  <Td className="whitespace-nowrap">
+                    <p className="text-xs font-semibold text-slate-700 dark:text-slate-200">{log.user_name || '—'}</p>
+                    {log.ip_address && <p className="text-[9px] font-mono text-slate-400 mt-0.5">{log.ip_address}</p>}
+                  </Td>
+                  <Td>
+                    <Badge size="sm" variant={ACTION_META[log.action]?.variant || 'neutral'}>
+                      {ACTION_META[log.action]?.label || log.action || '—'}
+                    </Badge>
+                  </Td>
+                  <Td className="text-xs font-mono text-slate-500 dark:text-slate-400 whitespace-nowrap">
+                    <span className="text-slate-400 dark:text-slate-500">{ENTITY_LABELS[log.entity_type] || log.entity_type || '?'}</span>
+                    <span className="mx-1 opacity-50">/</span>
+                    <span className="text-slate-700 dark:text-slate-300">{log.entity_id || '?'}</span>
+                  </Td>
+                  <Td className="text-[11px] font-mono text-slate-500 dark:text-slate-400 max-w-[380px] truncate" title={fmtDetails(log.details)}>
+                    {fmtDetails(log.details)}
+                  </Td>
+                </Tr>
+              ))}
+              {filtered.length === 0 && <TableEmpty colSpan={5} message="Nenhum registro de auditoria encontrado." />}
+            </TableBody>
+          </Table>
 
-          {/* Pagination */}
-          <div className="px-5 py-3 border-t border-slate-100 dark:border-slate-700/50 flex items-center justify-between gap-3 flex-wrap">
-            <p className="text-[10px] font-mono text-slate-400">
-              Página {page} de {Math.max(pages, 1)} · {total} registros
-            </p>
-            <div className="flex items-center gap-1.5">
-              <button
-                onClick={() => setPage(p => Math.max(1, p - 1))}
-                disabled={page <= 1}
-                className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 disabled:opacity-30 disabled:cursor-not-allowed hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
-                title="Página anterior"
-              >
-                <ChevronLeft size={14} />
-              </button>
-              <button
-                onClick={() => setPage(p => Math.min(pages, p + 1))}
-                disabled={page >= pages}
-                className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 disabled:opacity-30 disabled:cursor-not-allowed hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
-                title="Próxima página"
-              >
-                <ChevronRight size={14} />
-              </button>
-            </div>
-          </div>
+          <Pagination page={page} pages={pages} total={total} onChange={setPage} />
         </>
       )}
 
-      {/* Filters drawer */}
-      {filtersOpen && (
-        <div className="fixed inset-0 z-[70]">
-          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setFiltersOpen(false)} />
-          <div className="absolute right-0 top-0 h-full w-full max-w-md bg-white dark:bg-[#111a2e] shadow-2xl animate-drawer flex flex-col">
-            <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 dark:border-slate-700/50">
-              <h3 className="text-sm font-black text-slate-800 dark:text-white flex items-center gap-2">
-                <SlidersHorizontal size={16} className="text-brand-600" /> Filtros
-              </h3>
-              <button onClick={() => setFiltersOpen(false)} className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500">
-                <X size={16} />
-              </button>
-            </div>
-            <div className="flex-1 overflow-y-auto p-5 space-y-4">
-              <div>
-                <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">Tipo de Entidade</label>
-                <select value={draft.entityType} onChange={e => setDraft(prev => ({ ...prev, entityType: e.target.value }))} className={selectCls}>
-                  <option value="all">Todos os tipos</option>
-                  {ENTITY_OPTIONS.map(t => (
-                    <option key={t} value={t}>{ENTITY_LABELS[t] || t}</option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">Ação</label>
-                <select value={draft.action} onChange={e => setDraft(prev => ({ ...prev, action: e.target.value }))} className={selectCls}>
-                  <option value="all">Todas as ações</option>
-                  {ACTION_OPTIONS.map(a => (
-                    <option key={a} value={a}>{ACTION_META[a]?.label || a}</option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">Usuário</label>
-                <select value={draft.userName} onChange={e => setDraft(prev => ({ ...prev, userName: e.target.value }))} className={selectCls}>
-                  <option value="all">Todos os usuários</option>
-                  {userNames.map(u => (
-                    <option key={u} value={u}>{u}</option>
-                  ))}
-                </select>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">Data Início</label>
-                  <input type="date" value={draft.dateFrom} onChange={e => setDraft(prev => ({ ...prev, dateFrom: e.target.value }))} className={dateCls} />
-                </div>
-                <div>
-                  <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">Data Fim</label>
-                  <input type="date" value={draft.dateTo} onChange={e => setDraft(prev => ({ ...prev, dateTo: e.target.value }))} className={dateCls} />
-                </div>
-              </div>
-            </div>
-            <div className="px-5 py-4 border-t border-slate-100 dark:border-slate-700/50 flex items-center gap-2">
-              <button
-                onClick={() => { setDraft(EMPTY_FILTERS); }}
-                className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
-              >
-                <FilterX size={14} /> Limpar
-              </button>
-              <button
-                onClick={applyFilters}
-                className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-brand-600 hover:bg-brand-700 text-white text-xs font-bold transition-colors"
-              >
-                Aplicar filtros
-              </button>
-            </div>
-          </div>
+      {/* Filters drawer (Design System) */}
+      <FiltersDrawer
+        open={filtersOpen}
+        onClose={() => setFiltersOpen(false)}
+        onApply={applyFilters}
+        onClear={() => setDraft(EMPTY_FILTERS)}
+      >
+        <Select label="Tipo de Entidade" value={draft.entityType} onChange={e => setDraft(prev => ({ ...prev, entityType: e.target.value }))}>
+          <option value="all">Todos os tipos</option>
+          {ENTITY_OPTIONS.map(t => (
+            <option key={t} value={t}>{ENTITY_LABELS[t] || t}</option>
+          ))}
+        </Select>
+        <Select label="Ação" value={draft.action} onChange={e => setDraft(prev => ({ ...prev, action: e.target.value }))}>
+          <option value="all">Todas as ações</option>
+          {ACTION_OPTIONS.map(a => (
+            <option key={a} value={a}>{ACTION_META[a]?.label || a}</option>
+          ))}
+        </Select>
+        <Select label="Usuário" value={draft.userName} onChange={e => setDraft(prev => ({ ...prev, userName: e.target.value }))}>
+          <option value="all">Todos os usuários</option>
+          {userNames.map(u => (
+            <option key={u} value={u}>{u}</option>
+          ))}
+        </Select>
+        <div className="grid grid-cols-2 gap-3">
+          <Input label="Data Início" type="date" value={draft.dateFrom} onChange={e => setDraft(prev => ({ ...prev, dateFrom: e.target.value }))} />
+          <Input label="Data Fim" type="date" value={draft.dateTo} onChange={e => setDraft(prev => ({ ...prev, dateTo: e.target.value }))} />
         </div>
-      )}
+      </FiltersDrawer>
     </div>
   );
 }

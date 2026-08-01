@@ -138,6 +138,52 @@ body {
   --glass-bg: rgba(255, 255, 255, 0.72);
   --glass-border: rgba(255, 255, 255, 0.3);
   --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.04);
+
+  /* ------------------------------------------------------------------
+   * SGD Design System tokens
+   * ------------------------------------------------------------------ */
+  /* Radius */
+  --ds-radius-sm: 8px;
+  --ds-radius-md: 10px;
+  --ds-radius-lg: 14px;
+  --ds-radius-xl: 16px;
+  --ds-radius-2xl: 20px;
+  --ds-radius-full: 9999px;
+  /* Shadows */
+  --ds-shadow-xs: 0 1px 2px rgba(15, 81, 50, 0.05);
+  --ds-shadow-sm: 0 1px 2px rgba(15, 81, 50, 0.04), 0 1px 4px rgba(15, 81, 50, 0.04);
+  --ds-shadow-md: 0 4px 12px rgba(15, 81, 50, 0.06), 0 8px 24px rgba(15, 81, 50, 0.04);
+  --ds-shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.08);
+  --ds-shadow-xl: 0 16px 48px rgba(0, 0, 0, 0.12);
+  /* Control heights */
+  --ds-control-h-sm: 34px;
+  --ds-control-h: 40px;
+  --ds-control-h-lg: 46px;
+  /* Typography scale */
+  --ds-text-2xs: 10px;
+  --ds-text-xs: 11px;
+  --ds-text-sm: 12px;
+  --ds-text-base: 14px;
+  --ds-text-lg: 16px;
+  --ds-text-xl: 20px;
+  --ds-text-2xl: 24px;
+  /* Semantic colors */
+  --ds-color-primary: #198754;
+  --ds-color-primary-strong: #0F5132;
+  --ds-color-primary-soft: #d6f7ed;
+  --ds-color-success: #198754;
+  --ds-color-success-soft: #d6f7ed;
+  --ds-color-warning: #F4B400;
+  --ds-color-warning-soft: #fef3c7;
+  --ds-color-danger: #dc3545;
+  --ds-color-danger-soft: #fce4ec;
+  --ds-color-info: #0d6efd;
+  --ds-color-info-soft: #e3f2fd;
+  /* Motion */
+  --ds-duration-fast: 150ms;
+  --ds-duration-base: 200ms;
+  --ds-duration-slow: 280ms;
+  --ds-ease: cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .dark {
@@ -160,6 +206,12 @@ body {
   --glass-bg: rgba(15, 31, 58, 0.72);
   --glass-border: rgba(255, 255, 255, 0.06);
   --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+
+  --ds-shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.2);
+  --ds-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.2), 0 1px 4px rgba(0, 0, 0, 0.2);
+  --ds-shadow-md: 0 4px 12px rgba(0, 0, 0, 0.3), 0 8px 24px rgba(0, 0, 0, 0.2);
+  --ds-shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.3);
+  --ds-shadow-xl: 0 16px 48px rgba(0, 0, 0, 0.4);
 }
 
 .dark .bg-white,

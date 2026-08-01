@@ -9,7 +9,7 @@ export function Skeleton({ className = '', count = 1 }: SkeletonProps) {
       {Array.from({ length: count }).map((_, i) => (
         <div
           key={i}
-          className={`animate-pulse rounded-xl bg-slate-200 dark:bg-slate-700 ${className}`}
+          className={`animate-pulse rounded-xl bg-slate-200 dark:bg-slate-700/60 ${className}`}
         />
       ))}
     </>
@@ -28,7 +28,7 @@ export function CardSkeleton() {
 
 export function TableSkeleton({ rows = 5, cols = 6 }: { rows?: number; cols?: number }) {
   return (
-    <div className="space-y-3">
+    <div className="space-y-3 p-5">
       <div className="flex gap-4">
         {Array.from({ length: cols }).map((_, i) => (
           <Skeleton key={i} className="h-4 flex-1" />
