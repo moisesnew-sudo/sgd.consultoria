@@ -152,21 +152,21 @@ export default function NewDemandView({ municipalities, onAddDemand, onNavigateT
     try {
       const newDemand = await demandsApi.create({
         title: objeto,
-        description: description.trim() || `Proposta de repasse sob o objeto: ${objeto}`,
-        category: objeto.length > 30 ? objeto.substring(0, 30) + '...' : objeto,
+        description: (description.trim() || `Proposta de repasse sob o objeto: ${objeto}`).toUpperCase(),
+        category: (objeto.length > 30 ? objeto.substring(0, 30) + '...' : objeto).toUpperCase(),
         status,
         priority,
         municipality,
         uf,
         requested_value: requestedValue ? parseCurrencyInput(requestedValue) : 0,
         prefeitura: (prefeitura || `Prefeitura Municipal de ${municipality}`).toUpperCase(),
-        proposal_number: proposalNumber || undefined,
-        organ: organ || undefined,
+        proposal_number: proposalNumber?.trim().toUpperCase() || undefined,
+        organ: organ?.trim().toUpperCase() || undefined,
         process_link: processLink.trim() || undefined,
-        responsible_name: responsibleName || undefined,
-        responsible_email: responsibleEmail || undefined,
-        responsible_phone: responsiblePhone || undefined,
-        notes: notes.trim() || undefined,
+        responsible_name: responsibleName?.trim().toUpperCase() || undefined,
+        responsible_email: responsibleEmail?.trim().toLowerCase() || undefined,
+        responsible_phone: responsiblePhone?.trim() || undefined,
+        notes: notes.trim().toUpperCase() || undefined,
         ano: Number(ano) || undefined
       });
 
@@ -306,7 +306,7 @@ export default function NewDemandView({ municipalities, onAddDemand, onNavigateT
                 id="prefeitura-input"
                 type="text"
                 value={prefeitura}
-                onChange={(e) => setPrefeitura(e.target.value)}
+                onChange={(e) => setPrefeitura(e.target.value.toUpperCase())}
                 placeholder="Ex: Prefeitura Municipal de Petrolina"
                 className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-brand-600 focus:border-transparent"
               />
@@ -318,7 +318,7 @@ export default function NewDemandView({ municipalities, onAddDemand, onNavigateT
                 id="proposalNumber-input"
                 type="text"
                 value={proposalNumber}
-                onChange={(e) => setProposalNumber(e.target.value)}
+                onChange={(e) => setProposalNumber(e.target.value.toUpperCase())}
                 placeholder="Ex: PROP-2026-8794"
                 className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-brand-600 focus:border-transparent"
               />
@@ -354,7 +354,7 @@ export default function NewDemandView({ municipalities, onAddDemand, onNavigateT
                 id="organ-input"
                 type="text"
                 value={organ}
-                onChange={(e) => setOrgan(e.target.value)}
+                onChange={(e) => setOrgan(e.target.value.toUpperCase())}
                 placeholder="Ex: MEC, MS, FNDE"
                 className={`w-full px-4 py-2.5 rounded-xl border text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-brand-600 focus:border-transparent ${
                   errors.organ ? 'border-red-400 bg-red-50/20' : 'border-slate-200'
@@ -444,7 +444,7 @@ export default function NewDemandView({ municipalities, onAddDemand, onNavigateT
                 id="resp-name-input"
                 type="text"
                 value={responsibleName}
-                onChange={(e) => setResponsibleName(e.target.value)}
+                onChange={(e) => setResponsibleName(e.target.value.toUpperCase())}
                 className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-brand-600 focus:border-transparent"
               />
             </div>
@@ -555,7 +555,7 @@ export default function NewDemandView({ municipalities, onAddDemand, onNavigateT
             id="notes-textarea"
             rows={2}
             value={notes}
-            onChange={(e) => setNotes(e.target.value)}
+            onChange={(e) => setNotes(e.target.value.toUpperCase())}
             placeholder="Anotações internas..."
             className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-brand-600 focus:border-transparent"
           />

@@ -372,6 +372,35 @@ export async function initDatabase() {
   await run("UPDATE users SET role = 'admin' WHERE role = 'administrador'");
   await run("DELETE FROM role_permissions WHERE role = 'administrador'");
 
+  // Migração: padronização em CAIXA ALTA dos campos textuais das demandas.
+  // Idempotente e segura: apenas registros divergentes são atualizados,
+  // nenhuma informação é perdida (somente case/trim são alterados).
+  await run(`
+    UPDATE demands SET
+      title = UPPER(TRIM(title)),
+      description = UPPER(TRIM(description)),
+      category = UPPER(TRIM(category)),
+      municipality = UPPER(TRIM(municipality)),
+      prefeitura = UPPER(TRIM(prefeitura)),
+      organ = UPPER(TRIM(organ)),
+      proposal_number = UPPER(TRIM(proposal_number)),
+      responsible_name = UPPER(TRIM(responsible_name)),
+      notes = UPPER(TRIM(notes))
+    WHERE COALESCE(title, '') <> UPPER(TRIM(COALESCE(title, '')))
+       OR COALESCE(description, '') <> UPPER(TRIM(COALESCE(description, '')))
+       OR COALESCE(category, '') <> UPPER(TRIM(COALESCE(category, '')))
+       OR COALESCE(municipality, '') <> UPPER(TRIM(COALESCE(municipality, '')))
+       OR COALESCE(prefeitura, '') <> UPPER(TRIM(COALESCE(prefeitura, '')))
+       OR COALESCE(organ, '') <> UPPER(TRIM(COALESCE(organ, '')))
+       OR COALESCE(proposal_number, '') <> UPPER(TRIM(COALESCE(proposal_number, '')))
+       OR COALESCE(responsible_name, '') <> UPPER(TRIM(COALESCE(responsible_name, '')))
+       OR COALESCE(notes, '') <> UPPER(TRIM(COALESCE(notes, '')))
+  `);
+  await run(`
+    UPDATE municipalities SET name = UPPER(TRIM(name))
+    WHERE COALESCE(name, '') <> UPPER(TRIM(COALESCE(name, '')))
+  `);
+
   logger.info('Tabelas criadas/verificadas');
 }
 

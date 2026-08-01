@@ -37,6 +37,27 @@ const timelineEventSchema = z.object({
   status_changed_to: z.enum(DEMAND_STATUSES).optional(),
 });
 
+/* Campos textuais normalizados para CAIXA ALTA (regra institucional do SGD) */
+const TEXT_UPPER_FIELDS = [
+  'title', 'description', 'category', 'municipality',
+  'prefeitura', 'organ', 'proposal_number', 'responsible_name', 'notes',
+] as const;
+
+function normalizeDemandText(data: Record<string, any>): Record<string, any> {
+  const out: Record<string, any> = { ...data };
+  for (const f of TEXT_UPPER_FIELDS) {
+    if (typeof out[f] === 'string' && out[f].trim()) {
+      const up = out[f].trim().toUpperCase();
+      if (up) out[f] = up;
+    }
+  }
+  if (typeof out.uf === 'string' && out.uf.trim()) out.uf = out.uf.trim().toUpperCase();
+  if (typeof out.responsible_email === 'string' && out.responsible_email.trim()) {
+    out.responsible_email = out.responsible_email.trim().toLowerCase();
+  }
+  return out;
+}
+
 async function saveDemandVersion(demandId: string, snapshot: any, changedBy: number, changedByName: string, ipAddress?: string) {
   const version = await get<{ v: number }>(
     'SELECT COALESCE(MAX(version), 0) + 1 as v FROM demand_versions WHERE demand_id = $1',
@@ -57,7 +78,12 @@ function generateDemandId(organ: string, year: number): string {
 
 router.get('/', authenticateToken, requirePermission('demands.view'), async (req: Request, res: Response) => {
   try {
-    const { status, priority, municipality, uf, category, search, include_deleted, page = '1', limit = '50' } = req.query;
+    const {
+      status, priority, municipality, uf, category, search,
+      organ, proposal_number, object, responsible,
+      valueMin, valueMax, dateFrom, dateTo, updatedFrom, updatedTo,
+      include_deleted, page = '1', limit = '50',
+    } = req.query;
     // ✅ CORREÇÃO: Lógica correta de include_deleted
     let sql = 'SELECT * FROM demands';
     const params: any[] = [];
@@ -71,13 +97,29 @@ router.get('/', authenticateToken, requirePermission('demands.view'), async (req
 
     if (status && status !== 'all') { conditions.push(`status = $${params.length + 1}`); params.push(status); }
     if (priority && priority !== 'all') { conditions.push(`priority = $${params.length + 1}`); params.push(priority); }
-    if (municipality && municipality !== 'all') { conditions.push(`municipality = $${params.length + 1}`); params.push(municipality); }
-    if (uf && uf !== 'all') { conditions.push(`uf = $${params.length + 1}`); params.push(uf); }
-    if (category && category !== 'all') { conditions.push(`category = $${params.length + 1}`); params.push(category); }
+    if (municipality && municipality !== 'all') { conditions.push(`municipality ILIKE $${params.length + 1}`); params.push(municipality); }
+    if (uf && uf !== 'all') { conditions.push(`uf = $${params.length + 1}`); params.push(String(uf).toUpperCase()); }
+    if (category && category !== 'all') { conditions.push(`category ILIKE $${params.length + 1}`); params.push(category); }
+    if (organ && organ !== 'all') { conditions.push(`organ ILIKE $${params.length + 1}`); params.push(organ); }
+    if (proposal_number && proposal_number !== 'all') {
+      conditions.push(`proposal_number ILIKE $${params.length + 1}`);
+      params.push(`%${proposal_number}%`);
+    }
+    if (object && object !== 'all') {
+      conditions.push(`title ILIKE $${params.length + 1}`);
+      params.push(`%${object}%`);
+    }
+    if (responsible && responsible !== 'all') { conditions.push(`responsible_name ILIKE $${params.length + 1}`); params.push(responsible); }
+    if (valueMin && valueMin !== 'all') { conditions.push(`requested_value >= $${params.length + 1}`); params.push(Number(valueMin)); }
+    if (valueMax && valueMax !== 'all') { conditions.push(`requested_value <= $${params.length + 1}`); params.push(Number(valueMax)); }
+    if (dateFrom && dateFrom !== 'all') { conditions.push(`created_at >= $${params.length + 1}`); params.push(dateFrom); }
+    if (dateTo && dateTo !== 'all') { conditions.push(`created_at < $${params.length + 1}`); params.push(new Date(`${dateTo}T23:59:59`).toISOString()); }
+    if (updatedFrom && updatedFrom !== 'all') { conditions.push(`updated_at >= $${params.length + 1}`); params.push(updatedFrom); }
+    if (updatedTo && updatedTo !== 'all') { conditions.push(`updated_at < $${params.length + 1}`); params.push(new Date(`${updatedTo}T23:59:59`).toISOString()); }
     if (search) {
-      conditions.push(`(id ILIKE $${params.length + 1} OR title ILIKE $${params.length + 2} OR municipality ILIKE $${params.length + 3})`);
+      conditions.push(`(id ILIKE $${params.length + 1} OR title ILIKE $${params.length + 2} OR municipality ILIKE $${params.length + 3} OR organ ILIKE $${params.length + 4} OR proposal_number ILIKE $${params.length + 5} OR responsible_name ILIKE $${params.length + 6} OR description ILIKE $${params.length + 7} OR category ILIKE $${params.length + 8})`);
       const t = `%${search}%`;
-      params.push(t, t, t);
+      params.push(t, t, t, t, t, t, t, t);
     }
     if (conditions.length > 0) {
       sql += ' WHERE ' + conditions.join(' AND ');
@@ -187,7 +229,7 @@ router.post('/', authenticateToken, requirePermission('demands.create'), async (
     if (req.user!.role === 'consulta') {
       return res.status(403).json({ error: 'Consulta não pode cadastrar demandas' });
     }
-    const data = demandSchema.parse(req.body);
+    const data = normalizeDemandText(demandSchema.parse(req.body));
     const currentYear = new Date().getFullYear();
     // ✅ CORREÇÃO: UUID seguro em vez de COUNT(*)+1
     const id = generateDemandId(data.organ || 'SGD', currentYear);
@@ -238,7 +280,7 @@ router.put('/:id', authenticateToken, requirePermission('demands.edit'), async (
     const existing = await get('SELECT * FROM demands WHERE id = $1 AND deleted_at IS NULL', [req.params.id as string]);
     if (!existing) return res.status(404).json({ error: 'Demanda não encontrada' });
     await saveDemandVersion(req.params.id as string, existing, req.user!.id, req.user!.name, ip_address);
-    const data = demandSchema.partial().parse(req.body);
+    const data = normalizeDemandText(demandSchema.partial().parse(req.body));
     const result = buildUpdateQuery('demands', data, 'id', req.params.id as string);
     if (result) {
       await run(result.sql, result.values);

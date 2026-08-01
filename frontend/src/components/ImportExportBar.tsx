@@ -66,9 +66,11 @@ function mapRow(row: any): Partial<Demand> | null {
   mapped.category = mapped.category || mapped.title.substring(0, 30);
   mapped.status = mapped.status || 'pendente';
   mapped.priority = mapped.priority || 'media';
-  mapped.title = String(mapped.title).toUpperCase();
-  mapped.municipality = String(mapped.municipality).toUpperCase();
-  if (mapped.organ) mapped.organ = String(mapped.organ).toUpperCase();
+  for (const f of ['title', 'municipality', 'organ', 'prefeitura', 'proposal_number', 'responsible_name', 'category', 'description', 'notes'] as const) {
+    if (mapped[f]) mapped[f] = String(mapped[f]).toUpperCase();
+  }
+  if (mapped.uf) mapped.uf = String(mapped.uf).toUpperCase();
+  if (mapped.responsible_email) mapped.responsible_email = String(mapped.responsible_email).toLowerCase();
   return mapped as Partial<Demand>;
 }
 
@@ -123,19 +125,20 @@ export default function ImportExportBar({ rows, filters, onImported }: ImportExp
   };
 
   const exportExcel = () => {
+    const up = (v: any) => String(v ?? '').toUpperCase();
     const data = rows.map(d => ({
       ID: d.id,
-      Título: d.title,
-      Município: d.municipality,
+      Título: up(d.title),
+      Município: up(d.municipality),
       UF: d.uf,
       'Ano': d.ano || '',
       Status: d.status,
       Prioridade: d.priority,
-      Categoria: d.category,
+      Categoria: up(d.category),
       Valor: d.requested_value,
-      Órgão: d.organ || '',
-      Proposta: d.proposal_number || '',
-      Responsável: d.responsible_name || '',
+      Órgão: up(d.organ || ''),
+      Proposta: up(d.proposal_number || ''),
+      Responsável: up(d.responsible_name || ''),
       'Criado em': formatDate(d.created_at),
     }));
     const ws = XLSX.utils.json_to_sheet(data);
@@ -147,10 +150,11 @@ export default function ImportExportBar({ rows, filters, onImported }: ImportExp
 
   const exportCsv = () => {
     const headers = ['ID', 'Título', 'Município', 'UF', 'Ano', 'Status', 'Prioridade', 'Categoria', 'Valor', 'Órgão', 'Proposta', 'Responsável', 'Criado em'];
+    const up = (v: any) => String(v ?? '').toUpperCase();
     const escape = (v: any) => `"${String(v ?? '').replace(/"/g, '""')}"`;
     const lines = rows.map(d => [
-      d.id, d.title, d.municipality, d.uf, d.ano || '', d.status, d.priority, d.category,
-      d.requested_value, d.organ || '', d.proposal_number || '', d.responsible_name || '', formatDate(d.created_at)
+      d.id, up(d.title), up(d.municipality), d.uf, d.ano || '', d.status, d.priority, up(d.category),
+      d.requested_value, up(d.organ || ''), up(d.proposal_number || ''), up(d.responsible_name || ''), formatDate(d.created_at)
     ].map(escape).join(','));
     const csv = '\uFEFF' + [headers.join(','), ...lines].join('\n');
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
@@ -163,277 +167,14 @@ export default function ImportExportBar({ rows, filters, onImported }: ImportExp
   };
 
   const exportPdf = async () => {
-    const [{ jsPDF }, autoTable] = await Promise.all([
-      import('jspdf'),
-      import('jspdf-autotable').then(m => m.default)
-    ]);
-    const doc = new jsPDF('landscape', 'mm', 'a4');
-    const pageW = 297;
-    const margin = 20;
-    const usableW = pageW - margin * 2;
-
-    const now = new Date();
-    const dateStr = now.toLocaleDateString('pt-BR');
-    const timeStr = now.toLocaleTimeString('pt-BR');
-
-    const sorted = [...rows].sort((a, b) =>
-      a.municipality.localeCompare(b.municipality, 'pt-BR', { sensitivity: 'base' })
-    );
-
-    const totalValue = rows.reduce((s, d) => s + (d.requested_value || 0), 0);
-    const municipalitiesSet = new Set(rows.map(d => d.municipality));
-    const organsSet = new Set(rows.map(d => d.organ).filter(Boolean));
-    const ufsSet = new Set(rows.map(d => d.uf));
-
-    const primaryColor: [number, number, number] = [15, 81, 50];
-    const secondaryColor: [number, number, number] = [25, 135, 84];
-    const accentColor: [number, number, number] = [32, 201, 151];
-    const goldColor: [number, number, number] = [244, 180, 0];
-    const lightBg: [number, number, number] = [233, 236, 239];
-    const surfaceColor: [number, number, number] = [255, 255, 255];
-    const textPrimary: [number, number, number] = [33, 37, 41];
-    const textSecondary: [number, number, number] = [73, 80, 87];
-    const borderColor: [number, number, number] = [206, 212, 218];
-
-    function addHeader(y: number) {
-      const logoH = 18;
-      const logoW = 46;
-      try {
-        doc.addImage(LOGO_B64, 'JPEG', (pageW - logoW) / 2, y - logoH + 2, logoW, logoH);
-      } catch {
-        doc.setFontSize(24);
-        doc.setFont('helvetica', 'bold');
-        doc.setTextColor(...primaryColor);
-        doc.text('CGASI.SE', pageW / 2, y, { align: 'center' });
-      }
-
-      doc.setFontSize(9);
-      doc.setFont('helvetica', 'bold');
-      doc.setTextColor(...textSecondary);
-      doc.text(
-        'COORDENAÇÃO GERAL DE ARTICULAÇÃO E SUPERVISÃO INSTITUCIONAL DA SECRETARIA EXECUTIVA / MAPA',
-        pageW / 2, y + 12, { align: 'center' }
-      );
-
-      doc.setDrawColor(...goldColor);
-      doc.setLineWidth(0.8);
-      doc.line(margin, y + 15, pageW - margin, y + 15);
-      doc.setDrawColor(...primaryColor);
-      doc.setLineWidth(0.4);
-      doc.line(margin, y + 16, pageW - margin, y + 16);
-    }
-
-    function addFooter(pageNum: number, totalPages: number) {
-      doc.setDrawColor(...borderColor);
-      doc.setLineWidth(0.3);
-      doc.line(margin, 202, pageW - margin, 202);
-      doc.setFontSize(8);
-      doc.setFont('helvetica', 'bold');
-      doc.setTextColor(...primaryColor);
-      doc.text('CGASI.SE', margin, 206);
-      doc.setFont('helvetica', 'normal');
-      doc.setTextColor(...textSecondary);
-      doc.text('Sistema de Gestão de Demandas', margin, 211);
-      doc.text(`${dateStr} ${timeStr}`, margin, 216);
-      doc.setTextColor(...textSecondary);
-      doc.text(`Página ${pageNum} de ${totalPages}`, pageW - margin, 206, { align: 'right' });
-    }
-
-    addHeader(12);
-
-    const infoY = 30;
-    const infoBoxH = 38;
-    const colW = usableW / 4;
-
-    doc.setDrawColor(...borderColor);
-    doc.setFillColor(...lightBg);
-    doc.roundedRect(margin, infoY, usableW, infoBoxH, 3, 3, 'FD');
-
-    doc.setDrawColor(...goldColor);
-    doc.setLineWidth(2);
-    doc.line(margin, infoY, margin, infoY + infoBoxH);
-
-    const infoItems = [
-      ['Emissão', `${dateStr} ${timeStr}`],
-      ['Usuário', user?.name || '—'],
-      ['Total de Demandas', String(rows.length)],
-      ['Valor Total', fmtCurrency(totalValue)],
-      ['Municípios', String(municipalitiesSet.size)],
-      ['Órgãos', String(organsSet.size)],
-      ['Estados', String(ufsSet.size)],
-    ];
-
-    infoItems.forEach(([label, value], i) => {
-      const x = margin + (i % 4) * colW + 6;
-      const yPos = infoY + 6 + Math.floor(i / 4) * 15;
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(6.5);
-      doc.setTextColor(...textSecondary);
-      doc.text(label.toUpperCase(), x, yPos);
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(8.5);
-      doc.setTextColor(...textPrimary);
-      doc.text(value, x, yPos + 5);
+    const { buildPdfReport } = await import('./reports/pdfAutoReport');
+    await buildPdfReport({
+      demands: rows,
+      filters: filters as FiltersState,
+      userLabel: user?.name || '—',
+      mode: 'compact',
+      fileName: `sgd-demandas-${new Date().toISOString().slice(0, 10)}.pdf`,
     });
-
-    let cursorY = infoY + infoBoxH + 8;
-
-    // FILTERS SECTION
-    const statusLabel: Record<string, string> = {
-      pendente: 'Pendentes', analise: 'Em Análise', concluido: 'Concluídas', rejeitado: 'Rejeitadas',
-    };
-    const priorityLabel: Record<string, string> = {
-      baixa: 'Baixa', media: 'Média', alta: 'Alta', urgente: 'Urgente',
-    };
-
-    const f = filters;
-    const filterLines: [string, string][] = [
-      ['UF', f?.uf && f.uf !== 'all' ? f.uf : 'Todos'],
-      ['Municípios', f?.search || 'Todos'],
-      ['Órgão', 'Todos'],
-      ['Status', f?.status && f.status !== 'all' ? (statusLabel[f.status] || f.status) : 'Todos'],
-      ['Prioridade', f?.priority && f.priority !== 'all' ? (priorityLabel[f.priority] || f.priority) : 'Todas'],
-      ['Ano', f?.ano && f.ano !== 'all' ? f.ano : 'Todos'],
-    ];
-
-    if (f?.dateFrom || f?.dateTo) {
-      filterLines.push(['Período', `${f.dateFrom || '—'} até ${f.dateTo || '—'}`]);
-    } else {
-      filterLines.push(['Período', 'Todos']);
-    }
-
-    doc.setDrawColor(...borderColor);
-    doc.setFillColor(...lightBg);
-    const filterBoxH = 22 + Math.ceil(filterLines.length / 2) * 10;
-    doc.roundedRect(margin, cursorY, usableW, filterBoxH, 3, 3, 'FD');
-
-    doc.setDrawColor(...accentColor);
-    doc.setLineWidth(2);
-    doc.line(margin, cursorY, margin, cursorY + filterBoxH);
-
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(7);
-    doc.setTextColor(...secondaryColor);
-    doc.text('FILTROS APLICADOS', margin + 6, cursorY + 6);
-
-    const halfCol = usableW / 2;
-    filterLines.forEach(([label, value], i) => {
-      const colIdx = i % 2;
-      const rowIdx = Math.floor(i / 2);
-      const x = margin + colIdx * halfCol + 6;
-      const y = cursorY + 14 + rowIdx * 10;
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(6.5);
-      doc.setTextColor(...textSecondary);
-      doc.text(label + ':', x, y);
-      doc.setFont('helvetica', 'normal');
-      doc.setFontSize(7);
-      doc.setTextColor(...textPrimary);
-      doc.text(value, x + 22, y);
-    });
-
-    cursorY += filterBoxH + 10;
-
-    // TABLE TITLE
-    doc.setFontSize(14);
-    doc.setFont('helvetica', 'bold');
-    doc.setTextColor(...primaryColor);
-    doc.text('RELATÓRIO DE DEMANDAS', pageW / 2, cursorY, { align: 'center' });
-
-    doc.setDrawColor(...goldColor);
-    doc.setLineWidth(0.5);
-    doc.line(pageW / 2 - 40, cursorY + 1.5, pageW / 2 + 40, cursorY + 1.5);
-
-    cursorY += 10;
-
-    const columns = [
-      { header: 'Município', dataKey: 'municipality' },
-      { header: 'Estado', dataKey: 'uf' },
-      { header: 'Órgão', dataKey: 'organ' },
-      { header: 'Ano', dataKey: 'ano' },
-      { header: 'Nº Proposta', dataKey: 'proposal_number' },
-      { header: 'Objeto', dataKey: 'title' },
-      { header: 'Valor Solicitado', dataKey: 'requested_value' },
-      { header: 'Status', dataKey: 'status' },
-      { header: 'Prioridade', dataKey: 'priority' },
-    ];
-
-    const tableData = sorted.map(d => [
-      d.municipality,
-      d.uf,
-      d.organ || '—',
-      d.ano != null ? String(d.ano) : '—',
-      d.proposal_number || '—',
-      d.title,
-      fmtCurrency(d.requested_value || 0),
-      statusLabel[d.status] || d.status,
-      priorityLabel[d.priority] || d.priority,
-    ]);
-
-    autoTable(doc, {
-      startY: cursorY,
-      head: [columns.map(c => c.header)],
-      body: tableData,
-      theme: 'grid',
-      styles: {
-        fontSize: 7,
-        cellPadding: 2.5,
-        lineColor: borderColor,
-        lineWidth: 0.3,
-        textColor: textPrimary,
-        valign: 'middle',
-      },
-      headStyles: {
-        fillColor: primaryColor,
-        textColor: [255, 255, 255],
-        fontStyle: 'bold',
-        fontSize: 7,
-        halign: 'center',
-      },
-      alternateRowStyles: {
-        fillColor: [233, 236, 239],
-      },
-      columnStyles: {
-        0: { cellWidth: 'auto' },
-        1: { cellWidth: 14, halign: 'center' },
-        2: { cellWidth: 'auto' },
-        3: { cellWidth: 12, halign: 'center' },
-        4: { cellWidth: 'auto' },
-        5: { cellWidth: 'auto' },
-        6: { cellWidth: 28, halign: 'right', fontStyle: 'bold', textColor: primaryColor },
-        7: { cellWidth: 20, halign: 'center' },
-        8: { cellWidth: 18, halign: 'center' },
-      },
-      margin: { top: margin, right: margin, bottom: 24, left: margin },
-      pageBreak: 'auto',
-      showHead: 'everyPage',
-      tableLineWidth: 0,
-      didDrawPage: (data: any) => {
-        if (data.pageCount > 0) {
-          addFooter(data.pageCount, data.pageCount);
-        }
-      },
-    });
-
-    const finalPages = (doc as any).internal?.getNumberOfPages?.() || 1;
-    for (let i = 1; i <= finalPages; i++) {
-      doc.setPage(i);
-      doc.setDrawColor(...borderColor);
-      doc.setLineWidth(0.3);
-      doc.line(margin, 202, pageW - margin, 202);
-      doc.setFontSize(8);
-      doc.setFont('helvetica', 'bold');
-      doc.setTextColor(...primaryColor);
-      doc.text('CGASI.SE', margin, 206);
-      doc.setFont('helvetica', 'normal');
-      doc.setTextColor(...textSecondary);
-      doc.text('Sistema de Gestão de Demandas', margin, 211);
-      doc.text(`${dateStr} ${timeStr}`, margin, 216);
-      doc.setTextColor(...textSecondary);
-      doc.text(`Página ${i} de ${finalPages}`, pageW - margin, 206, { align: 'right' });
-    }
-
-    doc.save(`sgd-demandas-${now.toISOString().slice(0, 10)}.pdf`);
     logExport('pdf', rows.length, filters);
   };
 

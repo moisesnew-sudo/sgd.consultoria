@@ -26,23 +26,57 @@ const PRIORITY_LABELS: Record<string, string> = {
 };
 
 export default function ReportsView({ demands }: ReportsViewProps) {
-  const { hasPermission } = useAuth();
+  const { user, hasPermission } = useAuth();
   const canEmit = hasPermission('reports.emit');
   const canExport = hasPermission('reports.export');
-  const [filterUf, setFilterUf] = useState('');
-  const [filterStatus, setFilterStatus] = useState('');
-  const [filterPriority, setFilterPriority] = useState('');
-  const [filterAno, setFilterAno] = useState('');
+  const [filters, setFilters] = useState({
+    search: '', uf: '', municipality: '', organ: '', proposal: '', object: '',
+    status: '', priority: '', ano: '',
+    createdFrom: '', createdTo: '', updatedFrom: '', updatedTo: '',
+    valueMin: '', valueMax: '', responsible: '',
+  });
+  const [reportType, setReportType] = useState('executivo');
+
+  const setFilter = (key: keyof typeof filters) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+    setFilters(prev => ({ ...prev, [key]: e.target.value }));
+  };
+
+  const activeFilterCount = Object.values(filters).filter(v => String(v ?? '').trim() !== '').length;
+
+  const clearFilters = () => setFilters({
+    search: '', uf: '', municipality: '', organ: '', proposal: '', object: '',
+    status: '', priority: '', ano: '',
+    createdFrom: '', createdTo: '', updatedFrom: '', updatedTo: '',
+    valueMin: '', valueMax: '', responsible: '',
+  });
 
   const filtered = useMemo(() => {
+    const f = filters;
     return demands.filter(d => {
-      if (filterUf && d.uf !== filterUf) return false;
-      if (filterStatus && d.status !== filterStatus) return false;
-      if (filterPriority && d.priority !== filterPriority) return false;
-      if (filterAno && String(d.ano ?? '') !== filterAno) return false;
+      const q = f.search.trim().toLowerCase();
+      if (q && ![d.id, d.title, d.municipality, d.description, d.category, d.organ, d.proposal_number, d.prefeitura, d.responsible_name, d.notes, d.uf]
+        .some(x => String(x ?? '').toLowerCase().includes(q))) return false;
+      if (f.uf && d.uf !== f.uf) return false;
+      if (f.municipality && d.municipality !== f.municipality) return false;
+      if (f.organ && d.organ !== f.organ) return false;
+      if (f.proposal && !String(d.proposal_number || '').toUpperCase().includes(f.proposal.trim().toUpperCase())) return false;
+      if (f.object && !String(d.title || '').toUpperCase().includes(f.object.trim().toUpperCase())) return false;
+      if (f.status && d.status !== f.status) return false;
+      if (f.priority && d.priority !== f.priority) return false;
+      if (f.ano && String(d.ano ?? '') !== f.ano) return false;
+      if (f.responsible && d.responsible_name !== f.responsible) return false;
+      const created = new Date(d.created_at).getTime();
+      if (f.createdFrom && created < new Date(`${f.createdFrom}T00:00:00`).getTime()) return false;
+      if (f.createdTo && created > new Date(`${f.createdTo}T23:59:59`).getTime()) return false;
+      const updated = new Date(d.updated_at || d.created_at).getTime();
+      if (f.updatedFrom && updated < new Date(`${f.updatedFrom}T00:00:00`).getTime()) return false;
+      if (f.updatedTo && updated > new Date(`${f.updatedTo}T23:59:59`).getTime()) return false;
+      const value = Number(d.requested_value || 0);
+      if (f.valueMin !== '' && value < Number(f.valueMin)) return false;
+      if (f.valueMax !== '' && value > Number(f.valueMax)) return false;
       return true;
     });
-  }, [demands, filterUf, filterStatus, filterPriority, filterAno]);
+  }, [demands, filters]);
 
   const totalRequested = filtered.reduce((sum, d) => sum + Number(d.requested_value || 0), 0);
   const totalApproved = filtered
@@ -79,6 +113,10 @@ export default function ReportsView({ demands }: ReportsViewProps) {
   }, [filtered]);
 
   const ufs = [...new Set(demands.map(d => d.uf))].sort();
+  const municipalities = [...new Set(demands.map(d => d.municipality).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'pt-BR', { sensitivity: 'base' }));
+  const organs = [...new Set(demands.map(d => d.organ).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'pt-BR', { sensitivity: 'base' }));
+  const responsibles = [...new Set(demands.map(d => d.responsible_name).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'pt-BR', { sensitivity: 'base' }));
+  const years = [...new Set(demands.map(d => d.ano).filter((y): y is number => Boolean(y)))].sort((a, b) => b - a);
 
   const [showReport, setShowReport] = useState(false);
 
@@ -128,14 +166,27 @@ export default function ReportsView({ demands }: ReportsViewProps) {
             Dados consolidados de {filtered.length} demandas
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           {canEmit && (
-            <button
-              onClick={() => setShowReport(true)}
-              className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-gradient-to-r from-brand-600 to-brand-700 hover:from-brand-700 hover:to-brand-800 text-white text-xs font-bold uppercase tracking-wider cursor-pointer"
-            >
-              <Sparkles size={14} /> RELATÓRIO
-            </button>
+            <>
+              <select
+                value={reportType}
+                onChange={(e) => setReportType(e.target.value)}
+                className="px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-600 text-xs text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 focus:ring-2 focus:ring-brand-600 focus:outline-none"
+                title="Tipo de Relatório"
+              >
+                <option value="executivo">Executivo Geral (IA)</option>
+                <option value="municipio">Por Município</option>
+                <option value="estado">Por Estado</option>
+                <option value="orgao">Por Órgão</option>
+              </select>
+              <button
+                onClick={() => setShowReport(true)}
+                className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-gradient-to-r from-brand-600 to-brand-700 hover:from-brand-700 hover:to-brand-800 text-white text-xs font-bold uppercase tracking-wider cursor-pointer"
+              >
+                <Sparkles size={14} /> RELATÓRIO
+              </button>
+            </>
           )}
           {canExport && (
             <button
@@ -156,36 +207,146 @@ export default function ReportsView({ demands }: ReportsViewProps) {
         </div>
       </div>
 
-      {/* Filters */}
-      <div className="bg-white dark:bg-[#111a2e] border border-slate-100 dark:border-slate-700/50 rounded-2xl p-4 shadow-sm">
-        <div className="flex flex-wrap items-center gap-3">
-          <Filter size={14} className="text-slate-400 dark:text-slate-500" />
-          <select value={filterUf} onChange={(e) => setFilterUf(e.target.value)}
-            className="px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-600 text-xs text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 focus:ring-2 focus:ring-brand-600 focus:outline-none">
-            <option value="">Todas UFs</option>
-            {ufs.map(uf => <option key={uf} value={uf}>{uf}</option>)}
-          </select>
-          <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}
-            className="px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-600 text-xs text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 focus:ring-2 focus:ring-brand-600 focus:outline-none">
-            <option value="">Todos Status</option>
-            {Object.entries(STATUS_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-          </select>
-          <select value={filterPriority} onChange={(e) => setFilterPriority(e.target.value)}
-            className="px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-600 text-xs text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 focus:ring-2 focus:ring-brand-600 focus:outline-none">
-            <option value="">Todas Prioridades</option>
-            {Object.entries(PRIORITY_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-          </select>
-          <select value={filterAno} onChange={(e) => setFilterAno(e.target.value)}
-            className="px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-600 text-xs text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 focus:ring-2 focus:ring-brand-600 focus:outline-none">
-            <option value="">Todos Anos</option>
-            {Array.from({ length: 51 }, (_, i) => new Date().getFullYear() + i - 30).filter(y => y >= 1990).map(y => <option key={y} value={String(y)}>{y}</option>)}
-          </select>
-          {(filterUf || filterStatus || filterPriority || filterAno) && (
-            <button onClick={() => { setFilterUf(''); setFilterStatus(''); setFilterPriority(''); setFilterAno(''); }}
-              className="text-[10px] text-red-500 font-bold hover:underline cursor-pointer">
-              Limpar Filtros
-            </button>
-          )}
+      {/* Filtros avançados */}
+      <div className="bg-white dark:bg-[#111a2e] border border-slate-100 dark:border-slate-700/50 rounded-2xl p-4 shadow-sm space-y-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <Filter size={14} className="text-slate-400 dark:text-slate-500" />
+            <span className="text-xs font-extrabold text-slate-600 dark:text-slate-300 uppercase tracking-widest">Filtros Avançados</span>
+            {activeFilterCount > 0 && (
+              <span className="px-2 py-0.5 rounded-full bg-brand-600 text-white text-[10px] font-bold">{activeFilterCount} ativo(s)</span>
+            )}
+          </div>
+          <button
+            onClick={clearFilters}
+            className={`text-[10px] font-bold uppercase tracking-wider cursor-pointer px-3 py-1.5 rounded-lg border transition-colors ${
+              activeFilterCount > 0
+                ? 'text-red-500 border-red-200 dark:border-red-800 hover:bg-red-50 dark:hover:bg-red-900/20'
+                : 'text-slate-300 dark:text-slate-600 border-slate-100 dark:border-slate-800 cursor-not-allowed'
+            }`}
+            disabled={activeFilterCount === 0}
+          >
+            Limpar Filtros
+          </button>
+        </div>
+
+        {/* Palavra-chave (pesquisa geral) */}
+        <div className="relative">
+          <input
+            type="text"
+            value={filters.search}
+            onChange={setFilter('search')}
+            placeholder="Palavra-chave: pesquise por ID, proposta, objeto, município, órgão, responsável..."
+            className="w-full px-4 py-2.5 pr-10 rounded-xl border border-slate-200 dark:border-slate-600 text-xs text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 focus:ring-2 focus:ring-brand-600 focus:outline-none"
+          />
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
+          {/* Localização */}
+          <div className="border border-slate-100 dark:border-slate-700/50 rounded-xl p-3 space-y-3 bg-slate-50/50 dark:bg-slate-800/30">
+            <p className="text-[10px] font-extrabold text-brand-700 dark:text-brand-400 uppercase tracking-widest">Localização</p>
+            <div className="space-y-2">
+              <select value={filters.uf} onChange={setFilter('uf')} className="w-full px-2.5 py-2 rounded-lg border border-slate-200 dark:border-slate-600 text-xs text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 focus:ring-2 focus:ring-brand-600 focus:outline-none">
+                <option value="">Todas as UFs</option>
+                {ufs.map(uf => <option key={uf} value={uf}>{uf}</option>)}
+              </select>
+              <select value={filters.municipality} onChange={setFilter('municipality')} className="w-full px-2.5 py-2 rounded-lg border border-slate-200 dark:border-slate-600 text-xs text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 focus:ring-2 focus:ring-brand-600 focus:outline-none">
+                <option value="">Todos os Municípios</option>
+                {municipalities.map(m => <option key={m} value={m}>{m}</option>)}
+              </select>
+            </div>
+          </div>
+
+          {/* Dados da Proposta */}
+          <div className="border border-slate-100 dark:border-slate-700/50 rounded-xl p-3 space-y-3 bg-slate-50/50 dark:bg-slate-800/30">
+            <p className="text-[10px] font-extrabold text-brand-700 dark:text-brand-400 uppercase tracking-widest">Dados da Proposta</p>
+            <div className="space-y-2">
+              <select value={filters.organ} onChange={setFilter('organ')} className="w-full px-2.5 py-2 rounded-lg border border-slate-200 dark:border-slate-600 text-xs text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 focus:ring-2 focus:ring-brand-600 focus:outline-none">
+                <option value="">Todos os Órgãos</option>
+                {organs.map(o => <option key={o} value={o}>{o}</option>)}
+              </select>
+              <input type="text" value={filters.proposal} onChange={setFilter('proposal')} placeholder="Número da proposta (ex.: 2025.0001)"
+                className="w-full px-2.5 py-2 rounded-lg border border-slate-200 dark:border-slate-600 text-xs text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 focus:ring-2 focus:ring-brand-600 focus:outline-none" />
+              <input type="text" value={filters.object} onChange={setFilter('object')} placeholder="Objeto da demanda (texto)"
+                className="w-full px-2.5 py-2 rounded-lg border border-slate-200 dark:border-slate-600 text-xs text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 focus:ring-2 focus:ring-brand-600 focus:outline-none" />
+              <select value={filters.ano} onChange={setFilter('ano')} className="w-full px-2.5 py-2 rounded-lg border border-slate-200 dark:border-slate-600 text-xs text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 focus:ring-2 focus:ring-brand-600 focus:outline-none">
+                <option value="">Todos os Anos</option>
+                {years.map(y => <option key={y} value={String(y)}>{y}</option>)}
+              </select>
+            </div>
+          </div>
+
+          {/* Situação */}
+          <div className="border border-slate-100 dark:border-slate-700/50 rounded-xl p-3 space-y-3 bg-slate-50/50 dark:bg-slate-800/30">
+            <p className="text-[10px] font-extrabold text-brand-700 dark:text-brand-400 uppercase tracking-widest">Situação</p>
+            <div className="space-y-2">
+              <select value={filters.status} onChange={setFilter('status')} className="w-full px-2.5 py-2 rounded-lg border border-slate-200 dark:border-slate-600 text-xs text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 focus:ring-2 focus:ring-brand-600 focus:outline-none">
+                <option value="">Todas as Situações</option>
+                {Object.entries(STATUS_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+              </select>
+              <select value={filters.priority} onChange={setFilter('priority')} className="w-full px-2.5 py-2 rounded-lg border border-slate-200 dark:border-slate-600 text-xs text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 focus:ring-2 focus:ring-brand-600 focus:outline-none">
+                <option value="">Todas as Prioridades</option>
+                {Object.entries(PRIORITY_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+              </select>
+            </div>
+          </div>
+
+          {/* Datas */}
+          <div className="border border-slate-100 dark:border-slate-700/50 rounded-xl p-3 space-y-3 bg-slate-50/50 dark:bg-slate-800/30">
+            <p className="text-[10px] font-extrabold text-brand-700 dark:text-brand-400 uppercase tracking-widest">Datas</p>
+            <div className="space-y-2">
+              <div className="grid grid-cols-2 gap-2">
+                <div className="space-y-1">
+                  <label className="text-[9px] font-bold text-slate-400 dark:text-slate-500 uppercase">Cadastro de</label>
+                  <input type="date" value={filters.createdFrom} onChange={setFilter('createdFrom')} className="w-full px-2 py-1.5 rounded-lg border border-slate-200 dark:border-slate-600 text-xs text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 focus:ring-2 focus:ring-brand-600 focus:outline-none" />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[9px] font-bold text-slate-400 dark:text-slate-500 uppercase">até</label>
+                  <input type="date" value={filters.createdTo} onChange={setFilter('createdTo')} className="w-full px-2 py-1.5 rounded-lg border border-slate-200 dark:border-slate-600 text-xs text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 focus:ring-2 focus:ring-brand-600 focus:outline-none" />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div className="space-y-1">
+                  <label className="text-[9px] font-bold text-slate-400 dark:text-slate-500 uppercase">Atualização de</label>
+                  <input type="date" value={filters.updatedFrom} onChange={setFilter('updatedFrom')} className="w-full px-2 py-1.5 rounded-lg border border-slate-200 dark:border-slate-600 text-xs text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 focus:ring-2 focus:ring-brand-600 focus:outline-none" />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[9px] font-bold text-slate-400 dark:text-slate-500 uppercase">até</label>
+                  <input type="date" value={filters.updatedTo} onChange={setFilter('updatedTo')} className="w-full px-2 py-1.5 rounded-lg border border-slate-200 dark:border-slate-600 text-xs text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 focus:ring-2 focus:ring-brand-600 focus:outline-none" />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Valores */}
+          <div className="border border-slate-100 dark:border-slate-700/50 rounded-xl p-3 space-y-3 bg-slate-50/50 dark:bg-slate-800/30">
+            <p className="text-[10px] font-extrabold text-brand-700 dark:text-brand-400 uppercase tracking-widest">Valores</p>
+            <div className="grid grid-cols-2 gap-2">
+              <div className="space-y-1">
+                <label className="text-[9px] font-bold text-slate-400 dark:text-slate-500 uppercase">Valor mín. (R$)</label>
+                <input type="number" min="0" step="0.01" value={filters.valueMin} onChange={setFilter('valueMin')} placeholder="0,00"
+                  className="w-full px-2 py-1.5 rounded-lg border border-slate-200 dark:border-slate-600 text-xs text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 focus:ring-2 focus:ring-brand-600 focus:outline-none" />
+              </div>
+              <div className="space-y-1">
+                <label className="text-[9px] font-bold text-slate-400 dark:text-slate-500 uppercase">Valor máx. (R$)</label>
+                <input type="number" min="0" step="0.01" value={filters.valueMax} onChange={setFilter('valueMax')} placeholder="0,00"
+                  className="w-full px-2 py-1.5 rounded-lg border border-slate-200 dark:border-slate-600 text-xs text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 focus:ring-2 focus:ring-brand-600 focus:outline-none" />
+              </div>
+            </div>
+            <p className="text-[9px] text-slate-400 dark:text-slate-500">Faixa de valor global da demanda.</p>
+          </div>
+
+          {/* Usuário */}
+          <div className="border border-slate-100 dark:border-slate-700/50 rounded-xl p-3 space-y-3 bg-slate-50/50 dark:bg-slate-800/30">
+            <p className="text-[10px] font-extrabold text-brand-700 dark:text-brand-400 uppercase tracking-widest">Usuário</p>
+            <div className="space-y-2">
+              <select value={filters.responsible} onChange={setFilter('responsible')} className="w-full px-2.5 py-2 rounded-lg border border-slate-200 dark:border-slate-600 text-xs text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 focus:ring-2 focus:ring-brand-600 focus:outline-none">
+                <option value="">Todos os Responsáveis</option>
+                {responsibles.map(r => <option key={r} value={r}>{r}</option>)}
+              </select>
+            </div>
+            <p className="text-[9px] text-slate-400 dark:text-slate-500">Responsável / usuário pelo cadastro.</p>
+          </div>
         </div>
       </div>
 
@@ -367,7 +528,26 @@ export default function ReportsView({ demands }: ReportsViewProps) {
       {showReport && (
         <ExecutiveReport
           demands={filtered}
-          filters={{ uf: filterUf, status: filterStatus, priority: filterPriority, ano: filterAno }}
+          filters={{
+            search: filters.search,
+            uf: filters.uf,
+            municipality: filters.municipality,
+            organ: filters.organ,
+            proposal: filters.proposal,
+            object: filters.object,
+            status: filters.status,
+            priority: filters.priority,
+            ano: filters.ano,
+            responsible: filters.responsible,
+            createdFrom: filters.createdFrom,
+            createdTo: filters.createdTo,
+            updatedFrom: filters.updatedFrom,
+            updatedTo: filters.updatedTo,
+            valueMin: filters.valueMin,
+            valueMax: filters.valueMax,
+          }}
+          reportType={reportType}
+          userLabel={user?.name || 'Administrador'}
           onClose={() => setShowReport(false)}
         />
       )}

@@ -1,38 +1,89 @@
 import React, { useEffect, useState } from 'react';
 import { Sparkles } from 'lucide-react';
 import { Demand } from '../types';
-import { buildReportHtml } from './reports/buildReportHtml';
+import { buildPdfReport, ReportFilters } from './reports/pdfAutoReport';
+
+interface ReportFiltersInput {
+  search?: string;
+  uf?: string;
+  municipality?: string;
+  organ?: string;
+  proposal?: string;
+  object?: string;
+  status?: string;
+  priority?: string;
+  ano?: string;
+  responsible?: string;
+  createdFrom?: string;
+  createdTo?: string;
+  updatedFrom?: string;
+  updatedTo?: string;
+  valueMin?: string;
+  valueMax?: string;
+}
 
 interface Props {
   demands: Demand[];
-  filters: { uf: string; status: string; priority: string; ano: string };
+  filters: ReportFiltersInput;
+  reportType?: string;
+  userLabel: string;
   onClose: () => void;
 }
 
-export default function ExecutiveReport({ demands, filters, onClose }: Props) {
+const REPORT_TITLES: Record<string, string> = {
+  executivo: 'RELATÓRIO EXECUTIVO DE DEMANDAS',
+  municipio: 'RELATÓRIO POR MUNICÍPIO',
+  estado: 'RELATÓRIO POR ESTADO',
+  orgao: 'RELATÓRIO POR ÓRGÃO',
+};
+
+export default function ExecutiveReport({ demands, filters, reportType = 'executivo', userLabel, onClose }: Props) {
   const [msg, setMsg] = useState('Preparando relatório...');
 
   useEffect(() => {
+    let cancelled = false;
     setMsg('Processando dados...');
-    const timer = setTimeout(() => {
+    const timer = setTimeout(async () => {
       setMsg('Gerando documento...');
-      const html = buildReportHtml(demands, filters, 'Administrador');
-      const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
-      const url = URL.createObjectURL(blob);
-      const w = window.open(url, '_blank');
-      const cleanup = () => { try { URL.revokeObjectURL(url); } catch {} };
-      if (w) {
-        w.onload = cleanup;
-        const checkClosed = setInterval(() => {
-          if (w.closed) { cleanup(); clearInterval(checkClosed); }
-        }, 2000);
-      } else {
-        cleanup();
+      try {
+        const reportFilters: ReportFilters = {
+          search: filters.search || undefined,
+          uf: filters.uf || undefined,
+          municipality: filters.municipality || undefined,
+          organ: filters.organ || undefined,
+          proposal_number: filters.proposal || undefined,
+          object: filters.object || undefined,
+          status: filters.status || undefined,
+          priority: filters.priority || undefined,
+          ano: filters.ano || undefined,
+          responsible: filters.responsible || undefined,
+          dateFrom: filters.createdFrom || undefined,
+          dateTo: filters.createdTo || undefined,
+          updatedFrom: filters.updatedFrom || undefined,
+          updatedTo: filters.updatedTo || undefined,
+          valueMin: filters.valueMin || undefined,
+          valueMax: filters.valueMax || undefined,
+        };
+        await buildPdfReport({
+          demands,
+          filters: reportFilters,
+          userLabel: userLabel || 'Administrador',
+          mode: 'full',
+          open: true,
+          title: REPORT_TITLES[reportType] || REPORT_TITLES.executivo,
+          fileName: `sgd-relatorio-executivo-${new Date().toISOString().slice(0, 10)}.pdf`,
+        });
+      } catch (error) {
+        console.error('Erro ao gerar relatório:', error);
+      } finally {
+        if (!cancelled) onClose();
       }
-      onClose();
     }, 600);
-    return () => clearTimeout(timer);
-  }, [demands, filters, onClose]);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [demands, filters, reportType, userLabel, onClose]);
 
   return (
     <div style={{

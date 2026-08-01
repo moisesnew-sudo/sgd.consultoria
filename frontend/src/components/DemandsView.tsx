@@ -227,21 +227,21 @@ export default function DemandsView({
     setIsSavingEdit(true);
     try {
       const updated = await demandsApi.update(detailedDemand.id, {
-        title: editTitle.trim(),
-        description: editDescription.trim(),
+        title: editTitle.trim().toUpperCase(),
+        description: editDescription.trim().toUpperCase(),
         status: editStatus,
         priority: editPriority,
-        municipality: editMunicipality.trim(),
+        municipality: editMunicipality.trim().toUpperCase(),
         uf: editUf,
         requested_value: editRequestedValue ? parseCurrencyInput(editRequestedValue) : 0,
-        organ: editOrgan.trim() || undefined,
-        prefeitura: editPrefeitura.trim() || undefined,
-        proposal_number: editProposalNumber.trim() || undefined,
+        organ: editOrgan.trim().toUpperCase() || undefined,
+        prefeitura: editPrefeitura.trim().toUpperCase() || undefined,
+        proposal_number: editProposalNumber.trim().toUpperCase() || undefined,
         process_link: editProcessLink.trim() || undefined,
-        responsible_name: editResponsibleName.trim() || undefined,
-        responsible_email: editResponsibleEmail.trim() || undefined,
+        responsible_name: editResponsibleName.trim().toUpperCase() || undefined,
+        responsible_email: editResponsibleEmail.trim().toLowerCase() || undefined,
         responsible_phone: editResponsiblePhone.trim() || undefined,
-        notes: editNotes.trim() || undefined,
+        notes: editNotes.trim().toUpperCase() || undefined,
         ano: editAno
       });
       onUpdateDemand(updated);
@@ -1027,7 +1027,7 @@ export default function DemandsView({
                     </div>
                     <div className="space-y-1">
                       <label className="text-xs font-bold text-slate-700 block">UF</label>
-                      <input type="text" value={editUf} onChange={(e) => setEditUf(e.target.value)} maxLength={2}
+                      <input type="text" value={editUf} onChange={(e) => setEditUf(e.target.value.toUpperCase())} maxLength={2}
                         className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-brand-600 focus:outline-none" />
                     </div>
                     <div className="space-y-1">
@@ -1068,17 +1068,17 @@ export default function DemandsView({
                     </div>
                     <div className="space-y-1">
                       <label className="text-xs font-bold text-slate-700 block">Órgão</label>
-                      <input type="text" value={editOrgan} onChange={(e) => setEditOrgan(e.target.value)}
+                      <input type="text" value={editOrgan} onChange={(e) => setEditOrgan(e.target.value.toUpperCase())}
                         className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-brand-600 focus:outline-none" />
                     </div>
                     <div className="space-y-1">
                       <label className="text-xs font-bold text-slate-700 block">Prefeitura</label>
-                      <input type="text" value={editPrefeitura} onChange={(e) => setEditPrefeitura(e.target.value)}
+                      <input type="text" value={editPrefeitura} onChange={(e) => setEditPrefeitura(e.target.value.toUpperCase())}
                         className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-brand-600 focus:outline-none" />
                     </div>
                     <div className="space-y-1">
                       <label className="text-xs font-bold text-slate-700 block">Nº Proposta</label>
-                      <input type="text" value={editProposalNumber} onChange={(e) => setEditProposalNumber(e.target.value)}
+                      <input type="text" value={editProposalNumber} onChange={(e) => setEditProposalNumber(e.target.value.toUpperCase())}
                         className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-brand-600 focus:outline-none" />
                     </div>
                     <div className="space-y-1">
@@ -1088,7 +1088,7 @@ export default function DemandsView({
                     </div>
                     <div className="space-y-1">
                       <label className="text-xs font-bold text-slate-700 block">Responsável</label>
-                      <input type="text" value={editResponsibleName} onChange={(e) => setEditResponsibleName(e.target.value)}
+                      <input type="text" value={editResponsibleName} onChange={(e) => setEditResponsibleName(e.target.value.toUpperCase())}
                         className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-brand-600 focus:outline-none" />
                     </div>
                     <div className="space-y-1">
@@ -1098,12 +1098,12 @@ export default function DemandsView({
                     </div>
                     <div className="space-y-1 md:col-span-2">
                       <label className="text-xs font-bold text-slate-700 block">Descrição</label>
-                      <textarea rows={3} value={editDescription} onChange={(e) => setEditDescription(e.target.value)}
+                      <textarea rows={3} value={editDescription} onChange={(e) => setEditDescription(e.target.value.toUpperCase())}
                         className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-brand-600 focus:outline-none" />
                     </div>
                     <div className="space-y-1 md:col-span-2">
                       <label className="text-xs font-bold text-slate-700 block">Observações</label>
-                      <textarea rows={2} value={editNotes} onChange={(e) => setEditNotes(e.target.value)}
+                      <textarea rows={2} value={editNotes} onChange={(e) => setEditNotes(e.target.value.toUpperCase())}
                         className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-brand-600 focus:outline-none" />
                     </div>
                   </div>
