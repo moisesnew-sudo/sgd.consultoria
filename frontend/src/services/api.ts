@@ -351,7 +351,7 @@ export const logExport = async (exportType: 'pdf' | 'excel' | 'csv', recordCount
 
 // Audit API
 export const auditApi = {
-  list: async (params?: { entity_type?: string; entity_id?: string; action?: string; user_id?: string; start_date?: string; end_date?: string; page?: number; limit?: number }) => {
+  list: async (params?: { entity_type?: string; entity_id?: string; action?: string; user_id?: string; start_date?: string; end_date?: string; page?: number; limit?: number }): Promise<{ data: AuditLog[]; pagination?: { page: number; limit: number; total: number; pages: number } }> => {
     const searchParams = new URLSearchParams();
     if (params) {
       Object.entries(params).forEach(([key, value]) => {
@@ -359,8 +359,9 @@ export const auditApi = {
       });
     }
     const qs = searchParams.toString();
-    const res = await request<AuditLog[] | { data: AuditLog[] }>(`/audit${qs ? '?' + qs : ''}`);
-    return Array.isArray(res) ? res : (res.data || []);
+    const res: any = await request(`/audit${qs ? '?' + qs : ''}`);
+    if (Array.isArray(res)) return { data: res as AuditLog[], pagination: undefined };
+    return { data: (res?.data || []) as AuditLog[], pagination: res?.pagination };
   },
   getDashboardStats: (params?: { start_date?: string; end_date?: string }) => {
     const searchParams = new URLSearchParams();

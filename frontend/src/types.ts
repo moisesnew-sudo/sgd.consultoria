@@ -153,11 +153,20 @@ export interface AuditLog {
 
 export interface AuditDashboardStats {
   total_logins: number;
+  failed_logins: number;
   active_users: number;
-  recent_exports: number;
+  active_sessions: number;
+  pdf_exports: number;
+  excel_exports: number;
+  demands_created: number;
+  demands_updated: number;
+  demands_deleted: number;
   permission_changes: number;
-  logins_by_day: { date: string; count: number }[];
-  top_users: { user_name: string; count: number }[];
+  user_changes: number;
+  logins_by_day: { day: string; count: string }[];
+  changes_by_user: { user_name: string; count: string }[];
+  demands_modified: { day: string; count: string }[];
+  exports_done: { day: string; count: string }[];
 }
 
 export interface Session {
