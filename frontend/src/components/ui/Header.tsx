@@ -3,7 +3,6 @@ import { Menu, X, Sun, Moon, MonitorSmartphone, LogOut, ChevronDown } from 'luci
 import { useAuth } from '../../contexts/AuthContext';
 import { useTheme, ThemeMode } from '../../contexts/ThemeContext';
 import { ROLE_LABELS } from '../../services/api';
-import { LogoSymbol } from './Logo';
 
 interface HeaderProps {
   onToggleSidebar: () => void;
@@ -71,7 +70,6 @@ export function Header({ onToggleSidebar, isSidebarOpen, pendingCount }: HeaderP
             {isSidebarOpen ? <X size={20} /> : <Menu size={20} />}
           </button>
           <div className="flex items-center gap-2.5 animate-fade-in-up">
-            <LogoSymbol size={32} />
             <div className="hidden sm:block">
               <div className="flex items-baseline gap-1">
                 <span className="text-sm font-extrabold tracking-tight text-gov-900 dark:text-white leading-none">
