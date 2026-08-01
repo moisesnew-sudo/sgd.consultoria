@@ -208,6 +208,7 @@ function AppContent() {
               onAddDemand={handleAddDemand}
               onDeleteDemand={handleDeleteDemand}
               isLoading={isLoading}
+              onNavigateToTab={handleNavigateToTab}
             />
           )}
 

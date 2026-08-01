@@ -63,6 +63,9 @@
   .animate-sheet-up {
     animation: sheetUp 0.28s cubic-bezier(0.16, 1, 0.3, 1) forwards;
   }
+  .animate-drawer {
+    animation: slideInRight 0.28s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  }
 }
 
 @keyframes spin-slow {
@@ -93,6 +96,11 @@
 @keyframes sheetUp {
   from { transform: translateY(100%); }
   to { transform: translateY(0); }
+}
+
+@keyframes slideInRight {
+  from { transform: translateX(100%); }
+  to { transform: translateX(0); }
 }
 
 @keyframes slideDown {

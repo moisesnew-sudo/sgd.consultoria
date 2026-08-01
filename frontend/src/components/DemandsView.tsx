@@ -25,7 +25,13 @@ import {
   Eye,
   History,
   MapPin,
-  Pencil
+  Pencil,
+  SlidersHorizontal,
+  FilePlus2,
+  Check,
+  FilterX,
+  DollarSign,
+  Building2
 } from 'lucide-react';
 import { Demand, DemandStatus, DemandPriority, TimelineEvent, PaginatedResponse } from '../types';
 import { demandsApi, formatCurrency, formatDate } from '../services/api';
@@ -47,18 +53,19 @@ interface DemandsViewProps {
   onAddDemand?: (newDemand: Demand) => void;
   onDeleteDemand?: (id: string) => void;
   isLoading: boolean;
+  onNavigateToTab?: (tab: string) => void;
 }
 
 const CATEGORIES = [
-  'Construção de Creche',
+  'ConstruÃ§Ã£o de Creche',
   'Transporte Escolar',
   'Reforma Estrutural',
   'Infraestrutura e Conforto',
   'Tecnologia Educacional',
-  'Educação Especial',
-  'Mobiliário e Parquinhos',
-  'Construção e Ampliação',
-  'Capacitação Docente'
+  'EducaÃ§Ã£o Especial',
+  'MobiliÃ¡rio e Parquinhos',
+  'ConstruÃ§Ã£o e AmpliaÃ§Ã£o',
+  'CapacitaÃ§Ã£o Docente'
 ];
 
 export default function DemandsView({ 
@@ -68,7 +75,8 @@ export default function DemandsView({
   onUpdateDemand,
   onAddDemand,
   onDeleteDemand,
-  isLoading
+  isLoading,
+  onNavigateToTab
 }: DemandsViewProps) {
   const { user, isAuthenticated, hasPermission } = useAuth();
   const { toast } = useToast();
@@ -95,6 +103,14 @@ export default function DemandsView({
   const [sortBy, setSortBy] = useState<string>('newest');
   const [nlQuery, setNlQuery] = useState('');
   const [nlExplanation, setNlExplanation] = useState('');
+
+  // Filter drawer (draft applied on "Aplicar")
+  const [isFiltersOpen, setIsFiltersOpen] = useState(false);
+  const [draft, setDraft] = useState<{
+    status: string; priority: string; category: string; uf: string;
+    responsible: string; ano: string; dateFrom: string; dateTo: string;
+    valueMin: string; valueMax: string; sortBy: string;
+  } | null>(null);
 
   // View Mode
   const [viewMode, setViewMode] = useState<'list' | 'kanban'>('list');
@@ -129,7 +145,7 @@ export default function DemandsView({
         ...detailedDemand,
         attachments: [...(detailedDemand.attachments || []), ...uploaded]
       });
-      toast('success', 'Upload concluído', `${uploaded.length} arquivo(s) anexado(s)`);
+      toast('success', 'Upload concluÃ­do', `${uploaded.length} arquivo(s) anexado(s)`);
     } catch (error: any) {
       toast('error', 'Erro no upload', error?.message || 'Erro ao enviar arquivos');
     } finally {
@@ -271,8 +287,86 @@ export default function DemandsView({
     if (spec.uf) setUfFilter(spec.uf);
     if (spec.minValue !== undefined) setValueMin(String(spec.minValue));
     if (spec.maxValue !== undefined) setValueMax(String(spec.maxValue));
+    setDraft(d => d ? {
+      ...d,
+      status: spec.status || d.status,
+      priority: spec.priority || d.priority,
+      uf: spec.uf || d.uf,
+      valueMin: spec.minValue !== undefined ? String(spec.minValue) : d.valueMin,
+      valueMax: spec.maxValue !== undefined ? String(spec.maxValue) : d.valueMax,
+    } : d);
     setNlExplanation(spec.explanation);
   };
+
+  const openFilters = () => {
+    setDraft({
+      status: statusFilter,
+      priority: priorityFilter,
+      category: categoryFilter,
+      uf: ufFilter,
+      responsible: responsibleFilter,
+      ano: anoFilter,
+      dateFrom,
+      dateTo,
+      valueMin,
+      valueMax,
+      sortBy,
+    });
+    setIsFiltersOpen(true);
+  };
+
+  const closeFilters = () => {
+    setIsFiltersOpen(false);
+    setDraft(null);
+  };
+
+  const applyFilters = () => {
+    if (!draft) return;
+    setStatusFilter(draft.status);
+    setPriorityFilter(draft.priority);
+    setCategoryFilter(draft.category);
+    setUfFilter(draft.uf);
+    setResponsibleFilter(draft.responsible);
+    setAnoFilter(draft.ano);
+    setDateFrom(draft.dateFrom);
+    setDateTo(draft.dateTo);
+    setValueMin(draft.valueMin);
+    setValueMax(draft.valueMax);
+    setSortBy(draft.sortBy);
+    closeFilters();
+  };
+
+  const clearAllFilters = () => {
+    setSearch(''); setStatusFilter('all'); setPriorityFilter('all');
+    setCategoryFilter('all'); setUfFilter('all'); setResponsibleFilter('all');
+    setAnoFilter('all'); setDateFrom(''); setDateTo(''); setValueMin(''); setValueMax('');
+  };
+
+  const activeFilterCount =
+    (statusFilter !== 'all' ? 1 : 0) + (priorityFilter !== 'all' ? 1 : 0) +
+    (categoryFilter !== 'all' ? 1 : 0) + (ufFilter !== 'all' ? 1 : 0) +
+    (responsibleFilter !== 'all' ? 1 : 0) + (anoFilter !== 'all' ? 1 : 0) +
+    (dateFrom ? 1 : 0) + (dateTo ? 1 : 0) + (valueMin ? 1 : 0) + (valueMax ? 1 : 0);
+
+  const activeChips: { id: string; label: string; onRemove: () => void }[] = [];
+  if (search.trim()) activeChips.push({ id: 'search', label: `Busca: ${search.trim()}`, onRemove: () => setSearch('') });
+  if (statusFilter !== 'all') activeChips.push({ id: 'status', label: `Status: ${statusFilter}`, onRemove: () => setStatusFilter('all') });
+  if (priorityFilter !== 'all') activeChips.push({ id: 'priority', label: `Prioridade: ${priorityFilter}`, onRemove: () => setPriorityFilter('all') });
+  if (categoryFilter !== 'all') activeChips.push({ id: 'category', label: `Categoria: ${categoryFilter}`, onRemove: () => setCategoryFilter('all') });
+  if (ufFilter !== 'all') activeChips.push({ id: 'uf', label: `UF: ${ufFilter}`, onRemove: () => setUfFilter('all') });
+  if (responsibleFilter !== 'all') activeChips.push({ id: 'responsible', label: `ResponsÃ¡vel: ${responsibleFilter}`, onRemove: () => setResponsibleFilter('all') });
+  if (anoFilter !== 'all') activeChips.push({ id: 'ano', label: `Ano: ${anoFilter}`, onRemove: () => setAnoFilter('all') });
+  if (dateFrom) activeChips.push({ id: 'dateFrom', label: `De: ${dateFrom}`, onRemove: () => setDateFrom('') });
+  if (dateTo) activeChips.push({ id: 'dateTo', label: `AtÃ©: ${dateTo}`, onRemove: () => setDateTo('') });
+  if (valueMin) activeChips.push({ id: 'valueMin', label: `Valor mÃ­n.: R$ ${valueMin}`, onRemove: () => setValueMin('') });
+  if (valueMax) activeChips.push({ id: 'valueMax', label: `Valor mÃ¡x.: R$ ${valueMax}`, onRemove: () => setValueMax('') });
+
+  useEffect(() => {
+    if (!isFiltersOpen) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') closeFilters(); };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [isFiltersOpen]);
 
   // Filter demands
   const filteredDemands = demands.filter(d => {
@@ -324,8 +418,8 @@ export default function DemandsView({
   // Kanban Columns
   const KANBAN_COLUMNS: { id: DemandStatus; title: string; color: string }[] = [
     { id: 'pendente', title: 'Pendentes', color: 'border-t-amber-500 bg-amber-50/20' },
-    { id: 'analise', title: 'Em Análise', color: 'border-t-blue-500 bg-blue-50/20' },
-    { id: 'concluido', title: 'Concluídas', color: 'border-t-green-500 bg-green-50/20' },
+    { id: 'analise', title: 'Em AnÃ¡lise', color: 'border-t-blue-500 bg-blue-50/20' },
+    { id: 'concluido', title: 'ConcluÃ­das', color: 'border-t-green-500 bg-green-50/20' },
     { id: 'rejeitado', title: 'Rejeitadas', color: 'border-t-red-500 bg-red-50/20' }
   ];
 
@@ -352,8 +446,8 @@ export default function DemandsView({
   const getStatusLabel = (status: DemandStatus) => {
     switch (status) {
       case 'pendente': return 'Pendente';
-      case 'analise': return 'Em Análise';
-      case 'concluido': return 'Concluído';
+      case 'analise': return 'Em AnÃ¡lise';
+      case 'concluido': return 'ConcluÃ­do';
       case 'rejeitado': return 'Rejeitado';
     }
   };
@@ -367,7 +461,7 @@ export default function DemandsView({
     try {
       const event = await demandsApi.addTimelineEvent(detailedDemand.id, {
         title: newEventTitle,
-        description: newEventDesc || 'Nenhuma descrição técnica informada.',
+        description: newEventDesc || 'Nenhuma descriÃ§Ã£o tÃ©cnica informada.',
         status_changed_to: newEventStatus !== 'no-change' ? newEventStatus : undefined
       });
 
@@ -386,7 +480,7 @@ export default function DemandsView({
       setNewEventTitle('');
       setNewEventDesc('');
       setNewEventStatus('no-change');
-      toast('success', 'Evento adicionado à linha do tempo');
+      toast('success', 'Evento adicionado Ã  linha do tempo');
     } catch (error) {
       console.error('Error adding timeline event:', error);
       toast('error', 'Erro ao adicionar evento', 'Tente novamente.');
@@ -403,7 +497,7 @@ export default function DemandsView({
       const updated = await demandsApi.update(detailedDemand.id, { notes: adminNotes.trim() || undefined });
       setDetailedDemand({ ...detailedDemand, ...updated });
       setIsEditingNotes(false);
-      toast('success', 'Anotações salvas');
+      toast('success', 'AnotaÃ§Ãµes salvas');
     } catch (error) {
       console.error('Error saving notes:', error);
       toast('error', 'Erro ao salvar notas', 'Tente novamente.');
@@ -421,10 +515,10 @@ export default function DemandsView({
         comments: [...(detailedDemand.comments || []), comment],
       });
       setNewComment('');
-      toast('success', 'Comentário adicionado');
+      toast('success', 'ComentÃ¡rio adicionado');
     } catch (error) {
       console.error('Error adding comment:', error);
-      toast('error', 'Erro ao adicionar comentário', 'Tente novamente.');
+      toast('error', 'Erro ao adicionar comentÃ¡rio', 'Tente novamente.');
     } finally {
       setCommentLoading(false);
     }
@@ -442,7 +536,7 @@ export default function DemandsView({
       setDetailedDemand(null);
       onDeleteDemand?.(deleteTarget);
       setDeleteTarget(null);
-      toast('success', 'Demanda excluída com sucesso.');
+      toast('success', 'Demanda excluÃ­da com sucesso.');
     } catch (error: any) {
       toast('error', 'Erro ao excluir demanda');
     } finally {
@@ -473,8 +567,8 @@ export default function DemandsView({
       <button
         onClick={() => handleOpenHistory(demand)}
         className="p-2 rounded-lg text-slate-500 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-500/10 transition-colors"
-        title="Histórico"
-        aria-label={`Histórico da demanda ${demand.id}`}
+        title="HistÃ³rico"
+        aria-label={`HistÃ³rico da demanda ${demand.id}`}
       >
         <History size={15} />
       </button>
@@ -503,9 +597,9 @@ export default function DemandsView({
           <div className="flex items-start gap-3">
             <AlertCircle className="text-amber-600 mt-0.5 shrink-0" size={18} />
             <div>
-              <h4 className="text-xs font-bold">Portal de Consulta Pública (Modo Leitura)</h4>
+              <h4 className="text-xs font-bold">Portal de Consulta PÃºblica (Modo Leitura)</h4>
               <p className="text-[10px] text-amber-700 leading-relaxed mt-0.5">
-                Você está visualizando a fila de demandas no modo público. Para cadastrar ou editar, faça login.
+                VocÃª estÃ¡ visualizando a fila de demandas no modo pÃºblico. Para cadastrar ou editar, faÃ§a login.
               </p>
             </div>
           </div>
@@ -516,39 +610,18 @@ export default function DemandsView({
       )}
 
       {/* Page Title & View Toggles */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
         <div>
           <h2 className="text-2xl font-black text-slate-900 flex items-center gap-2">
             <FolderKanban className="text-brand-700" size={26} />
             Fila Geral de Demandas
           </h2>
           <p className="text-sm text-slate-500">
-            Filtre, pesquise e acompanhe o trâmite processual das solicitações de recursos municipais.
+            Filtre, pesquise e acompanhe o trÃ¢mite processual das solicitaÃ§Ãµes de recursos municipais.
           </p>
         </div>
 
-        <div className="flex items-center gap-2 self-start md:self-center">
-          {canCreate && (
-            <Suspense fallback={<div className="h-9 w-24 rounded-xl bg-slate-100 dark:bg-slate-800 animate-pulse" />}>
-              <ImportExportBar
-                rows={filteredDemands}
-                filters={{
-                  search: search || undefined,
-                  status: statusFilter !== 'all' ? statusFilter : undefined,
-                  priority: priorityFilter !== 'all' ? priorityFilter : undefined,
-                  category: categoryFilter !== 'all' ? categoryFilter : undefined,
-                  uf: ufFilter !== 'all' ? ufFilter : undefined,
-                  responsible: responsibleFilter !== 'all' ? responsibleFilter : undefined,
-                  ano: anoFilter !== 'all' ? anoFilter : undefined,
-                  dateFrom: dateFrom || undefined,
-                  dateTo: dateTo || undefined,
-                  valueMin: valueMin || undefined,
-                  valueMax: valueMax || undefined,
-                }}
-                onImported={(created) => created.forEach(d => onAddDemand?.(d))}
-              />
-            </Suspense>
-          )}
+        <div className="flex items-center gap-2 self-start lg:self-center">
           <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-xl">
             <button
               onClick={() => setViewMode('list')}
@@ -570,211 +643,395 @@ export default function DemandsView({
         </div>
       </div>
 
-      {/* FILTER & SEARCH BAR */}
-      <section className="bg-white dark:bg-[#111a2e] border border-slate-100 dark:border-slate-700/50 rounded-2xl p-5 shadow-sm space-y-4" id="filters-section">
-        {/* Smart Natural Language Search */}
-        <div className="flex flex-col sm:flex-row gap-2">
-          <div className="relative flex-1">
-            <Sparkles className="absolute left-3.5 top-1/2 -translate-y-1/2 text-brand-500" size={18} />
-            <input
-              type="text"
-              value={nlQuery}
-              onChange={(e) => setNlQuery(e.target.value)}
-              onKeyDown={(e) => { if (e.key === 'Enter') runSmartSearch(); }}
-              placeholder='Busca inteligente: "demandas atrasadas de SP acima de 1 milhão urgentes"'
-              className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-brand-200 dark:border-brand-800/60 bg-brand-50/40 dark:bg-brand-950/10 text-sm text-slate-800 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-600"
-            />
-          </div>
-          <button
-            onClick={runSmartSearch}
-            className="px-4 py-2.5 rounded-xl bg-brand-600 hover:bg-brand-700 text-white font-bold text-xs uppercase tracking-wider shadow-sm transition-all flex items-center gap-2"
-          >
-            <Sparkles size={15} /> Buscar
-          </button>
-        </div>
-        {nlExplanation && (
-          <div className="flex items-start gap-2 text-[11px] text-brand-700 dark:text-brand-300 bg-brand-50 dark:bg-brand-950/20 border border-brand-100 dark:border-brand-800/40 rounded-lg px-3 py-2">
-            <BrainCircuit size={14} className="mt-0.5 shrink-0" />
-            <span>{nlExplanation}</span>
-          </div>
-        )}
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-3">
-          
-          <div className="lg:col-span-4 relative">
-            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-            <input
-              type="text"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Pesquisa instantânea: ID, título, município, órgão, responsável..."
-              className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-900/60 text-sm text-slate-800 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-600 focus:border-transparent"
-            />
-          </div>
-
-          <div className="lg:col-span-2">
-            <select
-              value={priorityFilter}
-              onChange={(e) => setPriorityFilter(e.target.value)}
-              className="w-full px-3 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-900/60 text-xs text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-900 focus:outline-none"
-            >
-              <option value="all">Todas Prioridades</option>
-              <option value="baixa">Prioridade Baixa</option>
-              <option value="media">Prioridade Média</option>
-              <option value="alta">Prioridade Alta</option>
-              <option value="urgente">Prioridade Urgente</option>
-            </select>
-          </div>
-
-          <div className="lg:col-span-2">
-            <select
-              value={categoryFilter}
-              onChange={(e) => setCategoryFilter(e.target.value)}
-              className="w-full px-3 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-900/60 text-xs text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-900 focus:outline-none"
-            >
-              <option value="all">Categorias (Todas)</option>
-              {CATEGORIES.map(cat => (
-                <option key={cat} value={cat}>{cat}</option>
-              ))}
-            </select>
-          </div>
-
-          <div className="lg:col-span-2">
-            <select
-              value={ufFilter}
-              onChange={(e) => setUfFilter(e.target.value)}
-              className="w-full px-3 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-900/60 text-xs text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-900 focus:outline-none"
-            >
-              <option value="all">Estados (Todos)</option>
-              {uniqueUfs.map(uf => (
-                <option key={uf} value={uf}>{uf}</option>
-              ))}
-            </select>
-          </div>
-
-          <div className="lg:col-span-2">
-            <select
-              value={responsibleFilter}
-              onChange={(e) => setResponsibleFilter(e.target.value)}
-              className="w-full px-3 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-900/60 text-xs text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-900 focus:outline-none"
-            >
-              <option value="all">Responsáveis (Todos)</option>
-              {uniqueResponsibles.map(r => (
-                <option key={r} value={r}>{r}</option>
-              ))}
-            </select>
-          </div>
-
-          <div className="lg:col-span-2">
-            <input
-              type="number"
-              value={anoFilter === 'all' ? '' : anoFilter}
-              onChange={(e) => setAnoFilter(e.target.value ? e.target.value : 'all')}
-              placeholder="Ano (ex: 2026)"
-              min="1900"
-              max="2100"
-              className="w-full px-3 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-900/60 text-xs text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-600"
-            />
-          </div>
-
-          <div className="lg:col-span-2 sm:col-span-2">
-            <select
-              value={sortBy}
-              onChange={(e) => setSortBy(e.target.value)}
-              className="w-full px-3 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-900/60 text-xs text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-900 focus:outline-none"
-            >
-              <option value="newest">Mais recentes</option>
-              <option value="oldest">Mais antigos</option>
-              <option value="highest-value">Maior Valor (R$)</option>
-              <option value="lowest-value">Menor Valor (R$)</option>
-            </select>
-          </div>
-
-          <div className="lg:col-span-3 sm:col-span-1">
-            <label className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase block mb-1">Data de criação (de)</label>
-            <input
-              type="date"
-              value={dateFrom}
-              onChange={(e) => setDateFrom(e.target.value)}
-              className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-900/60 text-xs text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-600"
-            />
-          </div>
-
-          <div className="lg:col-span-3 sm:col-span-1">
-            <label className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase block mb-1">Data de criação (até)</label>
-            <input
-              type="date"
-              value={dateTo}
-              onChange={(e) => setDateTo(e.target.value)}
-              className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-900/60 text-xs text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-600"
-            />
-          </div>
-
-          <div className="lg:col-span-2 sm:col-span-1">
-            <label className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase block mb-1">Valor mín. (R$)</label>
-            <input
-              type="number"
-              value={valueMin}
-              onChange={(e) => setValueMin(e.target.value)}
-              placeholder="0"
-              className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-900/60 text-xs text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-600"
-            />
-          </div>
-
-          <div className="lg:col-span-2 sm:col-span-1">
-            <label className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase block mb-1">Valor máx. (R$)</label>
-            <input
-              type="number"
-              value={valueMax}
-              onChange={(e) => setValueMax(e.target.value)}
-              placeholder="999999"
-              className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-900/60 text-xs text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-600"
-            />
-          </div>
-
-          <div className="lg:col-span-2 sm:col-span-2 flex items-end">
+      {/* ACTION BAR */}
+      <div className="bg-white dark:bg-[#111a2e] border border-slate-100 dark:border-slate-700/50 rounded-2xl p-3 shadow-sm flex flex-col sm:flex-row flex-wrap items-stretch sm:items-center gap-2">
+        <div className="relative flex-1 min-w-[200px]">
+          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Pesquisa: ID, tÃ­tulo, municÃ­pio, Ã³rgÃ£o, responsÃ¡vel..."
+            className="w-full pl-10 pr-8 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-900/60 text-sm text-slate-800 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-600 focus:border-transparent"
+          />
+          {search && (
             <button
-              onClick={() => {
-                setSearch(''); setStatusFilter('all'); setPriorityFilter('all');
-                setCategoryFilter('all'); setUfFilter('all'); setResponsibleFilter('all');
-                setAnoFilter('all'); setDateFrom(''); setDateTo(''); setValueMin(''); setValueMax('');
-              }}
-              className="w-full px-3 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 text-xs font-bold hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+              onClick={() => setSearch('')}
+              aria-label="Limpar pesquisa"
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 p-0.5 rounded-full text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800"
             >
-              Limpar Filtros
+              <X size={14} />
             </button>
-          </div>
+          )}
         </div>
 
-        {/* Quick Status Filters */}
-        {viewMode === 'list' && (
-          <div className="flex flex-wrap gap-1.5 pt-2 border-t border-slate-100 dark:border-slate-700/50">
-            <span className="text-[10px] font-bold text-slate-400 uppercase self-center mr-2">Filtro Rápido:</span>
-            {[
-              { id: 'all', label: `Todas (${demands.length})` },
-              { id: 'pendente', label: `Pendentes (${demands.filter(d => d.status === 'pendente').length})` },
-              { id: 'analise', label: `Em Análise (${demands.filter(d => d.status === 'analise').length})` },
-              { id: 'concluido', label: `Concluídas (${demands.filter(d => d.status === 'concluido').length})` },
-              { id: 'rejeitado', label: `Rejeitadas (${demands.filter(d => d.status === 'rejeitado').length})` }
-            ].map(pill => (
-              <button
-                key={pill.id}
-                onClick={() => setStatusFilter(pill.id)}
-                className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${
-                  statusFilter === pill.id
-                    ? 'bg-slate-900 text-white border-slate-950 shadow-sm font-semibold dark:bg-brand-600 dark:border-brand-600'
-                    : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700'
-                }`}
-              >
-                {pill.label}
-              </button>
-            ))}
-            <span className="ml-auto text-[10px] text-slate-400 self-center">
-              {filteredDemands.length} de {demands.length} demandas
-            </span>
+        <div className="flex items-center gap-2 flex-wrap">
+          <button
+            onClick={openFilters}
+            className={`flex items-center gap-2 px-3 py-2.5 rounded-xl border text-xs font-bold transition-colors relative ${
+              activeFilterCount > 0
+                ? 'bg-brand-50 dark:bg-brand-950/30 border-brand-300 dark:border-brand-800 text-brand-700 dark:text-brand-300'
+                : 'bg-white dark:bg-[#111a2e] border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800'
+            }`}
+          >
+            <SlidersHorizontal size={15} />
+            Filtros
+            {activeFilterCount > 0 && (
+              <span className="min-w-[18px] h-[18px] px-1 rounded-full bg-brand-600 text-white text-[9px] font-black flex items-center justify-center">
+                {activeFilterCount}
+              </span>
+            )}
+          </button>
+
+          {canCreate && (
+            <Suspense fallback={<div className="h-9 w-24 rounded-xl bg-slate-100 dark:bg-slate-800 animate-pulse" />}>
+              <ImportExportBar
+                rows={filteredDemands}
+                filters={{
+                  search: search || undefined,
+                  status: statusFilter !== 'all' ? statusFilter : undefined,
+                  priority: priorityFilter !== 'all' ? priorityFilter : undefined,
+                  category: categoryFilter !== 'all' ? categoryFilter : undefined,
+                  uf: ufFilter !== 'all' ? ufFilter : undefined,
+                  responsible: responsibleFilter !== 'all' ? responsibleFilter : undefined,
+                  ano: anoFilter !== 'all' ? anoFilter : undefined,
+                  dateFrom: dateFrom || undefined,
+                  dateTo: dateTo || undefined,
+                  valueMin: valueMin || undefined,
+                  valueMax: valueMax || undefined,
+                }}
+                onImported={(created) => created.forEach(d => onAddDemand?.(d))}
+              />
+            </Suspense>
+          )}
+
+          {canCreate && (
+            <button
+              onClick={() => onNavigateToTab?.('new-demand')}
+              className="flex items-center gap-2 px-3 py-2.5 rounded-xl bg-brand-600 hover:bg-brand-700 text-white text-xs font-bold transition-colors shadow-sm"
+            >
+              <FilePlus2 size={15} />
+              <span className="hidden md:inline">Nova Demanda</span>
+              <span className="md:hidden">Nova</span>
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* ACTIVE FILTER CHIPS */}
+      {activeChips.length > 0 && (
+        <div className="flex flex-wrap items-center gap-1.5">
+          {activeChips.map(chip => (
+            <button
+              key={chip.id}
+              onClick={chip.onRemove}
+              title={`Remover filtro ${chip.label}`}
+              className="inline-flex items-center gap-1.5 pl-2.5 pr-1.5 py-1 rounded-full bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-[10px] font-semibold text-slate-600 dark:text-slate-300 hover:border-brand-400 hover:text-brand-700 dark:hover:text-brand-300 transition-colors"
+            >
+              {chip.label}
+              <span className="p-0.5 rounded-full bg-slate-200/70 dark:bg-slate-700 text-slate-500 dark:text-slate-300 hover:bg-red-100 hover:text-red-600 transition-colors">
+                <X size={11} />
+              </span>
+            </button>
+          ))}
+          <button
+            onClick={clearAllFilters}
+            className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-[10px] font-bold text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 transition-colors"
+          >
+            <FilterX size={12} /> Limpar todos
+          </button>
+          <span className="ml-auto text-[10px] font-medium text-slate-400">
+            {filteredDemands.length} de {demands.length} demandas
+          </span>
+        </div>
+      )}
+
+      {/* SUMMARY CARDS */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <div className="bg-white dark:bg-[#111a2e] border border-slate-100 dark:border-slate-700/50 rounded-2xl p-3.5 shadow-sm flex items-center gap-3">
+          <span className="w-9 h-9 shrink-0 rounded-xl bg-brand-50 dark:bg-brand-950/30 flex items-center justify-center">
+            <FolderKanban size={16} className="text-brand-600 dark:text-brand-400" />
+          </span>
+          <div className="min-w-0">
+            <p className="text-[9px] font-bold uppercase tracking-wider text-slate-400">Total de Demandas</p>
+            <p className="text-lg font-black text-slate-800 dark:text-white leading-tight">{filteredDemands.length}</p>
           </div>
-        )}
-      </section>
+        </div>
+        <div className="bg-white dark:bg-[#111a2e] border border-slate-100 dark:border-slate-700/50 rounded-2xl p-3.5 shadow-sm flex items-center gap-3">
+          <span className="w-9 h-9 shrink-0 rounded-xl bg-amber-50 dark:bg-amber-950/30 flex items-center justify-center">
+            <DollarSign size={16} className="text-amber-600 dark:text-amber-400" />
+          </span>
+          <div className="min-w-0">
+            <p className="text-[9px] font-bold uppercase tracking-wider text-slate-400">Valor Global</p>
+            <p className="text-sm font-black text-slate-800 dark:text-white leading-tight truncate">
+              {formatCurrency(filteredDemands.reduce((s, d) => s + (d.requested_value || 0), 0))}
+            </p>
+          </div>
+        </div>
+        <div className="bg-white dark:bg-[#111a2e] border border-slate-100 dark:border-slate-700/50 rounded-2xl p-3.5 shadow-sm flex items-center gap-3">
+          <span className="w-9 h-9 shrink-0 rounded-xl bg-blue-50 dark:bg-blue-950/30 flex items-center justify-center">
+            <MapPin size={16} className="text-blue-600 dark:text-blue-400" />
+          </span>
+          <div className="min-w-0">
+            <p className="text-[9px] font-bold uppercase tracking-wider text-slate-400">MunicÃ­pios</p>
+            <p className="text-lg font-black text-slate-800 dark:text-white leading-tight">
+              {new Set(filteredDemands.map(d => d.municipality)).size}
+            </p>
+          </div>
+        </div>
+        <div className="bg-white dark:bg-[#111a2e] border border-slate-100 dark:border-slate-700/50 rounded-2xl p-3.5 shadow-sm flex items-center gap-3">
+          <span className="w-9 h-9 shrink-0 rounded-xl bg-purple-50 dark:bg-purple-950/30 flex items-center justify-center">
+            <Building2 size={16} className="text-purple-600 dark:text-purple-400" />
+          </span>
+          <div className="min-w-0">
+            <p className="text-[9px] font-bold uppercase tracking-wider text-slate-400">Ã“rgÃ£os</p>
+            <p className="text-lg font-black text-slate-800 dark:text-white leading-tight">
+              {new Set(filteredDemands.map(d => d.organ).filter(Boolean)).size}
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* FILTERS DRAWER */}
+      {isFiltersOpen && draft && (
+        <div className="fixed inset-0 z-[70]">
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-xs animate-fade-in" onClick={closeFilters} />
+          <aside
+            role="dialog"
+            aria-modal="true"
+            aria-label="Filtros de demandas"
+            className="absolute right-0 top-0 h-full w-full max-w-md bg-white dark:bg-[#111a2e] shadow-2xl animate-drawer flex flex-col"
+          >
+            <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 dark:border-slate-700/50 shrink-0">
+              <h3 className="text-sm font-black text-slate-800 dark:text-white flex items-center gap-2">
+                <SlidersHorizontal size={16} className="text-brand-600" /> Filtros
+              </h3>
+              <button
+                onClick={closeFilters}
+                aria-label="Fechar filtros"
+                className="text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto px-5 py-4 space-y-5">
+              {/* Busca inteligente */}
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 block">
+                  Busca Inteligente
+                </label>
+                <div className="flex gap-2">
+                  <div className="relative flex-1">
+                    <Sparkles className="absolute left-3 top-1/2 -translate-y-1/2 text-brand-500" size={14} />
+                    <input
+                      type="text"
+                      value={nlQuery}
+                      onChange={(e) => setNlQuery(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === 'Enter') runSmartSearch(); }}
+                      placeholder='"demandas urgentes de SP acima de 1 milhÃ£o"'
+                      className="w-full pl-8 pr-3 py-2 rounded-xl border border-brand-200 dark:border-brand-800/60 bg-brand-50/40 dark:bg-brand-950/10 text-xs text-slate-800 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-600"
+                    />
+                  </div>
+                  <button
+                    onClick={runSmartSearch}
+                    className="px-3 py-2 rounded-xl bg-brand-600 hover:bg-brand-700 text-white font-bold text-[10px] uppercase tracking-wider shadow-sm transition-all flex items-center gap-1.5 shrink-0"
+                  >
+                    <Sparkles size={12} /> Buscar
+                  </button>
+                </div>
+                {nlExplanation && (
+                  <div className="flex items-start gap-1.5 text-[10px] text-brand-700 dark:text-brand-300 bg-brand-50 dark:bg-brand-950/20 border border-brand-100 dark:border-brand-800/40 rounded-lg px-2.5 py-1.5">
+                    <BrainCircuit size={12} className="mt-0.5 shrink-0" />
+                    <span>{nlExplanation}</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Status rÃ¡pido */}
+              <div className="space-y-2">
+                <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 block">Status</label>
+                <div className="flex flex-wrap gap-1.5">
+                  {[
+                    { id: 'all', label: `Todas (${demands.length})` },
+                    { id: 'pendente', label: `Pendentes (${demands.filter(d => d.status === 'pendente').length})` },
+                    { id: 'analise', label: `Em AnÃ¡lise (${demands.filter(d => d.status === 'analise').length})` },
+                    { id: 'concluido', label: `ConcluÃ­das (${demands.filter(d => d.status === 'concluido').length})` },
+                    { id: 'rejeitado', label: `Rejeitadas (${demands.filter(d => d.status === 'rejeitado').length})` }
+                  ].map(pill => (
+                    <button
+                      key={pill.id}
+                      onClick={() => setDraft({ ...draft, status: pill.id })}
+                      className={`px-2.5 py-1.5 rounded-full text-[10px] font-semibold border transition-colors ${
+                        draft.status === pill.id
+                          ? 'bg-slate-900 text-white border-slate-950 shadow-sm dark:bg-brand-600 dark:border-brand-600'
+                          : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700'
+                      }`}
+                    >
+                      {pill.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Prioridade */}
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 block">Prioridade</label>
+                <select
+                  value={draft.priority}
+                  onChange={(e) => setDraft({ ...draft, priority: e.target.value })}
+                  className="w-full px-3 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-900/60 text-xs text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-600"
+                >
+                  <option value="all">Todas Prioridades</option>
+                  <option value="baixa">Prioridade Baixa</option>
+                  <option value="media">Prioridade MÃ©dia</option>
+                  <option value="alta">Prioridade Alta</option>
+                  <option value="urgente">Prioridade Urgente</option>
+                </select>
+              </div>
+
+              {/* Categoria */}
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 block">Categoria</label>
+                <select
+                  value={draft.category}
+                  onChange={(e) => setDraft({ ...draft, category: e.target.value })}
+                  className="w-full px-3 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-900/60 text-xs text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-600"
+                >
+                  <option value="all">Categorias (Todas)</option>
+                  {CATEGORIES.map(cat => (
+                    <option key={cat} value={cat}>{cat}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* UF */}
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 block">Estado (UF)</label>
+                <select
+                  value={draft.uf}
+                  onChange={(e) => setDraft({ ...draft, uf: e.target.value })}
+                  className="w-full px-3 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-900/60 text-xs text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-600"
+                >
+                  <option value="all">Estados (Todos)</option>
+                  {uniqueUfs.map(uf => (
+                    <option key={uf} value={uf}>{uf}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* ResponsÃ¡vel */}
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 block">ResponsÃ¡vel</label>
+                <select
+                  value={draft.responsible}
+                  onChange={(e) => setDraft({ ...draft, responsible: e.target.value })}
+                  className="w-full px-3 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-900/60 text-xs text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-600"
+                >
+                  <option value="all">ResponsÃ¡veis (Todos)</option>
+                  {uniqueResponsibles.map(r => (
+                    <option key={r} value={r}>{r}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Ano */}
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 block">Ano</label>
+                <input
+                  type="number"
+                  value={draft.ano === 'all' ? '' : draft.ano}
+                  onChange={(e) => setDraft({ ...draft, ano: e.target.value ? e.target.value : 'all' })}
+                  placeholder="Ano (ex: 2026)"
+                  min="1900"
+                  max="2100"
+                  className="w-full px-3 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-900/60 text-xs text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-600"
+                />
+              </div>
+
+              {/* OrdenaÃ§Ã£o */}
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 block">Ordenar por</label>
+                <select
+                  value={draft.sortBy}
+                  onChange={(e) => setDraft({ ...draft, sortBy: e.target.value })}
+                  className="w-full px-3 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-900/60 text-xs text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-600"
+                >
+                  <option value="newest">Mais recentes</option>
+                  <option value="oldest">Mais antigos</option>
+                  <option value="highest-value">Maior Valor (R$)</option>
+                  <option value="lowest-value">Menor Valor (R$)</option>
+                </select>
+              </div>
+
+              {/* Datas */}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 block">Data de criaÃ§Ã£o (de)</label>
+                  <input
+                    type="date"
+                    value={draft.dateFrom}
+                    onChange={(e) => setDraft({ ...draft, dateFrom: e.target.value })}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-900/60 text-xs text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-600"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 block">Data de criaÃ§Ã£o (atÃ©)</label>
+                  <input
+                    type="date"
+                    value={draft.dateTo}
+                    onChange={(e) => setDraft({ ...draft, dateTo: e.target.value })}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-900/60 text-xs text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-600"
+                  />
+                </div>
+              </div>
+
+              {/* Valores */}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 block">Valor mÃ­n. (R$)</label>
+                  <input
+                    type="number"
+                    value={draft.valueMin}
+                    onChange={(e) => setDraft({ ...draft, valueMin: e.target.value })}
+                    placeholder="0"
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-900/60 text-xs text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-600"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 block">Valor mÃ¡x. (R$)</label>
+                  <input
+                    type="number"
+                    value={draft.valueMax}
+                    onChange={(e) => setDraft({ ...draft, valueMax: e.target.value })}
+                    placeholder="999999"
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-900/60 text-xs text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-600"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="px-5 py-4 border-t border-slate-100 dark:border-slate-700/50 flex gap-2 shrink-0">
+              <button
+                onClick={() => {
+                  clearAllFilters();
+                  setDraft({ ...draft, status: 'all', priority: 'all', category: 'all', uf: 'all', responsible: 'all', ano: 'all', dateFrom: '', dateTo: '', valueMin: '', valueMax: '' });
+                }}
+                className="px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 text-xs font-bold hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors flex items-center gap-1.5"
+              >
+                <FilterX size={14} /> Limpar
+              </button>
+              <button
+                onClick={applyFilters}
+                className="flex-1 px-4 py-2.5 rounded-xl bg-brand-600 hover:bg-brand-700 text-white font-bold text-xs uppercase tracking-wider shadow-sm transition-all flex items-center justify-center gap-1.5"
+              >
+                <Check size={14} /> Aplicar
+              </button>
+            </div>
+          </aside>
+        </div>
+      )}
+
 
       {/* LIST or KANBAN VIEW */}
       {viewMode === 'list' ? (
@@ -794,7 +1051,7 @@ export default function DemandsView({
                   <div key={demand.id} className="p-4 space-y-3">
                     <div className="flex items-center justify-between gap-2">
                       <span className="font-mono text-[10px] font-bold text-slate-500 bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded-md truncate max-w-[55%]">
-                        Nº {demand.proposal_number || 'S/N'}
+                        NÂº {demand.proposal_number || 'S/N'}
                       </span>
                       <span className={`inline-block px-2.5 py-1 rounded-full text-[9px] font-bold uppercase tracking-wider border whitespace-nowrap ${getStatusBadgeClass(demand.status)}`}>
                         {getStatusLabel(demand.status)}
@@ -817,7 +1074,7 @@ export default function DemandsView({
                         {formatCurrency(demand.requested_value)}
                       </span>
                       <span className="text-[10px] text-slate-400 font-mono">
-                        {demand.updated_at ? formatDate(demand.updated_at) : '—'}
+                        {demand.updated_at ? formatDate(demand.updated_at) : 'â€”'}
                       </span>
                     </div>
 
@@ -831,14 +1088,14 @@ export default function DemandsView({
                 <table className="w-full text-left border-collapse min-w-[880px]" id="demands-table">
                   <thead>
                     <tr className="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-100 dark:border-slate-700/50 text-[10px] font-bold text-slate-400 uppercase tracking-wider sticky top-0 z-10">
-                      <th className="py-3.5 px-4 w-[120px]">Nº Proposta</th>
-                      <th className="py-3.5 px-4 w-[150px]">Município</th>
+                      <th className="py-3.5 px-4 w-[120px]">NÂº Proposta</th>
+                      <th className="py-3.5 px-4 w-[150px]">MunicÃ­pio</th>
                       <th className="py-3.5 px-4 w-[50px] text-center">UF</th>
                       <th className="py-3.5 px-4 min-w-[220px]">Objeto</th>
                       <th className="py-3.5 px-4 w-[110px] text-center">Status</th>
                       <th className="py-3.5 px-4 w-[130px] text-right">Valor Global</th>
-                      <th className="py-3.5 px-4 w-[120px] text-center hidden lg:table-cell">Última Atualização</th>
-                      <th className="py-3.5 px-4 w-[130px] text-right">Ações</th>
+                      <th className="py-3.5 px-4 w-[120px] text-center hidden lg:table-cell">Ãšltima AtualizaÃ§Ã£o</th>
+                      <th className="py-3.5 px-4 w-[130px] text-right">AÃ§Ãµes</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 dark:divide-slate-700/50 text-xs text-slate-600">
@@ -882,7 +1139,7 @@ export default function DemandsView({
                           {formatCurrency(demand.requested_value)}
                         </td>
                         <td className="py-3.5 px-4 text-center whitespace-nowrap text-slate-500 dark:text-slate-400 hidden lg:table-cell">
-                          {demand.updated_at ? formatDate(demand.updated_at) : '—'}
+                          {demand.updated_at ? formatDate(demand.updated_at) : 'â€”'}
                         </td>
                         <td className="py-3.5 px-4 text-right whitespace-nowrap">
                           {renderRowActions(demand)}
@@ -983,7 +1240,7 @@ export default function DemandsView({
                 </div>
                 <h3 className="text-lg font-black tracking-tight mt-1 max-w-2xl">{detailedDemand.title}</h3>
                 <p className="text-xs text-blue-200">
-                  Cadastrado em {formatDate(detailedDemand.created_at)} • {detailedDemand.municipality} - {detailedDemand.uf}
+                  Cadastrado em {formatDate(detailedDemand.created_at)} â€¢ {detailedDemand.municipality} - {detailedDemand.uf}
                 </p>
               </div>
 
@@ -1016,12 +1273,12 @@ export default function DemandsView({
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-1">
-                      <label className="text-xs font-bold text-slate-700 block">Título *</label>
+                      <label className="text-xs font-bold text-slate-700 block">TÃ­tulo *</label>
                       <input type="text" value={editTitle} onChange={(e) => setEditTitle(e.target.value.toUpperCase())}
                         className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-brand-600 focus:outline-none" />
                     </div>
                     <div className="space-y-1">
-                      <label className="text-xs font-bold text-slate-700 block">Município *</label>
+                      <label className="text-xs font-bold text-slate-700 block">MunicÃ­pio *</label>
                       <input type="text" value={editMunicipality} onChange={(e) => setEditMunicipality(e.target.value.toUpperCase())}
                         className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-brand-600 focus:outline-none" />
                     </div>
@@ -1035,8 +1292,8 @@ export default function DemandsView({
                       <select value={editStatus} onChange={(e) => setEditStatus(e.target.value as DemandStatus)}
                         className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm bg-white focus:ring-2 focus:ring-brand-600 focus:outline-none">
                         <option value="pendente">Pendente</option>
-                        <option value="analise">Em Análise</option>
-                        <option value="concluido">Concluído</option>
+                        <option value="analise">Em AnÃ¡lise</option>
+                        <option value="concluido">ConcluÃ­do</option>
                         <option value="rejeitado">Rejeitado</option>
                       </select>
                     </div>
@@ -1045,7 +1302,7 @@ export default function DemandsView({
                       <select value={editPriority} onChange={(e) => setEditPriority(e.target.value as DemandPriority)}
                         className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm bg-white focus:ring-2 focus:ring-brand-600 focus:outline-none">
                         <option value="baixa">Baixa</option>
-                        <option value="media">Média</option>
+                        <option value="media">MÃ©dia</option>
                         <option value="alta">Alta</option>
                         <option value="urgente">Urgente</option>
                       </select>
@@ -1067,7 +1324,7 @@ export default function DemandsView({
                         className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-brand-600 focus:outline-none" />
                     </div>
                     <div className="space-y-1">
-                      <label className="text-xs font-bold text-slate-700 block">Órgão</label>
+                      <label className="text-xs font-bold text-slate-700 block">Ã“rgÃ£o</label>
                       <input type="text" value={editOrgan} onChange={(e) => setEditOrgan(e.target.value.toUpperCase())}
                         className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-brand-600 focus:outline-none" />
                     </div>
@@ -1077,7 +1334,7 @@ export default function DemandsView({
                         className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-brand-600 focus:outline-none" />
                     </div>
                     <div className="space-y-1">
-                      <label className="text-xs font-bold text-slate-700 block">Nº Proposta</label>
+                      <label className="text-xs font-bold text-slate-700 block">NÂº Proposta</label>
                       <input type="text" value={editProposalNumber} onChange={(e) => setEditProposalNumber(e.target.value.toUpperCase())}
                         className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-brand-600 focus:outline-none" />
                     </div>
@@ -1087,22 +1344,22 @@ export default function DemandsView({
                         className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-brand-600 focus:outline-none" />
                     </div>
                     <div className="space-y-1">
-                      <label className="text-xs font-bold text-slate-700 block">Responsável</label>
+                      <label className="text-xs font-bold text-slate-700 block">ResponsÃ¡vel</label>
                       <input type="text" value={editResponsibleName} onChange={(e) => setEditResponsibleName(e.target.value.toUpperCase())}
                         className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-brand-600 focus:outline-none" />
                     </div>
                     <div className="space-y-1">
-                      <label className="text-xs font-bold text-slate-700 block">E-mail Responsável</label>
+                      <label className="text-xs font-bold text-slate-700 block">E-mail ResponsÃ¡vel</label>
                       <input type="email" value={editResponsibleEmail} onChange={(e) => setEditResponsibleEmail(e.target.value)}
                         className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-brand-600 focus:outline-none" />
                     </div>
                     <div className="space-y-1 md:col-span-2">
-                      <label className="text-xs font-bold text-slate-700 block">Descrição</label>
+                      <label className="text-xs font-bold text-slate-700 block">DescriÃ§Ã£o</label>
                       <textarea rows={3} value={editDescription} onChange={(e) => setEditDescription(e.target.value.toUpperCase())}
                         className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-brand-600 focus:outline-none" />
                     </div>
                     <div className="space-y-1 md:col-span-2">
-                      <label className="text-xs font-bold text-slate-700 block">Observações</label>
+                      <label className="text-xs font-bold text-slate-700 block">ObservaÃ§Ãµes</label>
                       <textarea rows={2} value={editNotes} onChange={(e) => setEditNotes(e.target.value.toUpperCase())}
                         className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-brand-600 focus:outline-none" />
                     </div>
@@ -1115,7 +1372,7 @@ export default function DemandsView({
                     </button>
                     <button onClick={handleSaveEdit} disabled={isSavingEdit}
                       className="py-2.5 px-6 rounded-xl bg-brand-700 hover:bg-brand-800 text-white font-bold text-xs uppercase tracking-wider disabled:opacity-50">
-                      {isSavingEdit ? 'Salvando...' : 'Salvar Alterações'}
+                      {isSavingEdit ? 'Salvando...' : 'Salvar AlteraÃ§Ãµes'}
                     </button>
                   </div>
                 </div>
@@ -1130,15 +1387,15 @@ export default function DemandsView({
                   </span>
                 </div>
                 <div className="bg-slate-50 p-4 rounded-xl border border-slate-100">
-                  <span className="text-[10px] text-slate-400 block uppercase font-bold">Nº da Proposta</span>
+                  <span className="text-[10px] text-slate-400 block uppercase font-bold">NÂº da Proposta</span>
                   <span className="text-xs font-extrabold text-slate-800 block mt-1 font-mono truncate">
                     {detailedDemand.proposal_number || 'S/N Proposta'}
                   </span>
                 </div>
                 <div className="bg-slate-50 p-4 rounded-xl border border-slate-100">
-                  <span className="text-[10px] text-slate-400 block uppercase font-bold">Órgão Destino</span>
+                  <span className="text-[10px] text-slate-400 block uppercase font-bold">Ã“rgÃ£o Destino</span>
                   <span className="text-xs font-extrabold text-blue-800 block mt-1 font-mono uppercase">
-                    {detailedDemand.organ || 'Não informado'}
+                    {detailedDemand.organ || 'NÃ£o informado'}
                   </span>
                 </div>
                 <div className="bg-slate-50 p-4 rounded-xl border border-slate-100">
@@ -1169,14 +1426,14 @@ export default function DemandsView({
                       Acessar Processo <ExternalLink size={12} />
                     </a>
                   ) : (
-                    <span className="text-slate-400 font-semibold italic">Não informado</span>
+                    <span className="text-slate-400 font-semibold italic">NÃ£o informado</span>
                   )}
                 </div>
               </div>
 
               {/* Description */}
               <div className="space-y-2">
-                <h4 className="text-xs font-black text-slate-800 uppercase tracking-wider">Descrição Técnica</h4>
+                <h4 className="text-xs font-black text-slate-800 uppercase tracking-wider">DescriÃ§Ã£o TÃ©cnica</h4>
                 <p className="text-xs text-slate-600 leading-relaxed bg-slate-50 p-4 rounded-2xl border border-slate-100">
                   {detailedDemand.description}
                 </p>
@@ -1189,7 +1446,7 @@ export default function DemandsView({
                     <User size={16} />
                   </div>
                   <div>
-                    <span className="text-[9px] text-slate-400 block">Responsável</span>
+                    <span className="text-[9px] text-slate-400 block">ResponsÃ¡vel</span>
                     <strong className="text-slate-700">{detailedDemand.responsible_name}</strong>
                   </div>
                 </div>
@@ -1223,14 +1480,14 @@ export default function DemandsView({
                   </div>
                   <div>
                     <h4 className="text-xs font-black text-brand-700 dark:text-brand-200 uppercase tracking-wider">Assistente IA</h4>
-                    <p className="text-[10px] text-slate-500 dark:text-slate-400">Análise automática da demanda</p>
+                    <p className="text-[10px] text-slate-500 dark:text-slate-400">AnÃ¡lise automÃ¡tica da demanda</p>
                   </div>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="bg-white dark:bg-slate-900/50 rounded-xl p-4 border border-slate-100 dark:border-slate-700/50">
                     <div className="flex items-center gap-1.5 text-[10px] font-bold text-brand-700 dark:text-brand-300 uppercase mb-2">
-                      <BrainCircuit size={13} /> Resumo Automático
+                      <BrainCircuit size={13} /> Resumo AutomÃ¡tico
                     </div>
                     <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
                       {summarizeDemand(detailedDemand)}
@@ -1239,7 +1496,7 @@ export default function DemandsView({
 
                   <div className="bg-white dark:bg-slate-900/50 rounded-xl p-4 border border-slate-100 dark:border-slate-700/50">
                     <div className="flex items-center gap-1.5 text-[10px] font-bold text-brand-700 dark:text-brand-300 uppercase mb-2">
-                      <BrainCircuit size={13} /> Sugestão de Prioridade
+                      <BrainCircuit size={13} /> SugestÃ£o de Prioridade
                     </div>
                     <AISuggestion demand={detailedDemand} />
                   </div>
@@ -1251,9 +1508,9 @@ export default function DemandsView({
               {/* Detail Tabs */}
               <div className="flex items-center gap-1 border-b border-slate-200 dark:border-slate-700">
                 {[
-                  { id: 'timeline', label: 'Trâmites' },
-                  { id: 'comments', label: 'Comentários' },
-                  { id: 'history', label: 'Histórico' },
+                  { id: 'timeline', label: 'TrÃ¢mites' },
+                  { id: 'comments', label: 'ComentÃ¡rios' },
+                  { id: 'history', label: 'HistÃ³rico' },
                 ].map(tab => (
                   <button key={tab.id} onClick={() => setDetailTab(tab.id)}
                     className={`text-xs font-bold px-4 py-2.5 border-b-2 transition-colors ${
@@ -1275,15 +1532,15 @@ export default function DemandsView({
                 
                 <div className="lg:col-span-8 space-y-6">
                   <div>
-                    <h4 className="text-xs font-black text-slate-800 uppercase tracking-wider">Histórico de Trâmites</h4>
-                    <p className="text-[10px] text-slate-400">Linha do tempo oficial auditável</p>
+                    <h4 className="text-xs font-black text-slate-800 uppercase tracking-wider">HistÃ³rico de TrÃ¢mites</h4>
+                    <p className="text-[10px] text-slate-400">Linha do tempo oficial auditÃ¡vel</p>
                   </div>
 
                   {canEdit ? (
                     <form onSubmit={handleAddTimelineEvent} className="bg-slate-50 border border-slate-100 p-4 rounded-2xl space-y-3">
                       <span className="text-[10px] font-bold text-brand-700 uppercase tracking-wider flex items-center gap-1">
                         <CornerDownRight size={12} />
-                        Registrar Despacho / Parecer Técnico
+                        Registrar Despacho / Parecer TÃ©cnico
                       </span>
                       
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -1302,8 +1559,8 @@ export default function DemandsView({
                         >
                           <option value="no-change">Manter Status Atual</option>
                           <option value="pendente">Mudar para Pendente</option>
-                          <option value="analise">Mudar para Em Análise</option>
-                          <option value="concluido">Mudar para Concluído</option>
+                          <option value="analise">Mudar para Em AnÃ¡lise</option>
+                          <option value="concluido">Mudar para ConcluÃ­do</option>
                           <option value="rejeitado">Mudar para Rejeitado</option>
                         </select>
                       </div>
@@ -1312,7 +1569,7 @@ export default function DemandsView({
                         rows={2}
                         value={newEventDesc}
                         onChange={(e) => setNewEventDesc(e.target.value)}
-                        placeholder="Descreva as deliberações ou pendências..."
+                        placeholder="Descreva as deliberaÃ§Ãµes ou pendÃªncias..."
                         className="w-full px-3 py-1.5 rounded-lg border border-slate-200 text-xs bg-white text-slate-800 focus:outline-none focus:ring-1 focus:ring-brand-600"
                       />
 
@@ -1332,9 +1589,9 @@ export default function DemandsView({
                   ) : (
                     <div className="bg-slate-50 border border-slate-200/60 p-5 rounded-2xl text-center space-y-2">
                       <ShieldCheck className="mx-auto text-slate-400" size={20} />
-                      <h5 className="text-xs font-bold text-slate-700">Trâmite Restrito</h5>
+                      <h5 className="text-xs font-bold text-slate-700">TrÃ¢mite Restrito</h5>
                       <p className="text-[10px] text-slate-500 max-w-md mx-auto leading-relaxed">
-                        Faça login com permissão de administrador para registrar pareceres técnicos.
+                        FaÃ§a login com permissÃ£o de administrador para registrar pareceres tÃ©cnicos.
                       </p>
                     </div>
                   )}
@@ -1356,7 +1613,7 @@ export default function DemandsView({
                             <span>Agente: <strong>{item.user_name}</strong></span>
                             {item.status_changed_to && (
                               <>
-                                <span>•</span>
+                                <span>â€¢</span>
                                 <span className="text-blue-700 bg-blue-50 font-semibold uppercase px-1.5 rounded">
                                   Novo Status: {getStatusLabel(item.status_changed_to)}
                                 </span>
@@ -1448,7 +1705,7 @@ export default function DemandsView({
                           rows={4}
                           value={adminNotes}
                           onChange={(e) => setAdminNotes(e.target.value)}
-                          placeholder="Anotações privadas..."
+                          placeholder="AnotaÃ§Ãµes privadas..."
                           className="w-full p-2 bg-white border border-amber-200 text-xs text-slate-700 focus:outline-none focus:ring-1 focus:ring-amber-500 rounded-lg font-sans"
                         />
                         <div className="flex justify-end gap-1.5">
@@ -1473,7 +1730,7 @@ export default function DemandsView({
                       </div>
                     ) : (
                       <p className="text-[11px] text-slate-600 leading-relaxed italic">
-                        {detailedDemand.notes || 'Nenhuma anotação registrada.'}
+                        {detailedDemand.notes || 'Nenhuma anotaÃ§Ã£o registrada.'}
                       </p>
                     )}
                   </div>
@@ -1482,13 +1739,13 @@ export default function DemandsView({
                   <div className="bg-blue-50/40 border border-blue-100 rounded-2xl p-4 space-y-3">
                     <h4 className="text-[10px] font-extrabold text-blue-900 uppercase tracking-widest flex items-center gap-1">
                       <MessageSquare size={12} />
-                      Comentários Internos
+                      ComentÃ¡rios Internos
                     </h4>
 
                     <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
                       {(detailedDemand.comments || []).length === 0 ? (
                         <p className="text-[10px] text-slate-400 italic">
-                          Nenhum comentário. Use para alinhar com a equipe.
+                          Nenhum comentÃ¡rio. Use para alinhar com a equipe.
                         </p>
                       ) : (
                         (detailedDemand.comments || []).map((c) => (
@@ -1509,7 +1766,7 @@ export default function DemandsView({
                           rows={2}
                           value={newComment}
                           onChange={(e) => setNewComment(e.target.value)}
-                          placeholder="Escreva um comentário..."
+                          placeholder="Escreva um comentÃ¡rio..."
                           className="w-full p-2 bg-white border border-blue-200 text-xs text-slate-700 focus:outline-none focus:ring-1 focus:ring-brand-500 rounded-lg font-sans"
                         />
                         <div className="flex justify-end">
@@ -1566,7 +1823,7 @@ export default function DemandsView({
               </div>
               <div>
                 <h3 className="text-base font-black text-slate-900 dark:text-white">Excluir Demanda</h3>
-                <p className="text-xs text-slate-500">Tem certeza que deseja excluir esta demanda? Esta ação não poderá ser desfeita.</p>
+                <p className="text-xs text-slate-500">Tem certeza que deseja excluir esta demanda? Esta aÃ§Ã£o nÃ£o poderÃ¡ ser desfeita.</p>
               </div>
             </div>
             <div className="flex gap-2 justify-end">
@@ -1643,7 +1900,7 @@ function AISimilar({ demand, all, onSelect }: { demand: Demand; all: Demand[]; o
             className="text-left px-3 py-2 rounded-lg bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 hover:border-brand-300 dark:hover:border-brand-600 transition-colors flex-1 min-w-[200px]"
           >
             <p className="text-[11px] font-bold text-slate-700 dark:text-slate-200 truncate">{d.title}</p>
-            <p className="text-[9px] text-slate-400 font-mono mt-0.5">{d.id} • {d.municipality}/{d.uf}</p>
+            <p className="text-[9px] text-slate-400 font-mono mt-0.5">{d.id} â€¢ {d.municipality}/{d.uf}</p>
           </button>
         ))}
       </div>
