@@ -396,6 +396,33 @@ export async function initDatabase() {
        OR COALESCE(responsible_name, '') <> UPPER(TRIM(COALESCE(responsible_name, '')))
        OR COALESCE(notes, '') <> UPPER(TRIM(COALESCE(notes, '')))
   `);
+  // Migração: padronização em CAIXA ALTA dos municípios.
+  // 1) Mescla duplicatas que diferem apenas por caixa no registro mais antigo
+  //    (somando métricas — nenhuma informação é perdida);
+  // 2) Remove as duplicatas (evita violação do UNIQUE(name, uf));
+  // 3) Converte os nomes para CAIXA ALTA.
+  await run(`
+    UPDATE municipalities t SET
+      demands_count = t.demands_count + d.demands_count,
+      total_value = t.total_value + d.total_value,
+      updated_at = NOW()
+    FROM municipalities d
+    WHERE d.id <> t.id
+      AND d.uf = t.uf
+      AND UPPER(TRIM(d.name)) = UPPER(TRIM(t.name))
+      AND t.id IN (
+        SELECT MIN(id) FROM municipalities
+        GROUP BY uf, UPPER(TRIM(name))
+        HAVING COUNT(*) > 1
+      )
+  `);
+  await run(`
+    DELETE FROM municipalities d
+    USING municipalities b
+    WHERE d.id > b.id
+      AND d.uf = b.uf
+      AND UPPER(TRIM(d.name)) = UPPER(TRIM(b.name))
+  `);
   await run(`
     UPDATE municipalities SET name = UPPER(TRIM(name))
     WHERE COALESCE(name, '') <> UPPER(TRIM(COALESCE(name, '')))

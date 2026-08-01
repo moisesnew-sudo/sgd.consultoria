@@ -51,16 +51,16 @@ export async function runSeed() {
   }
 
   const municipalities = [
-    { name: 'Sobral', uf: 'CE', schools_count: 52, population: 210000, hdi: 0.788, region: 'Nordeste' },
-    { name: 'Petrolina', uf: 'PE', schools_count: 48, population: 350000, hdi: 0.702, region: 'Nordeste' },
-    { name: 'Ouro Preto', uf: 'MG', schools_count: 24, population: 74000, hdi: 0.741, region: 'Sudeste' },
-    { name: 'Ribeirão Preto', uf: 'SP', schools_count: 95, population: 710000, hdi: 0.800, region: 'Sudeste' },
-    { name: 'Parintins', uf: 'AM', schools_count: 35, population: 115000, hdi: 0.658, region: 'Norte' },
-    { name: 'Caxias do Sul', uf: 'RS', schools_count: 82, population: 510000, hdi: 0.782, region: 'Sul' },
-    { name: 'Juazeiro do Norte', uf: 'CE', schools_count: 40, population: 275000, hdi: 0.694, region: 'Nordeste' },
-    { name: 'Palmas', uf: 'TO', schools_count: 44, population: 300000, hdi: 0.788, region: 'Norte' },
-    { name: 'Três Lagoas', uf: 'MS', schools_count: 19, population: 125000, hdi: 0.750, region: 'Centro-Oeste' },
-    { name: 'Goiânia', uf: 'GO', schools_count: 120, population: 1500000, hdi: 0.799, region: 'Centro-Oeste' }
+    { name: 'SOBRAL', uf: 'CE', schools_count: 52, population: 210000, hdi: 0.788, region: 'Nordeste' },
+    { name: 'PETROLINA', uf: 'PE', schools_count: 48, population: 350000, hdi: 0.702, region: 'Nordeste' },
+    { name: 'OURO PRETO', uf: 'MG', schools_count: 24, population: 74000, hdi: 0.741, region: 'Sudeste' },
+    { name: 'RIBEIRÃO PRETO', uf: 'SP', schools_count: 95, population: 710000, hdi: 0.800, region: 'Sudeste' },
+    { name: 'PARINTINS', uf: 'AM', schools_count: 35, population: 115000, hdi: 0.658, region: 'Norte' },
+    { name: 'CAXIAS DO SUL', uf: 'RS', schools_count: 82, population: 510000, hdi: 0.782, region: 'Sul' },
+    { name: 'JUAZEIRO DO NORTE', uf: 'CE', schools_count: 40, population: 275000, hdi: 0.694, region: 'Nordeste' },
+    { name: 'PALMAS', uf: 'TO', schools_count: 44, population: 300000, hdi: 0.788, region: 'Norte' },
+    { name: 'TRÊS LAGOAS', uf: 'MS', schools_count: 19, population: 125000, hdi: 0.750, region: 'Centro-Oeste' },
+    { name: 'GOIÂNIA', uf: 'GO', schools_count: 120, population: 1500000, hdi: 0.799, region: 'Centro-Oeste' }
   ];
 
   for (const m of municipalities) {

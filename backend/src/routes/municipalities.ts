@@ -61,6 +61,8 @@ router.get('/:id', authenticateToken, async (req: Request, res: Response) => {
 router.post('/', authenticateToken, requireRole('admin'), async (req: Request, res: Response) => {
   try {
     const data = municipalitySchema.parse(req.body);
+    data.name = data.name.trim().toUpperCase();
+    data.uf = data.uf.trim().toUpperCase();
     const existing = await get('SELECT id FROM municipalities WHERE name = $1 AND uf = $2', [data.name, data.uf]);
 
     if (existing) return res.status(409).json({ error: 'Município já cadastrado' });
@@ -85,6 +87,8 @@ router.put('/:id', authenticateToken, requireRole('admin'), async (req: Request,
     if (!existing) return res.status(404).json({ error: 'Município não encontrado' });
 
     const data = municipalitySchema.partial().parse(req.body);
+    if (data.name) data.name = data.name.trim().toUpperCase();
+    if (data.uf) data.uf = data.uf.trim().toUpperCase();
     const result = await run(
       `UPDATE municipalities SET name = COALESCE($1, name), uf = COALESCE($2, uf),
        schools_count = COALESCE($3, schools_count), population = COALESCE($4, population),
