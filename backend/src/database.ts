@@ -343,7 +343,7 @@ export async function initDatabase() {
       id SERIAL PRIMARY KEY,
       user_id INTEGER REFERENCES users(id),
       user_name TEXT NOT NULL,
-      export_type TEXT NOT NULL CHECK(export_type IN ('pdf', 'excel')),
+      export_type TEXT NOT NULL CHECK(export_type IN ('pdf', 'excel', 'csv')),
       record_count INTEGER DEFAULT 0,
       filters JSONB,
       ip_address TEXT,
@@ -426,6 +426,23 @@ export async function initDatabase() {
   await run(`
     UPDATE municipalities SET name = UPPER(TRIM(name))
     WHERE COALESCE(name, '') <> UPPER(TRIM(COALESCE(name, '')))
+  `);
+
+  // Migração: inclui o tipo 'csv' na constraint de export_logs (idempotente).
+  await run(`
+    DO $$
+    BEGIN
+      IF EXISTS (
+        SELECT 1 FROM pg_constraint
+        WHERE conname = 'export_logs_export_type_check'
+          AND conrelid = 'export_logs'::regclass
+      ) THEN
+        ALTER TABLE export_logs DROP CONSTRAINT export_logs_export_type_check;
+        ALTER TABLE export_logs
+          ADD CONSTRAINT export_logs_export_type_check
+          CHECK (export_type IN ('pdf', 'excel', 'csv'));
+      END IF;
+    END $$;
   `);
 
   logger.info('Tabelas criadas/verificadas');

@@ -340,7 +340,7 @@ export const demandsApi = {
 };
 
 // Export logging
-export const logExport = async (exportType: 'pdf' | 'excel', recordCount: number, filters?: any) => {
+export const logExport = async (exportType: 'pdf' | 'excel' | 'csv', recordCount: number, filters?: any) => {
   try {
     await request('/audit/log-export', {
       method: 'POST',

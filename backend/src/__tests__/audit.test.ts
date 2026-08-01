@@ -48,7 +48,7 @@ describe('Audit', () => {
     const res = await request(app)
       .post('/api/audit/log-export')
       .set('Authorization', `Bearer ${token}`)
-      .send({ export_type: 'csv', record_count: 10 });
+      .send({ export_type: 'txt', record_count: 10 });
     expect(res.status).toBe(400);
   });
 

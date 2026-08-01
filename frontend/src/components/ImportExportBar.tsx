@@ -1,12 +1,13 @@
 import React, { useState, useRef } from 'react';
 import * as XLSX from 'xlsx-js-style';
-import { UploadCloud, Download, FileText, FileSpreadsheet, Printer, Sparkles, X, Loader2, CheckCircle2, AlertTriangle } from 'lucide-react';
+import { UploadCloud, Download, FileText, FileSpreadsheet, FileDown, Printer, Sparkles, X, Loader2, CheckCircle2, AlertTriangle } from 'lucide-react';
 import { Demand } from '../types';
-import { demandsApi, formatDate, logExport } from '../services/api';
+import { demandsApi, formatDateShort, logExport } from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../contexts/ToastContext';
 import ExportMenu, { ExportMenuItem } from './ui/ExportMenu';
-import { LOGO_B64 } from './reports/logoBase64';
+import { LOGO_B64, LOGO_DATA_URL } from './reports/logoBase64';
+import { SL, PL } from './reports/report-utils';
 
 interface FiltersState {
   search?: string;
@@ -125,39 +126,257 @@ export default function ImportExportBar({ rows, filters, onImported }: ImportExp
     if (files && files.length) parseFile(files[0]);
   };
 
-  const exportExcel = () => {
-    const up = (v: any) => String(v ?? '').toUpperCase();
-    const data = rows.map(d => ({
-      ID: d.id,
-      Título: up(d.title),
-      Município: up(d.municipality),
-      UF: d.uf,
-      'Ano': d.ano || '',
-      Status: d.status,
-      Prioridade: d.priority,
-      Categoria: up(d.category),
-      Valor: d.requested_value,
-      Órgão: up(d.organ || ''),
-      Proposta: up(d.proposal_number || ''),
-      Responsável: up(d.responsible_name || ''),
-      'Criado em': formatDate(d.created_at),
-    }));
-    const ws = XLSX.utils.json_to_sheet(data);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Demandas');
-    XLSX.writeFile(wb, `sgd-demandas-${new Date().toISOString().slice(0, 10)}.xlsx`);
+  /* ---------- Exportações formatadas (Excel institucional + CSV limpo) ---------- */
+
+  const up = (v: any) => String(v ?? '').toUpperCase();
+  const fmtNumBr = (n: number) => new Intl.NumberFormat('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n || 0);
+  const fmtCurrency = (n: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(n || 0);
+
+  const EXPORT_COLUMNS: { key: string; header: string; text?: boolean }[] = [
+    { key: 'id', header: 'ID' },
+    { key: 'title', header: 'Título', text: true },
+    { key: 'municipality', header: 'Município', text: true },
+    { key: 'uf', header: 'UF' },
+    { key: 'ano', header: 'Ano' },
+    { key: 'status', header: 'Status' },
+    { key: 'priority', header: 'Prioridade' },
+    { key: 'category', header: 'Categoria', text: true },
+    { key: 'requested_value', header: 'Valor Global' },
+    { key: 'organ', header: 'Órgão', text: true },
+    { key: 'proposal_number', header: 'Proposta', text: true },
+    { key: 'responsible_name', header: 'Responsável', text: true },
+    { key: 'created_at', header: 'Criado em' },
+  ];
+
+  const rowValue = (d: Demand, col: { key: string }): string | number => {
+    switch (col.key) {
+      case 'title':
+      case 'municipality':
+      case 'category':
+      case 'organ':
+      case 'proposal_number':
+      case 'responsible_name':
+        return up(d[col.key as keyof Demand]);
+      case 'uf':
+        return d.uf || '';
+      case 'ano':
+        return d.ano ?? '';
+      case 'status':
+        return up(SL[d.status] || d.status);
+      case 'priority':
+        return up(PL[d.priority] || d.priority);
+      case 'requested_value':
+        return d.requested_value || 0;
+      case 'created_at':
+        return d.created_at;
+      default:
+        return d.id;
+    }
+  };
+
+  const describeFilters = (f: FiltersState | undefined): string => {
+    if (!f) return '';
+    const parts: string[] = [];
+    if (f.search) parts.push(`Busca: ${f.search}`);
+    if (f.status) parts.push(`Status: ${SL[f.status] || f.status}`);
+    if (f.priority) parts.push(`Prioridade: ${PL[f.priority] || f.priority}`);
+    if (f.category) parts.push(`Categoria: ${f.category}`);
+    if (f.uf) parts.push(`UF: ${f.uf}`);
+    if (f.responsible) parts.push(`Responsável: ${f.responsible}`);
+    if (f.ano) parts.push(`Ano: ${f.ano}`);
+    if (f.dateFrom) parts.push(`De: ${formatDateShort(f.dateFrom)}`);
+    if (f.dateTo) parts.push(`Até: ${formatDateShort(f.dateTo)}`);
+    if (f.valueMin) parts.push(`Valor mín.: ${fmtNumBr(Number(f.valueMin))}`);
+    if (f.valueMax) parts.push(`Valor máx.: ${fmtNumBr(Number(f.valueMax))}`);
+    return parts.length ? parts.join('; ') : 'Sem filtros';
+  };
+
+  const getImageSize = (dataUrl: string): Promise<{ w: number; h: number }> =>
+    new Promise((resolve) => {
+      const img = new Image();
+      img.onload = () => resolve({ w: img.naturalWidth, h: img.naturalHeight });
+      img.onerror = () => resolve({ w: 100, h: 60 });
+      img.src = dataUrl;
+    });
+
+  const exportExcel = async () => {
+    const ExcelJS = (await import('exceljs')).default;
+    const wb = new ExcelJS.Workbook();
+    wb.creator = 'SGD — Sistema de Gestão de Demandas';
+    const ws = wb.addWorksheet('Demandas');
+
+    const GOV = 'FF0F5132';
+    const MUTED = 'FF64748B';
+    const INK = 'FF1E293B';
+    const BORDER = 'FFD0D9D3';
+    const ZEBRA = 'FFF4F9F6';
+    const STATUS_FILL: Record<string, string> = { pendente: 'FFFFF7E0', analise: 'FFE8F1FD', concluido: 'FFE1F5EC', rejeitado: 'FFFBE9EB' };
+    const STATUS_FONT: Record<string, string> = { pendente: 'FF9A6700', analise: 'FF084298', concluido: 'FF0E6841', rejeitado: 'FFA32134' };
+
+    const now = new Date();
+    const n = rows.length;
+
+    /* Logo (proporção preservada) */
+    const size = await getImageSize(LOGO_DATA_URL);
+    const logoW = 96;
+    const logoH = Math.round((logoW * size.h) / size.w);
+    const imageId = wb.addImage({ base64: LOGO_B64, extension: 'jpeg' });
+    ws.addImage(imageId, { tl: { col: 0, row: 0 }, ext: { width: logoW, height: logoH } });
+
+    /* Cabeçalho institucional */
+    ws.mergeCells('B1:F1');
+    const titleCell = ws.getCell('B1');
+    titleCell.value = 'SISTEMA DE GESTÃO DE DEMANDAS';
+    titleCell.font = { name: 'Calibri', size: 14, bold: true, color: { argb: GOV } };
+    ws.getRow(1).height = 24;
+
+    ws.mergeCells('B2:F2');
+    const subCell = ws.getCell('B2');
+    subCell.value = 'CGASI.SE — Coordenação Geral de Articulação e Supervisão Institucional';
+    subCell.font = { name: 'Calibri', size: 10, color: { argb: MUTED } };
+    ws.getRow(2).height = 16;
+
+    ws.mergeCells('B3:F3');
+    const orgCell = ws.getCell('B3');
+    orgCell.value = 'Ministério da Agricultura e Pecuária';
+    orgCell.font = { name: 'Calibri', size: 10, bold: true, color: { argb: GOV } };
+    ws.getRow(3).height = 16;
+
+    ws.getRow(4).height = 8;
+
+    const dateStr = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }).format(now);
+    ws.getCell('B5').value = `Gerado em: ${dateStr}`;
+    ws.getCell('B5').font = { name: 'Calibri', size: 9, bold: true, color: { argb: INK } };
+    ws.getCell('D5').value = `Usuário: ${user?.name || '—'}`;
+    ws.getCell('D5').font = { name: 'Calibri', size: 9, color: { argb: INK } };
+    ws.getCell('F5').value = `Registros: ${n}`;
+    ws.getCell('F5').font = { name: 'Calibri', size: 9, bold: true, color: { argb: GOV } };
+    ws.getRow(5).height = 16;
+
+    ws.mergeCells('B6:F6');
+    const filtCell = ws.getCell('B6');
+    filtCell.value = `Filtros aplicados: ${describeFilters(filters)}`;
+    filtCell.font = { name: 'Calibri', size: 9, italic: true, color: { argb: MUTED } };
+    ws.getRow(6).height = 16;
+
+    /* Larguras (autoajuste por conteúdo) */
+    const widths = EXPORT_COLUMNS.map((col) => {
+      let max = col.header.length;
+      for (const d of rows) {
+        const v = String(rowValue(d, col));
+        if (v.length > max) max = v.length;
+      }
+      return Math.min(60, Math.max(10, Math.round(max * 1.05 + 2)));
+    });
+    ws.columns = EXPORT_COLUMNS.map((_, i) => ({ width: widths[i] }));
+
+    /* Cabeçalho da tabela */
+    const HEADER_ROW = 7;
+    const thinBorder = { style: 'thin' as const, color: { argb: BORDER } };
+    const headerCellStyle = {
+      font: { name: 'Calibri', size: 10, bold: true, color: { argb: 'FFFFFFFF' } },
+      fill: { type: 'pattern' as const, pattern: 'solid' as const, fgColor: { argb: GOV } },
+      border: { top: thinBorder, left: thinBorder, bottom: thinBorder, right: thinBorder },
+      alignment: { vertical: 'middle' as const, horizontal: 'center' as const, wrapText: true },
+    };
+    EXPORT_COLUMNS.forEach((col, i) => {
+      const cell = ws.getCell(HEADER_ROW, i + 1);
+      cell.value = col.header.toUpperCase();
+      Object.assign(cell, headerCellStyle);
+    });
+    ws.getRow(HEADER_ROW).height = 24;
+
+    /* Linhas de dados */
+    rows.forEach((d, idx) => {
+      const rowNum = HEADER_ROW + 1 + idx;
+      const row = ws.getRow(rowNum);
+      const zebra = idx % 2 === 1;
+      const estLines = (v: string, w: number) => Math.max(1, Math.ceil(v.length / Math.max(1, w - 4)));
+
+      EXPORT_COLUMNS.forEach((col, i) => {
+        const cell = row.getCell(i + 1);
+        const w = widths[i];
+        const border = { top: thinBorder, left: thinBorder, bottom: thinBorder, right: thinBorder };
+
+        if (col.key === 'created_at') {
+          const parsed = new Date(d.created_at);
+          cell.value = isNaN(parsed.getTime()) ? d.created_at : parsed;
+          cell.numFmt = 'dd/mm/yyyy';
+          cell.alignment = { vertical: 'middle', horizontal: 'center' };
+        } else if (col.key === 'requested_value') {
+          cell.value = d.requested_value || 0;
+          cell.numFmt = '"R$" #,##0.00';
+          cell.alignment = { vertical: 'middle', horizontal: 'right' };
+        } else if (col.key === 'ano') {
+          cell.value = d.ano ?? '';
+          cell.alignment = { vertical: 'middle', horizontal: 'center' };
+        } else if (col.key === 'id' || col.key === 'uf') {
+          cell.value = String(rowValue(d, col));
+          cell.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true };
+        } else if (col.key === 'status') {
+          cell.value = String(rowValue(d, col));
+          cell.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true };
+          if (STATUS_FILL[d.status]) {
+            cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: STATUS_FILL[d.status] } };
+            cell.font = { name: 'Calibri', size: 10, bold: true, color: { argb: STATUS_FONT[d.status] } };
+          }
+        } else {
+          const v = String(rowValue(d, col));
+          cell.value = v;
+          cell.alignment = { vertical: 'middle', horizontal: col.text ? 'left' : 'center', wrapText: true };
+          if (col.text) {
+            row.height = Math.max(row.height || 20, Math.min(68, estLines(v, w) * 13 + 6));
+          }
+        }
+        cell.font = cell.font || { name: 'Calibri', size: 10, color: { argb: INK } };
+        cell.border = border;
+        if (zebra && !cell.fill) {
+          cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: ZEBRA } };
+        }
+      });
+    });
+
+    /* Rodapé */
+    const footRow = HEADER_ROW + n + 2;
+    ws.getCell(`A${footRow}`).value = `Total de registros: ${n}`;
+    ws.getCell(`A${footRow}`).font = { name: 'Calibri', size: 10, bold: true, color: { argb: GOV } };
+    ws.mergeCells(`B${footRow}:E${footRow}`);
+    ws.getCell(`B${footRow}`).value = `Soma do Valor Global: ${fmtCurrency(rows.reduce((s, d) => s + (d.requested_value || 0), 0))}`;
+    ws.getCell(`B${footRow}`).font = { name: 'Calibri', size: 10, bold: true, color: { argb: INK } };
+    ws.mergeCells(`F${footRow}:H${footRow}`);
+    ws.getCell(`F${footRow}`).value = `Data de emissão: ${dateStr}`;
+    ws.getCell(`F${footRow}`).font = { name: 'Calibri', size: 10, color: { argb: MUTED } };
+    ws.mergeCells(`I${footRow}:M${footRow}`);
+    ws.getCell(`I${footRow}`).value = 'www.gruposgd.com.br';
+    ws.getCell(`I${footRow}`).font = { name: 'Calibri', size: 10, bold: true, color: { argb: GOV } };
+    ws.getCell(`I${footRow}`).alignment = { horizontal: 'right' };
+    ws.getRow(footRow).height = 20;
+
+    /* Congelar cabeçalho + autofiltro */
+    ws.views = [{ state: 'frozen', ySplit: HEADER_ROW + 1 }];
+    if (n > 0) {
+      ws.autoFilter = { from: { row: HEADER_ROW, column: 1 }, to: { row: HEADER_ROW + n, column: EXPORT_COLUMNS.length } };
+    }
+
+    const buffer = await wb.xlsx.writeBuffer();
+    const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `sgd-demandas-${now.toISOString().slice(0, 10)}.xlsx`;
+    a.click();
+    URL.revokeObjectURL(url);
     logExport('excel', rows.length, filters);
   };
 
   const exportCsv = () => {
-    const headers = ['ID', 'Título', 'Município', 'UF', 'Ano', 'Status', 'Prioridade', 'Categoria', 'Valor', 'Órgão', 'Proposta', 'Responsável', 'Criado em'];
-    const up = (v: any) => String(v ?? '').toUpperCase();
     const escape = (v: any) => `"${String(v ?? '').replace(/"/g, '""')}"`;
-    const lines = rows.map(d => [
-      d.id, up(d.title), up(d.municipality), d.uf, d.ano || '', d.status, d.priority, up(d.category),
-      d.requested_value, up(d.organ || ''), up(d.proposal_number || ''), up(d.responsible_name || ''), formatDate(d.created_at)
-    ].map(escape).join(','));
-    const csv = '\uFEFF' + [headers.join(','), ...lines].join('\n');
+    const lines = rows.map(d => EXPORT_COLUMNS.map(col => {
+      if (col.key === 'created_at') return escape(formatDateShort(d.created_at));
+      if (col.key === 'requested_value') return escape(fmtNumBr(d.requested_value || 0));
+      return escape(rowValue(d, col));
+    }).join(';'));
+    const csv = '\uFEFF' + [EXPORT_COLUMNS.map(c => c.header).join(';'), ...lines].join('\r\n');
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -165,6 +384,7 @@ export default function ImportExportBar({ rows, filters, onImported }: ImportExp
     a.download = `sgd-demandas-${new Date().toISOString().slice(0, 10)}.csv`;
     a.click();
     URL.revokeObjectURL(url);
+    logExport('csv', rows.length, filters);
   };
 
   const exportPdf = async () => {
@@ -237,9 +457,16 @@ export default function ImportExportBar({ rows, filters, onImported }: ImportExp
     ...(canExportExcel ? [{
       id: 'excel',
       label: 'Exportar para Excel',
-      description: 'Planilha .xlsx com as demandas filtradas',
+      description: 'Relatório institucional formatado .xlsx',
       icon: <FileSpreadsheet size={16} className="text-emerald-600 dark:text-emerald-400" />,
       onSelect: exportExcel,
+    }] : []),
+    ...(canExportExcel ? [{
+      id: 'csv',
+      label: 'Exportar CSV',
+      description: 'Dados limpos .csv (intercâmbio)',
+      icon: <FileDown size={16} className="text-slate-500 dark:text-slate-400" />,
+      onSelect: exportCsv,
     }] : []),
     ...(canExportPdf ? [{
       id: 'pdf',
