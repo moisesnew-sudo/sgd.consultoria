@@ -23,3 +23,5 @@ export { EmptyState } from './EmptyState';
 export { SummaryCard } from './SummaryCard';
 export { Spinner } from './Spinner';
 export { StatusBadge, PriorityBadge } from './StatusBadge';
+export { Highlight } from './Highlight';
+export { SmartSearchInput } from './SmartSearchInput';

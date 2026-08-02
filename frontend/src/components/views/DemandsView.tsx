@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { 
-  Search, 
   Grid, 
   List as ListIcon, 
   X, 
@@ -36,7 +35,7 @@ import { Demand, DemandStatus, DemandPriority, TimelineEvent, PaginatedResponse 
 import { demandsApi, formatCurrency, formatDate } from '../../services/api';
 import { formatCurrencyInput, parseCurrencyInput } from '../../lib/currency';
 import { statusLabel } from '../../lib/demandMeta';
-import { StatusBadge, PriorityBadge, PageHeader, SummaryCard, EmptyState, FiltersDrawer, Select, Input } from '../ui';
+import { StatusBadge, PriorityBadge, PageHeader, SummaryCard, EmptyState, FiltersDrawer, Select, Input, SmartSearchInput, Highlight } from '../ui';
 import { ConfirmModal } from '../ui/ConfirmModal';
 import { useAuth } from '../../contexts/AuthContext';
 import { useToast } from '../../contexts/ToastContext';
@@ -44,6 +43,7 @@ import { TableSkeleton } from '../ui/Skeleton';
 import { lazy, Suspense, useMemo } from 'react';
 import { Sparkles, BrainCircuit } from 'lucide-react';
 import { summarizeDemand, suggestPriority, findSimilar, parseNaturalLanguage } from '../../lib/ai';
+import { parseFieldQuery, matchesQuery, buildSuggestions } from '../../lib/search';
 const ImportExportBar = lazy(() => import('../shared/ImportExportBar'));
 import DemandHistory from '../shared/DemandHistory';
 
@@ -371,14 +371,10 @@ export default function DemandsView({
   }, [isFiltersOpen]);
 
   // Filter demands
+  const parsedQuery = useMemo(() => parseFieldQuery(search), [search]);
+  const suggestions = useMemo(() => buildSuggestions(demands, search), [demands, search]);
   const filteredDemands = demands.filter(d => {
-    const q = search.trim().toLowerCase();
-    const matchesSearch = !q || [
-      d.id, d.title, d.municipality, d.description, d.category,
-      d.organ, d.proposal_number, d.prefeitura,
-      d.responsible_name, d.responsible_email, d.responsible_phone,
-      d.ano ? String(d.ano) : ''
-    ].some(f => (f || '').toLowerCase().includes(q));
+    const matchesSearch = !search.trim() || matchesQuery(d, parsedQuery);
 
     const matchesStatus = statusFilter === 'all' || d.status === statusFilter;
     const matchesPriority = priorityFilter === 'all' || d.priority === priorityFilter;
@@ -612,23 +608,13 @@ export default function DemandsView({
       {/* ACTION BAR */}
       <div className="bg-white dark:bg-[#111a2e] border border-slate-100 dark:border-slate-700/50 rounded-2xl p-3 shadow-sm flex flex-col sm:flex-row flex-wrap items-stretch sm:items-center gap-2">
         <div className="relative flex-1 min-w-[200px]">
-          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
-          <input
-            type="text"
+          <SmartSearchInput
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Pesquisa: ID, título, município, órgão, responsável..."
-            className="w-full pl-10 pr-8 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-900/60 text-sm text-slate-800 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-600 focus:border-transparent"
+            onChange={setSearch}
+            suggestions={suggestions}
+            resultCount={search.trim() ? filteredDemands.length : undefined}
+            placeholder="Pesquisa: ID, título, município, órgão, responsável... (ex: uf:sp)"
           />
-          {search && (
-            <button
-              onClick={() => setSearch('')}
-              aria-label="Limpar pesquisa"
-              className="absolute right-2.5 top-1/2 -translate-y-1/2 p-0.5 rounded-full text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800"
-            >
-              <X size={14} />
-            </button>
-          )}
         </div>
 
         <div className="flex items-center gap-2 flex-wrap">
@@ -933,11 +919,11 @@ export default function DemandsView({
 
                     <div className="cursor-pointer space-y-2" onClick={() => handleOpenDetail(demand)}>
                       <p className="text-sm font-extrabold text-slate-800 dark:text-slate-200 line-clamp-2" title={demand.title}>
-                        {demand.title}
+                        <Highlight text={demand.title} terms={[search]} />
                       </p>
                       <p className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400">
                         <MapPin size={12} className="shrink-0" />
-                        <span className="truncate">{demand.municipality}</span>
+                        <span className="truncate"><Highlight text={demand.municipality} terms={[search]} /></span>
                         <span className="font-mono text-[10px] text-slate-400 shrink-0">({demand.uf})</span>
                       </p>
                     </div>
@@ -983,11 +969,11 @@ export default function DemandsView({
                         } hover:bg-slate-100/70 dark:hover:bg-slate-700/20 transition-colors cursor-pointer`}
                       >
                         <td className="py-3.5 px-4 whitespace-nowrap font-mono font-bold text-slate-600 dark:text-slate-400">
-                          {demand.proposal_number || 'S/N'}
+                          <Highlight text={demand.proposal_number || 'S/N'} terms={[search]} />
                         </td>
                         <td className="py-3.5 px-4 max-w-[150px]">
                           <span className="block truncate font-semibold text-slate-800 dark:text-slate-200" title={demand.municipality}>
-                            {demand.municipality}
+                            <Highlight text={demand.municipality} terms={[search]} />
                           </span>
                         </td>
                         <td className="py-3.5 px-4 text-center whitespace-nowrap font-mono text-slate-500 dark:text-slate-400">
@@ -995,11 +981,11 @@ export default function DemandsView({
                         </td>
                         <td className="py-3.5 px-4 max-w-[420px]">
                           <p className="font-extrabold text-slate-800 dark:text-slate-200 truncate" title={demand.title}>
-                            {demand.title}
+                            <Highlight text={demand.title} terms={[search]} />
                           </p>
                           {demand.category && (
                             <p className="text-[10px] text-slate-400 mt-0.5 truncate" title={demand.category}>
-                              {demand.category}
+                              <Highlight text={demand.category} terms={[search]} />
                             </p>
                           )}
                         </td>
@@ -1065,12 +1051,12 @@ export default function DemandsView({
                         </div>
 
                         <div>
-                          <h4 className="text-xs font-extrabold text-slate-800 line-clamp-2" title={d.title}>{d.title}</h4>
-                          <p className="text-[10px] text-slate-400 mt-0.5">{d.category}</p>
+                          <h4 className="text-xs font-extrabold text-slate-800 line-clamp-2" title={d.title}><Highlight text={d.title} terms={[search]} /></h4>
+                          <p className="text-[10px] text-slate-400 mt-0.5"><Highlight text={d.category || ''} terms={[search]} /></p>
                         </div>
 
                         <div className="flex justify-between items-center pt-2 border-t border-slate-100 text-[10px]">
-                          <span className="font-semibold text-slate-600">{d.municipality} ({d.uf})</span>
+                          <span className="font-semibold text-slate-600"><Highlight text={d.municipality} terms={[search]} /> ({d.uf})</span>
                           <span className="flex items-center gap-2">
                             {d.ano && <span className="text-slate-400 font-mono">{d.ano}</span>}
                             <span className="font-mono text-slate-800 font-bold">{formatCurrency(d.requested_value)}</span>
