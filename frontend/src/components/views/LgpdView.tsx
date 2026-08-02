@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Shield, Users, Database, FileText, HardDrive, Download, Activity, RefreshCw, UserCheck, UserX, Clock, Archive } from 'lucide-react';
-import { lgpdApi } from '../services/api';
-import { Card, Kpi } from './ui/Card';
-import { Skeleton } from './ui/Skeleton';
+import { lgpdApi } from '../../services/api';
+import { Card, Kpi } from '../ui/Card';
+import { PageHeader } from '../ui/PageHeader';
+import { Skeleton } from '../ui/Skeleton';
 
 export default function LgpdView() {
   const [data, setData] = useState<any>(null);
@@ -19,17 +20,16 @@ export default function LgpdView() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between flex-wrap gap-3">
-        <div>
-          <h2 className="text-2xl font-black tracking-tight text-slate-900 dark:text-white flex items-center gap-2">
-            <Shield className="text-brand-600" /> Conformidade LGPD
-          </h2>
-          <p className="text-sm text-slate-500 dark:text-slate-400">Painel de conformidade com a Lei Geral de Proteção de Dados</p>
-        </div>
-        <button onClick={load} className="p-2 rounded-lg border border-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800">
-          <RefreshCw size={16} />
-        </button>
-      </div>
+      <PageHeader
+        title="Conformidade LGPD"
+        subtitle="Painel de conformidade com a Lei Geral de ProteÃ§Ã£o de Dados"
+        icon={<Shield className="text-brand-600" />}
+        actions={
+          <button onClick={load} className="p-2 rounded-lg border border-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800">
+            <RefreshCw size={16} />
+          </button>
+        }
+      />
 
       {loading ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -38,18 +38,18 @@ export default function LgpdView() {
       ) : data ? (
         <>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <Kpi icon={<Users size={20} />} label="Total de Usuários" value={String(data.users?.total || 0)} accent="blue" />
-            <Kpi icon={<UserCheck size={20} />} label="Usuários Ativos" value={String(data.users?.active || 0)} accent="green" />
+            <Kpi icon={<Users size={20} />} label="Total de UsuÃ¡rios" value={String(data.users?.total || 0)} accent="blue" />
+            <Kpi icon={<UserCheck size={20} />} label="UsuÃ¡rios Ativos" value={String(data.users?.active || 0)} accent="green" />
             <Kpi icon={<Database size={20} />} label="Logs de Auditoria" value={String(data.data_stored?.audit_logs || 0)} accent="green" />
-            <Kpi icon={<Activity size={20} />} label="Sessões Ativas" value={String(data.data_stored?.sessions_active || 0)} accent="blue" />
-            <Kpi icon={<FileText size={20} />} label="Exportações" value={String(data.data_stored?.exports || 0)} accent="amber" />
+            <Kpi icon={<Activity size={20} />} label="SessÃµes Ativas" value={String(data.data_stored?.sessions_active || 0)} accent="blue" />
+            <Kpi icon={<FileText size={20} />} label="ExportaÃ§Ãµes" value={String(data.data_stored?.exports || 0)} accent="amber" />
             <Kpi icon={<Archive size={20} />} label="Backups" value={String(data.backups?.total || 0)} accent="green" />
-            <Kpi icon={<HardDrive size={20} />} label="Permissões" value={String(data.data_stored?.permissions || 0)} accent="green" />
-            <Kpi icon={<Download size={20} />} label="Perm. de Usuário" value={String(data.data_stored?.user_permissions || 0)} accent="amber" />
+            <Kpi icon={<HardDrive size={20} />} label="PermissÃµes" value={String(data.data_stored?.permissions || 0)} accent="green" />
+            <Kpi icon={<Download size={20} />} label="Perm. de UsuÃ¡rio" value={String(data.data_stored?.user_permissions || 0)} accent="amber" />
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <Card title="Usuários por Perfil">
+            <Card title="UsuÃ¡rios por Perfil">
               {data.users?.by_role ? (
                 <div className="space-y-3">
                   {Object.entries(data.users.by_role).map(([role, count]) => (
@@ -73,10 +73,10 @@ export default function LgpdView() {
               <div className="space-y-3">
                 {[
                   { label: 'Logs de Auditoria', value: data.data_stored?.audit_logs || 0, color: 'bg-purple-500' },
-                  { label: 'Permissões', value: data.data_stored?.permissions || 0, color: 'bg-rose-500' },
-                  { label: 'Permissões de Usuário', value: data.data_stored?.user_permissions || 0, color: 'bg-orange-500' },
-                  { label: 'Exportações', value: data.data_stored?.exports || 0, color: 'bg-amber-500' },
-                  { label: 'Sessões Ativas', value: data.data_stored?.sessions_active || 0, color: 'bg-indigo-500' },
+                  { label: 'PermissÃµes', value: data.data_stored?.permissions || 0, color: 'bg-rose-500' },
+                  { label: 'PermissÃµes de UsuÃ¡rio', value: data.data_stored?.user_permissions || 0, color: 'bg-orange-500' },
+                  { label: 'ExportaÃ§Ãµes', value: data.data_stored?.exports || 0, color: 'bg-amber-500' },
+                  { label: 'SessÃµes Ativas', value: data.data_stored?.sessions_active || 0, color: 'bg-indigo-500' },
                 ].map(item => (
                   <div key={item.label} className="flex items-center justify-between">
                     <span className="text-sm text-slate-600 dark:text-slate-300">{item.label}</span>
@@ -89,36 +89,36 @@ export default function LgpdView() {
             <Card title="Acessos">
               <div className="space-y-3 text-sm">
                 <div className="flex justify-between">
-                  <span className="text-slate-500">Último Acesso</span>
+                  <span className="text-slate-500">Ãšltimo Acesso</span>
                   <span className="font-medium">{data.access?.last_access ? new Date(data.access.last_access).toLocaleString('pt-BR') : 'N/A'}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-slate-500">Início Retenção</span>
+                  <span className="text-slate-500">InÃ­cio RetenÃ§Ã£o</span>
                   <span className="font-medium">{data.access?.data_retention_start ? new Date(data.access.data_retention_start).toLocaleString('pt-BR') : 'N/A'}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-slate-500">Fim Retenção</span>
+                  <span className="text-slate-500">Fim RetenÃ§Ã£o</span>
                   <span className="font-medium">{data.access?.data_retention_end ? new Date(data.access.data_retention_end).toLocaleString('pt-BR') : 'N/A'}</span>
                 </div>
               </div>
             </Card>
 
-            <Card title="Backups e Exportações">
+            <Card title="Backups e ExportaÃ§Ãµes">
               <div className="space-y-3 text-sm">
                 <div className="flex justify-between">
                   <span className="text-slate-500">Total de Backups</span>
                   <span className="font-bold">{data.backups?.total || 0}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-slate-500">Último Backup</span>
+                  <span className="text-slate-500">Ãšltimo Backup</span>
                   <span className="font-medium">{data.backups?.last_backup ? new Date(data.backups.last_backup).toLocaleString('pt-BR') : 'Nenhum'}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-slate-500">Exportações PDF</span>
+                  <span className="text-slate-500">ExportaÃ§Ãµes PDF</span>
                   <span className="font-bold">{data.exports?.pdf || 0}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-slate-500">Exportações Excel</span>
+                  <span className="text-slate-500">ExportaÃ§Ãµes Excel</span>
                   <span className="font-bold">{data.exports?.excel || 0}</span>
                 </div>
               </div>
@@ -126,7 +126,7 @@ export default function LgpdView() {
           </div>
         </>
       ) : (
-        <p className="text-sm text-slate-400 italic">Não foi possível carregar os dados de conformidade LGPD.</p>
+        <p className="text-sm text-slate-400 italic">NÃ£o foi possÃ­vel carregar os dados de conformidade LGPD.</p>
       )}
     </div>
   );

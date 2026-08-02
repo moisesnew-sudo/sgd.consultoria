@@ -1,13 +1,14 @@
 import React, { useState, useRef } from 'react';
 import * as XLSX from 'xlsx-js-style';
-import { UploadCloud, Download, FileText, FileSpreadsheet, FileDown, Printer, Sparkles, X, Loader2, CheckCircle2, AlertTriangle } from 'lucide-react';
-import { Demand } from '../types';
-import { demandsApi, formatDateShort, logExport } from '../services/api';
-import { useAuth } from '../contexts/AuthContext';
-import { useToast } from '../contexts/ToastContext';
-import ExportMenu, { ExportMenuItem } from './ui/ExportMenu';
-import { LOGO_B64, LOGO_DATA_URL } from './reports/logoBase64';
-import { SL, PL } from './reports/report-utils';
+import { UploadCloud, Download, FileText, FileSpreadsheet, FileDown, Printer, Sparkles, Loader2, CheckCircle2, AlertTriangle } from 'lucide-react';
+import { Demand } from '../../types';
+import { demandsApi, formatDateShort, logExport } from '../../services/api';
+import { useAuth } from '../../contexts/AuthContext';
+import { useToast } from '../../contexts/ToastContext';
+import ExportMenu, { ExportMenuItem } from '../ui/ExportMenu';
+import { Modal } from '../ui/Modal';
+import { LOGO_B64, LOGO_DATA_URL } from '../reports/logoBase64';
+import { SL, PL } from '../reports/report-utils';
 
 interface FiltersState {
   search?: string;
@@ -388,7 +389,7 @@ export default function ImportExportBar({ rows, filters, onImported }: ImportExp
   };
 
   const exportPdf = async () => {
-    const { buildPdfReport } = await import('./reports/pdfAutoReport');
+    const { buildPdfReport } = await import('../reports/pdfAutoReport');
     await buildPdfReport({
       demands: rows,
       filters: filters as FiltersState,
@@ -400,7 +401,7 @@ export default function ImportExportBar({ rows, filters, onImported }: ImportExp
   };
 
   const exportFullReport = async () => {
-    const { buildPdfReport } = await import('./reports/pdfAutoReport');
+    const { buildPdfReport } = await import('../reports/pdfAutoReport');
     await buildPdfReport({
       demands: rows,
       filters: filters as FiltersState,
@@ -426,7 +427,7 @@ export default function ImportExportBar({ rows, filters, onImported }: ImportExp
     );
     w.document.close();
     try {
-      const { buildPdfReport } = await import('./reports/pdfAutoReport');
+      const { buildPdfReport } = await import('../reports/pdfAutoReport');
       const doc = await buildPdfReport({
         demands: rows,
         filters: filters as FiltersState,
@@ -510,53 +511,52 @@ export default function ImportExportBar({ rows, filters, onImported }: ImportExp
       </div>
 
       {isOpen && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 backdrop-blur-xs p-4 animate-fade-in" onClick={() => setIsOpen(false)}>
-          <div className="w-full max-w-lg bg-white dark:bg-[#111a2e] rounded-2xl shadow-2xl border border-slate-100 dark:border-slate-700/50 overflow-hidden" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center justify-between p-5 border-b border-slate-100 dark:border-slate-700/50">
-              <h3 className="text-sm font-black text-slate-800 dark:text-white flex items-center gap-2">
-                <UploadCloud size={18} className="text-brand-600" /> Importar Demandas
-              </h3>
-              <button onClick={() => setIsOpen(false)} className="text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800">
-                <X size={18} />
-              </button>
+        <Modal
+          open
+          title={
+            <span className="flex items-center gap-2">
+              <UploadCloud size={18} className="text-brand-600" /> Importar Demandas
+            </span>
+          }
+          size="lg"
+          onClose={() => setIsOpen(false)}
+          className="max-w-lg"
+        >
+          <div className="space-y-4">
+            <div
+              onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
+              onDragLeave={() => setIsDragging(false)}
+              onDrop={(e) => { e.preventDefault(); setIsDragging(false); handleFiles(e.dataTransfer.files); }}
+              onClick={() => fileRef.current?.click()}
+              className={`border-2 border-dashed rounded-2xl p-8 text-center transition-all cursor-pointer ${
+                isDragging ? 'border-brand-500 bg-brand-50/50' : 'border-slate-300 dark:border-slate-600 hover:border-brand-400 hover:bg-slate-50 dark:hover:bg-slate-800/40'
+              }`}
+            >
+              <input ref={fileRef} type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={(e) => handleFiles(e.target.files)} />
+              <UploadCloud size={32} className="mx-auto text-brand-500 mb-3" />
+              <p className="text-sm font-bold text-slate-700 dark:text-slate-200">Arraste o arquivo aqui ou clique para selecionar</p>
+              <p className="text-[11px] text-slate-400 mt-1">Formatos: Excel (.xlsx/.xls) ou CSV — UTF-8</p>
             </div>
 
-            <div className="p-5 space-y-4">
-              <div
-                onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
-                onDragLeave={() => setIsDragging(false)}
-                onDrop={(e) => { e.preventDefault(); setIsDragging(false); handleFiles(e.dataTransfer.files); }}
-                onClick={() => fileRef.current?.click()}
-                className={`border-2 border-dashed rounded-2xl p-8 text-center transition-all cursor-pointer ${
-                  isDragging ? 'border-brand-500 bg-brand-50/50' : 'border-slate-300 dark:border-slate-600 hover:border-brand-400 hover:bg-slate-50 dark:hover:bg-slate-800/40'
-                }`}
-              >
-                <input ref={fileRef} type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={(e) => handleFiles(e.target.files)} />
-                <UploadCloud size={32} className="mx-auto text-brand-500 mb-3" />
-                <p className="text-sm font-bold text-slate-700 dark:text-slate-200">Arraste o arquivo aqui ou clique para selecionar</p>
-                <p className="text-[11px] text-slate-400 mt-1">Formatos: Excel (.xlsx/.xls) ou CSV — UTF-8</p>
-              </div>
-
-              <div className="text-[11px] text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-800/50 rounded-xl p-3 border border-slate-100 dark:border-slate-700/50">
-                <p className="font-bold text-slate-600 dark:text-slate-300 mb-1">Colunas aceitas (cabeçalho da 1ª linha):</p>
-                <p className="font-mono leading-relaxed">titulo, descricao, categoria, status, prioridade, municipio, uf, valor, orgao, prefeitura, proposta, link, responsavel, email, telefone, observacoes</p>
-                <p className="mt-1">Obrigatórias: <strong>titulo</strong>, <strong>municipio</strong>, <strong>uf</strong>.</p>
-              </div>
-
-              {importing && (
-                <div className="flex items-center gap-2 text-xs text-brand-600 font-semibold">
-                  <Loader2 size={16} className="animate-spin" /> Importando e cadastrando demandas...
-                </div>
-              )}
-              {importResult && (
-                <div className={`flex items-center gap-2 text-xs font-bold rounded-xl p-3 ${importResult.fail === 0 ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300' : 'bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300'}`}>
-                  {importResult.fail === 0 ? <CheckCircle2 size={16} /> : <AlertTriangle size={16} />}
-                  {importResult.ok} importada(s) com sucesso{importResult.fail > 0 ? ` • ${importResult.fail} ignorada(s)` : ''}
-                </div>
-              )}
+            <div className="text-[11px] text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-800/50 rounded-xl p-3 border border-slate-100 dark:border-slate-700/50">
+              <p className="font-bold text-slate-600 dark:text-slate-300 mb-1">Colunas aceitas (cabeçalho da 1ª linha):</p>
+              <p className="font-mono leading-relaxed">titulo, descricao, categoria, status, prioridade, municipio, uf, valor, orgao, prefeitura, proposta, link, responsavel, email, telefone, observacoes</p>
+              <p className="mt-1">Obrigatórias: <strong>titulo</strong>, <strong>municipio</strong>, <strong>uf</strong>.</p>
             </div>
+
+            {importing && (
+              <div className="flex items-center gap-2 text-xs text-brand-600 font-semibold">
+                <Loader2 size={16} className="animate-spin" /> Importando e cadastrando demandas...
+              </div>
+            )}
+            {importResult && (
+              <div className={`flex items-center gap-2 text-xs font-bold rounded-xl p-3 ${importResult.fail === 0 ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300' : 'bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300'}`}>
+                {importResult.fail === 0 ? <CheckCircle2 size={16} /> : <AlertTriangle size={16} />}
+                {importResult.ok} importada(s) com sucesso{importResult.fail > 0 ? ` • ${importResult.fail} ignorada(s)` : ''}
+              </div>
+            )}
           </div>
-        </div>
+        </Modal>
       )}
     </>
   );

@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Activity, Server, Database, Wifi, MemoryStick, Cpu, Clock, Users, HardDrive, AlertTriangle, CheckCircle, RefreshCw } from 'lucide-react';
-import { monitoringApi } from '../services/api';
-import { Card, Kpi } from './ui/Card';
-import { Skeleton } from './ui/Skeleton';
+import { monitoringApi } from '../../services/api';
+import { Card } from '../ui/Card';
+import { PageHeader } from '../ui/PageHeader';
+import { Skeleton } from '../ui/Skeleton';
 
 export default function MonitoringView() {
   const [health, setHealth] = useState<any>(null);
@@ -32,17 +33,16 @@ export default function MonitoringView() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between flex-wrap gap-3">
-        <div>
-          <h2 className="text-2xl font-black tracking-tight text-slate-900 dark:text-white flex items-center gap-2">
-            <Activity className="text-brand-600" /> Monitoramento
-          </h2>
-          <p className="text-sm text-slate-500 dark:text-slate-400">Saúde do sistema em tempo real</p>
-        </div>
-        <button onClick={load} className="p-2 rounded-lg border border-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800" title="Atualizar">
-          <RefreshCw size={16} />
-        </button>
-      </div>
+      <PageHeader
+        title="Monitoramento"
+        subtitle="SaÃºde do sistema em tempo real"
+        icon={<Activity className="text-brand-600" />}
+        actions={
+          <button onClick={load} className="p-2 rounded-lg border border-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800" title="Atualizar">
+            <RefreshCw size={16} />
+          </button>
+        }
+      />
 
       {loading ? (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -75,7 +75,7 @@ export default function MonitoringView() {
               </div>
             </Card>
 
-            <Card title="Usuários">
+            <Card title="UsuÃ¡rios">
               <div className="p-4 space-y-2 text-sm">
                 <div className="flex justify-between"><span className="text-slate-500">Conectados</span><span className="font-bold text-lg">{health.app.active_users}</span></div>
                 <div className="flex justify-between"><span className="text-slate-500">Total Demandas</span><span className="font-bold text-lg">{health.app.total_demands}</span></div>
@@ -84,11 +84,11 @@ export default function MonitoringView() {
 
             <Card title="Backup">
               <div className="p-4 space-y-2 text-sm">
-                <div className="flex justify-between"><span className="text-slate-500">Último Backup</span><span className="font-medium">{health.app.last_backup ? new Date(health.app.last_backup).toLocaleString('pt-BR') : 'Nenhum'}</span></div>
+                <div className="flex justify-between"><span className="text-slate-500">Ãšltimo Backup</span><span className="font-medium">{health.app.last_backup ? new Date(health.app.last_backup).toLocaleString('pt-BR') : 'Nenhum'}</span></div>
               </div>
             </Card>
 
-            <Card title="Integrações">
+            <Card title="IntegraÃ§Ãµes">
               <div className="p-4 space-y-2 text-sm">
                 <div className="flex justify-between"><span className="text-slate-500">Req. 24h</span><span className="font-medium">{health.app.integrations_24h}</span></div>
               </div>
@@ -96,7 +96,7 @@ export default function MonitoringView() {
           </div>
 
           {history.length > 0 && (
-            <Card title="Histórico de Monitoramento (últimas 24h)">
+            <Card title="HistÃ³rico de Monitoramento (Ãºltimas 24h)">
               <div className="overflow-x-auto">
                 <table className="w-full text-xs">
                   <thead>
@@ -105,7 +105,7 @@ export default function MonitoringView() {
                       <th className="px-3 py-2">CPU</th>
                       <th className="px-3 py-2">RAM</th>
                       <th className="px-3 py-2">API (ms)</th>
-                      <th className="px-3 py-2">Usuários</th>
+                      <th className="px-3 py-2">UsuÃ¡rios</th>
                       <th className="px-3 py-2">Demandas</th>
                     </tr>
                   </thead>
@@ -127,7 +127,7 @@ export default function MonitoringView() {
           )}
         </>
       ) : (
-        <p className="text-sm text-slate-400 italic">Não foi possível carregar dados de monitoramento.</p>
+        <p className="text-sm text-slate-400 italic">NÃ£o foi possÃ­vel carregar dados de monitoramento.</p>
       )}
     </div>
   );

@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { Lock, User, Eye, EyeOff, ShieldCheck, ArrowRight, AlertCircle, Sun, Moon, MonitorSmartphone } from 'lucide-react';
-import { useAuth } from '../contexts/AuthContext';
-import { useTheme, ThemeMode } from '../contexts/ThemeContext';
-import { LogoSymbol, LogoFull } from './ui/Logo';
+import { useAuth } from '../../contexts/AuthContext';
+import { useTheme, ThemeMode } from '../../contexts/ThemeContext';
+import { LogoSymbol, LogoFull } from '../ui/Logo';
+import { Spinner } from '../ui/Spinner';
 
 interface LoginViewProps {
   onNavigateToTab: (tab: string) => void;
@@ -202,7 +203,7 @@ export default function LoginView({ onNavigateToTab }: LoginViewProps) {
               >
                 {isLoading ? (
                   <>
-                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    <Spinner size={16} className="text-white" />
                     <span>Autenticando...</span>
                   </>
                 ) : (

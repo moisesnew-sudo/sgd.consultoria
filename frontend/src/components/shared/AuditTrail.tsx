@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Search, X, SlidersHorizontal, FilterX, RefreshCw, ScrollText, AlertCircle } from 'lucide-react';
-import { auditApi, formatDate } from '../services/api';
-import { Badge, Input, Select, FiltersDrawer, Table, TableHead, Th, TableBody, Tr, Td, TableEmpty, Pagination } from './ui';
-import { TableSkeleton } from './ui/Skeleton';
+import { auditApi, formatDate } from '../../services/api';
+import { Badge, Input, Select, FiltersDrawer, Table, TableHead, Th, TableBody, Tr, Td, TableEmpty, Pagination } from '../ui';
+import { TableSkeleton } from '../ui/Skeleton';
 
 interface AuditRow {
   id: number;

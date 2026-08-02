@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Clock, User, Code2, Monitor } from 'lucide-react';
-import { demandVersionsApi } from '../services/api';
-import { formatDate } from '../services/api';
-import { DemandVersion } from '../types';
+import { demandVersionsApi } from '../../services/api';
+import { formatDate } from '../../services/api';
+import { DemandVersion } from '../../types';
 
 export default function DemandHistory({ demandId }: { demandId: string }) {
   const [versions, setVersions] = useState<DemandVersion[]>([]);

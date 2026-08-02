@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { HardDrive, Download, RotateCcw, ShieldCheck, AlertTriangle, RefreshCw, Plus, CheckCircle, XCircle, Loader2 } from 'lucide-react';
-import { backupsApi } from '../services/api';
-import { formatDate } from '../services/api';
-import { useAuth } from '../contexts/AuthContext';
-import { useToast } from '../contexts/ToastContext';
-import { Skeleton } from './ui/Skeleton';
-import { ConfirmModal } from './ui/ConfirmModal';
+import { backupsApi } from '../../services/api';
+import { formatDate } from '../../services/api';
+import { useAuth } from '../../contexts/AuthContext';
+import { useToast } from '../../contexts/ToastContext';
+import { Skeleton } from '../ui/Skeleton';
+import { ConfirmModal } from '../ui/ConfirmModal';
+import { PageHeader } from '../ui/PageHeader';
 
 export default function BackupManagementView() {
   const { user } = useAuth();
@@ -67,24 +68,23 @@ export default function BackupManagementView() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between flex-wrap gap-3">
-        <div>
-          <h2 className="text-2xl font-black tracking-tight text-slate-900 dark:text-white flex items-center gap-2">
-            <HardDrive className="text-brand-600" /> Backups
-          </h2>
-          <p className="text-sm text-slate-500 dark:text-slate-400">Gerencie os backups do sistema</p>
-        </div>
-        <div className="flex items-center gap-2">
-          <button onClick={handleCreate} disabled={creating}
-            className="flex items-center gap-1.5 px-4 py-2 bg-brand-600 hover:bg-brand-700 disabled:opacity-50 text-white rounded-xl text-sm font-medium transition-colors">
-            {creating ? <Loader2 className="animate-spin" size={16} /> : <Plus size={16} />}
-            {creating ? 'Criando...' : 'Novo Backup'}
-          </button>
-          <button onClick={load} className="p-2 rounded-lg border border-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800">
-            <RefreshCw size={16} />
-          </button>
-        </div>
-      </div>
+      <PageHeader
+        title="Backups"
+        subtitle="Gerencie os backups do sistema"
+        icon={<HardDrive className="text-brand-600" />}
+        actions={
+          <>
+            <button onClick={handleCreate} disabled={creating}
+              className="flex items-center gap-1.5 px-4 py-2 bg-brand-600 hover:bg-brand-700 disabled:opacity-50 text-white rounded-xl text-sm font-medium transition-colors">
+              {creating ? <Loader2 className="animate-spin" size={16} /> : <Plus size={16} />}
+              {creating ? 'Criando...' : 'Novo Backup'}
+            </button>
+            <button onClick={load} className="p-2 rounded-lg border border-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800">
+              <RefreshCw size={16} />
+            </button>
+          </>
+        }
+      />
 
       {loading ? (
         <div className="space-y-3">
@@ -148,7 +148,7 @@ export default function BackupManagementView() {
                       : 'bg-red-50 text-red-600 dark:bg-red-900/20 dark:text-red-400'
                   }`}>
                     {vr.valid ? <CheckCircle size={14} /> : <XCircle size={14} />}
-                    <span>{vr.valid ? 'Integridade verificada' : 'Hash não corresponde! Backup corrompido?'}</span>
+                    <span>{vr.valid ? 'Integridade verificada' : 'Hash nÃ£o corresponde! Backup corrompido?'}</span>
                   </div>
                 );
               })()}
@@ -160,7 +160,7 @@ export default function BackupManagementView() {
       <ConfirmModal
         open={confirmRestore !== null}
         title="Restaurar Backup"
-        message="Tem certeza que deseja restaurar este backup? Todos os dados atuais serão substituídos e todas as sessões serão encerradas. Esta ação não pode ser desfeita."
+        message="Tem certeza que deseja restaurar este backup? Todos os dados atuais serÃ£o substituÃ­dos e todas as sessÃµes serÃ£o encerradas. Esta aÃ§Ã£o nÃ£o pode ser desfeita."
         confirmLabel="Restaurar"
         variant="danger"
         loading={restoring !== null}

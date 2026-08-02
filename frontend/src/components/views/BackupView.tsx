@@ -1,7 +1,8 @@
 import React, { useState, useRef } from 'react';
 import { Database, Download, Upload, FileJson, ShieldCheck, AlertTriangle, CheckCircle2, Loader2 } from 'lucide-react';
-import { settingsApi } from '../services/api';
-import { useAuth } from '../contexts/AuthContext';
+import { settingsApi } from '../../services/api';
+import { PageHeader } from '../ui/PageHeader';
+import { useAuth } from '../../contexts/AuthContext';
 
 export default function BackupView() {
   const { user } = useAuth();
@@ -22,7 +23,7 @@ export default function BackupView() {
       a.download = `SGD_Backup_${new Date().toISOString().split('T')[0]}.json`;
       a.click();
       URL.revokeObjectURL(url);
-      setMessage({ type: 'ok', text: 'Backup exportado com sucesso (demandas, municípios, usuários, trâmites, anexos, comentários e auditoria).' });
+      setMessage({ type: 'ok', text: 'Backup exportado com sucesso (demandas, municÃ­pios, usuÃ¡rios, trÃ¢mites, anexos, comentÃ¡rios e auditoria).' });
     } catch (e: any) {
       setMessage({ type: 'err', text: e.message || 'Erro ao exportar backup.' });
     } finally {
@@ -41,11 +42,11 @@ export default function BackupView() {
     try {
       const text = await file.text();
       const parsed = JSON.parse(text);
-      if (!parsed.data) throw new Error('Arquivo de backup inválido.');
+      if (!parsed.data) throw new Error('Arquivo de backup invÃ¡lido.');
       await settingsApi.importData(parsed);
-      setMessage({ type: 'ok', text: 'Backup restaurado com sucesso. Recarregue a página para ver os dados.' });
+      setMessage({ type: 'ok', text: 'Backup restaurado com sucesso. Recarregue a pÃ¡gina para ver os dados.' });
     } catch (err: any) {
-      setMessage({ type: 'err', text: 'Falha na restauração: ' + (err.message || 'arquivo inválido.') });
+      setMessage({ type: 'err', text: 'Falha na restauraÃ§Ã£o: ' + (err.message || 'arquivo invÃ¡lido.') });
     } finally {
       setBusy(false);
       if (fileRef.current) fileRef.current.value = '';
@@ -54,14 +55,11 @@ export default function BackupView() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-2xl font-black tracking-tight text-slate-900 dark:text-white flex items-center gap-2">
-          <Database className="text-emerald-600" /> Backup & Restauração
-        </h2>
-        <p className="text-sm text-slate-500 dark:text-slate-400">
-          Exporte um arquivo JSON completo do banco ou restaure a partir de um backup.
-        </p>
-      </div>
+      <PageHeader
+        title="Backup & RestauraÃ§Ã£o"
+        subtitle="Exporte um arquivo JSON completo do banco ou restaure a partir de um backup."
+        icon={<Database className="text-emerald-600" />}
+      />
 
       {message && (
         <div className={`flex items-start gap-2 p-3 rounded-xl border text-sm ${
@@ -80,7 +78,7 @@ export default function BackupView() {
             <Download size={14} /> Exportar Backup
           </div>
           <p className="text-xs text-slate-500 dark:text-slate-400">
-            Gera um arquivo <code className="font-mono">.json</code> com todas as tabelas do sistema. Recomendado antes de grandes alterações.
+            Gera um arquivo <code className="font-mono">.json</code> com todas as tabelas do sistema. Recomendado antes de grandes alteraÃ§Ãµes.
           </p>
           <button
             onClick={handleExport}
@@ -97,7 +95,7 @@ export default function BackupView() {
             <Upload size={14} /> Restaurar Backup
           </div>
           <p className="text-xs text-slate-500 dark:text-slate-400">
-            Substitui todos os dados atuais pelo conteúdo do arquivo. <strong>Ação irreversível.</strong>
+            Substitui todos os dados atuais pelo conteÃºdo do arquivo. <strong>AÃ§Ã£o irreversÃ­vel.</strong>
           </p>
           <input
             ref={fileRef}
@@ -120,7 +118,7 @@ export default function BackupView() {
 
       <div className="flex items-start gap-2 p-3 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-700/50 text-[11px] text-slate-500">
         <ShieldCheck size={14} className="mt-0.5 text-emerald-500 shrink-0" />
-        <span>O backup é criptografado apenas em trânsito (HTTPS). Armazene o arquivo em local seguro. O restore requer perfil de Administrador.</span>
+        <span>O backup Ã© criptografado apenas em trÃ¢nsito (HTTPS). Armazene o arquivo em local seguro. O restore requer perfil de Administrador.</span>
       </div>
     </div>
   );

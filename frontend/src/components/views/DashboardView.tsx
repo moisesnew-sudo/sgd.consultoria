@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { CardSkeleton } from './ui/Skeleton';
+import { CardSkeleton } from '../ui/Skeleton';
 import {
   Calendar,
   Hourglass,
@@ -29,10 +29,10 @@ import {
   Pie,
   Cell,
 } from 'recharts';
-import { Demand } from '../types';
-import { demandsApi, formatCurrency, formatDate } from '../services/api';
-import { Card, Kpi } from './ui/Card';
-import { useAuth } from '../contexts/AuthContext';
+import { Demand } from '../../types';
+import { demandsApi, formatCurrency, formatDate } from '../../services/api';
+import { Card, Kpi } from '../ui/Card';
+import { useAuth } from '../../contexts/AuthContext';
 
 interface DashboardViewProps {
   onNavigateToTab: (tab: string) => void;

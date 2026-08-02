@@ -21,7 +21,6 @@ import {
   Trash2,
   MessageSquare,
   Send,
-  AlertTriangle,
   Eye,
   History,
   MapPin,
@@ -33,17 +32,20 @@ import {
   DollarSign,
   Building2
 } from 'lucide-react';
-import { Demand, DemandStatus, DemandPriority, TimelineEvent, PaginatedResponse } from '../types';
-import { demandsApi, formatCurrency, formatDate } from '../services/api';
-import { formatCurrencyInput, parseCurrencyInput } from '../lib/currency';
-import { useAuth } from '../contexts/AuthContext';
-import { useToast } from '../contexts/ToastContext';
-import { TableSkeleton } from './ui/Skeleton';
+import { Demand, DemandStatus, DemandPriority, TimelineEvent, PaginatedResponse } from '../../types';
+import { demandsApi, formatCurrency, formatDate } from '../../services/api';
+import { formatCurrencyInput, parseCurrencyInput } from '../../lib/currency';
+import { statusLabel } from '../../lib/demandMeta';
+import { StatusBadge, PriorityBadge, PageHeader, SummaryCard, EmptyState, FiltersDrawer, Select, Input } from '../ui';
+import { ConfirmModal } from '../ui/ConfirmModal';
+import { useAuth } from '../../contexts/AuthContext';
+import { useToast } from '../../contexts/ToastContext';
+import { TableSkeleton } from '../ui/Skeleton';
 import { lazy, Suspense, useMemo } from 'react';
 import { Sparkles, BrainCircuit } from 'lucide-react';
-import { summarizeDemand, suggestPriority, findSimilar, parseNaturalLanguage } from '../lib/ai';
-const ImportExportBar = lazy(() => import('./ImportExportBar'));
-import DemandHistory from './DemandHistory';
+import { summarizeDemand, suggestPriority, findSimilar, parseNaturalLanguage } from '../../lib/ai';
+const ImportExportBar = lazy(() => import('../shared/ImportExportBar'));
+import DemandHistory from '../shared/DemandHistory';
 
 interface DemandsViewProps {
   demands: Demand[];
@@ -423,35 +425,6 @@ export default function DemandsView({
     { id: 'rejeitado', title: 'Rejeitadas', color: 'border-t-red-500 bg-red-50/20' }
   ];
 
-  const getStatusBadgeClass = (status: DemandStatus) => {
-    switch (status) {
-      case 'pendente': return 'bg-amber-100 text-amber-800 border-amber-200';
-      case 'analise': return 'bg-blue-100 text-blue-800 border-blue-200';
-      case 'concluido': return 'bg-green-100 text-green-800 border-green-200';
-      case 'rejeitado': return 'bg-red-100 text-red-800 border-red-200';
-      default: return 'bg-slate-100 text-slate-800 border-slate-200';
-    }
-  };
-
-  const getPriorityBadgeClass = (priority: DemandPriority) => {
-    switch (priority) {
-      case 'baixa': return 'bg-slate-50 text-slate-600 border-slate-200';
-      case 'media': return 'bg-blue-50 text-blue-600 border-blue-200';
-      case 'alta': return 'bg-amber-50 text-amber-600 border-amber-200';
-      case 'urgente': return 'bg-red-50 text-red-600 border-red-200';
-      default: return 'bg-slate-50 text-slate-600 border-slate-200';
-    }
-  };
-
-  const getStatusLabel = (status: DemandStatus) => {
-    switch (status) {
-      case 'pendente': return 'Pendente';
-      case 'analise': return 'Em Análise';
-      case 'concluido': return 'Concluído';
-      case 'rejeitado': return 'Rejeitado';
-    }
-  };
-
   // Add timeline event
   const handleAddTimelineEvent = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -610,18 +583,11 @@ export default function DemandsView({
       )}
 
       {/* Page Title & View Toggles */}
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
-        <div>
-          <h2 className="text-2xl font-black text-slate-900 flex items-center gap-2">
-            <FolderKanban className="text-brand-700" size={26} />
-            Fila Geral de Demandas
-          </h2>
-          <p className="text-sm text-slate-500">
-            Filtre, pesquise e acompanhe o trâmite processual das solicitações de recursos municipais.
-          </p>
-        </div>
-
-        <div className="flex items-center gap-2 self-start lg:self-center">
+      <PageHeader
+        title="Fila Geral de Demandas"
+        subtitle="Filtre, pesquise e acompanhe o trâmite processual das solicitações de recursos municipais."
+        icon={<FolderKanban className="text-brand-700" size={26} />}
+        actions={
           <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-xl">
             <button
               onClick={() => setViewMode('list')}
@@ -640,8 +606,8 @@ export default function DemandsView({
               <Grid size={16} /> Kanban
             </button>
           </div>
-        </div>
-      </div>
+        }
+      />
 
       {/* ACTION BAR */}
       <div className="bg-white dark:bg-[#111a2e] border border-slate-100 dark:border-slate-700/50 rounded-2xl p-3 shadow-sm flex flex-col sm:flex-row flex-wrap items-stretch sm:items-center gap-2">
@@ -748,289 +714,197 @@ export default function DemandsView({
 
       {/* SUMMARY CARDS */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <div className="bg-white dark:bg-[#111a2e] border border-slate-100 dark:border-slate-700/50 rounded-2xl p-3.5 shadow-sm flex items-center gap-3">
-          <span className="w-9 h-9 shrink-0 rounded-xl bg-brand-50 dark:bg-brand-950/30 flex items-center justify-center">
-            <FolderKanban size={16} className="text-brand-600 dark:text-brand-400" />
-          </span>
-          <div className="min-w-0">
-            <p className="text-[9px] font-bold uppercase tracking-wider text-slate-400">Total de Demandas</p>
-            <p className="text-lg font-black text-slate-800 dark:text-white leading-tight">{filteredDemands.length}</p>
-          </div>
-        </div>
-        <div className="bg-white dark:bg-[#111a2e] border border-slate-100 dark:border-slate-700/50 rounded-2xl p-3.5 shadow-sm flex items-center gap-3">
-          <span className="w-9 h-9 shrink-0 rounded-xl bg-amber-50 dark:bg-amber-950/30 flex items-center justify-center">
-            <DollarSign size={16} className="text-amber-600 dark:text-amber-400" />
-          </span>
-          <div className="min-w-0">
-            <p className="text-[9px] font-bold uppercase tracking-wider text-slate-400">Valor Global</p>
-            <p className="text-sm font-black text-slate-800 dark:text-white leading-tight truncate">
-              {formatCurrency(filteredDemands.reduce((s, d) => s + (d.requested_value || 0), 0))}
-            </p>
-          </div>
-        </div>
-        <div className="bg-white dark:bg-[#111a2e] border border-slate-100 dark:border-slate-700/50 rounded-2xl p-3.5 shadow-sm flex items-center gap-3">
-          <span className="w-9 h-9 shrink-0 rounded-xl bg-blue-50 dark:bg-blue-950/30 flex items-center justify-center">
-            <MapPin size={16} className="text-blue-600 dark:text-blue-400" />
-          </span>
-          <div className="min-w-0">
-            <p className="text-[9px] font-bold uppercase tracking-wider text-slate-400">Municípios</p>
-            <p className="text-lg font-black text-slate-800 dark:text-white leading-tight">
-              {new Set(filteredDemands.map(d => d.municipality)).size}
-            </p>
-          </div>
-        </div>
-        <div className="bg-white dark:bg-[#111a2e] border border-slate-100 dark:border-slate-700/50 rounded-2xl p-3.5 shadow-sm flex items-center gap-3">
-          <span className="w-9 h-9 shrink-0 rounded-xl bg-purple-50 dark:bg-purple-950/30 flex items-center justify-center">
-            <Building2 size={16} className="text-purple-600 dark:text-purple-400" />
-          </span>
-          <div className="min-w-0">
-            <p className="text-[9px] font-bold uppercase tracking-wider text-slate-400">Órgãos</p>
-            <p className="text-lg font-black text-slate-800 dark:text-white leading-tight">
-              {new Set(filteredDemands.map(d => d.organ).filter(Boolean)).size}
-            </p>
-          </div>
-        </div>
+        <SummaryCard
+          label="Total de Demandas"
+          value={filteredDemands.length}
+          icon={<FolderKanban size={16} className="text-brand-600 dark:text-brand-400" />}
+          iconBgCls="bg-brand-50 dark:bg-brand-950/30"
+        />
+        <SummaryCard
+          label="Valor Global"
+          value={formatCurrency(filteredDemands.reduce((s, d) => s + (d.requested_value || 0), 0))}
+          valueCls="text-sm font-black text-slate-800 dark:text-white leading-tight truncate"
+          icon={<DollarSign size={16} className="text-amber-600 dark:text-amber-400" />}
+          iconBgCls="bg-amber-50 dark:bg-amber-950/30"
+        />
+        <SummaryCard
+          label="Municípios"
+          value={new Set(filteredDemands.map(d => d.municipality)).size}
+          icon={<MapPin size={16} className="text-blue-600 dark:text-blue-400" />}
+          iconBgCls="bg-blue-50 dark:bg-blue-950/30"
+        />
+        <SummaryCard
+          label="Órgãos"
+          value={new Set(filteredDemands.map(d => d.organ).filter(Boolean)).size}
+          icon={<Building2 size={16} className="text-purple-600 dark:text-purple-400" />}
+          iconBgCls="bg-purple-50 dark:bg-purple-950/30"
+        />
       </div>
 
       {/* FILTERS DRAWER */}
-      {isFiltersOpen && draft && (
-        <div className="fixed inset-0 z-[70]">
-          <div className="absolute inset-0 bg-black/40 backdrop-blur-xs animate-fade-in" onClick={closeFilters} />
-          <aside
-            role="dialog"
-            aria-modal="true"
-            aria-label="Filtros de demandas"
-            className="absolute right-0 top-0 h-full w-full max-w-md bg-white dark:bg-[#111a2e] shadow-2xl animate-drawer flex flex-col"
-          >
-            <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 dark:border-slate-700/50 shrink-0">
-              <h3 className="text-sm font-black text-slate-800 dark:text-white flex items-center gap-2">
-                <SlidersHorizontal size={16} className="text-brand-600" /> Filtros
-              </h3>
-              <button
-                onClick={closeFilters}
-                aria-label="Fechar filtros"
-                className="text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800"
-              >
-                <X size={18} />
-              </button>
+      <FiltersDrawer
+        open={isFiltersOpen && !!draft}
+        onClose={closeFilters}
+        onApply={applyFilters}
+        onClear={() => {
+          clearAllFilters();
+          setDraft({ ...draft!, status: 'all', priority: 'all', category: 'all', uf: 'all', responsible: 'all', ano: 'all', dateFrom: '', dateTo: '', valueMin: '', valueMax: '' });
+        }}
+        title="Filtros de demandas"
+      >
+        {/* Busca inteligente */}
+        <div className="space-y-1.5">
+          <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 block">
+            Busca Inteligente
+          </label>
+          <div className="flex gap-2">
+            <div className="relative flex-1">
+              <Sparkles className="absolute left-3 top-1/2 -translate-y-1/2 text-brand-500" size={14} />
+              <input
+                type="text"
+                value={nlQuery}
+                onChange={(e) => setNlQuery(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') runSmartSearch(); }}
+                placeholder='"demandas urgentes de SP acima de 1 milhão"'
+                className="w-full pl-8 pr-3 py-2 rounded-xl border border-brand-200 dark:border-brand-800/60 bg-brand-50/40 dark:bg-brand-950/10 text-xs text-slate-800 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-600"
+              />
             </div>
-
-            <div className="flex-1 overflow-y-auto px-5 py-4 space-y-5">
-              {/* Busca inteligente */}
-              <div className="space-y-1.5">
-                <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 block">
-                  Busca Inteligente
-                </label>
-                <div className="flex gap-2">
-                  <div className="relative flex-1">
-                    <Sparkles className="absolute left-3 top-1/2 -translate-y-1/2 text-brand-500" size={14} />
-                    <input
-                      type="text"
-                      value={nlQuery}
-                      onChange={(e) => setNlQuery(e.target.value)}
-                      onKeyDown={(e) => { if (e.key === 'Enter') runSmartSearch(); }}
-                      placeholder='"demandas urgentes de SP acima de 1 milhão"'
-                      className="w-full pl-8 pr-3 py-2 rounded-xl border border-brand-200 dark:border-brand-800/60 bg-brand-50/40 dark:bg-brand-950/10 text-xs text-slate-800 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-600"
-                    />
-                  </div>
-                  <button
-                    onClick={runSmartSearch}
-                    className="px-3 py-2 rounded-xl bg-brand-600 hover:bg-brand-700 text-white font-bold text-[10px] uppercase tracking-wider shadow-sm transition-all flex items-center gap-1.5 shrink-0"
-                  >
-                    <Sparkles size={12} /> Buscar
-                  </button>
-                </div>
-                {nlExplanation && (
-                  <div className="flex items-start gap-1.5 text-[10px] text-brand-700 dark:text-brand-300 bg-brand-50 dark:bg-brand-950/20 border border-brand-100 dark:border-brand-800/40 rounded-lg px-2.5 py-1.5">
-                    <BrainCircuit size={12} className="mt-0.5 shrink-0" />
-                    <span>{nlExplanation}</span>
-                  </div>
-                )}
-              </div>
-
-              {/* Status rápido */}
-              <div className="space-y-2">
-                <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 block">Status</label>
-                <div className="flex flex-wrap gap-1.5">
-                  {[
-                    { id: 'all', label: `Todas (${demands.length})` },
-                    { id: 'pendente', label: `Pendentes (${demands.filter(d => d.status === 'pendente').length})` },
-                    { id: 'analise', label: `Em Análise (${demands.filter(d => d.status === 'analise').length})` },
-                    { id: 'concluido', label: `Concluídas (${demands.filter(d => d.status === 'concluido').length})` },
-                    { id: 'rejeitado', label: `Rejeitadas (${demands.filter(d => d.status === 'rejeitado').length})` }
-                  ].map(pill => (
-                    <button
-                      key={pill.id}
-                      onClick={() => setDraft({ ...draft, status: pill.id })}
-                      className={`px-2.5 py-1.5 rounded-full text-[10px] font-semibold border transition-colors ${
-                        draft.status === pill.id
-                          ? 'bg-slate-900 text-white border-slate-950 shadow-sm dark:bg-brand-600 dark:border-brand-600'
-                          : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700'
-                      }`}
-                    >
-                      {pill.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Prioridade */}
-              <div className="space-y-1.5">
-                <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 block">Prioridade</label>
-                <select
-                  value={draft.priority}
-                  onChange={(e) => setDraft({ ...draft, priority: e.target.value })}
-                  className="w-full px-3 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-900/60 text-xs text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-600"
-                >
-                  <option value="all">Todas Prioridades</option>
-                  <option value="baixa">Prioridade Baixa</option>
-                  <option value="media">Prioridade Média</option>
-                  <option value="alta">Prioridade Alta</option>
-                  <option value="urgente">Prioridade Urgente</option>
-                </select>
-              </div>
-
-              {/* Categoria */}
-              <div className="space-y-1.5">
-                <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 block">Categoria</label>
-                <select
-                  value={draft.category}
-                  onChange={(e) => setDraft({ ...draft, category: e.target.value })}
-                  className="w-full px-3 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-900/60 text-xs text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-600"
-                >
-                  <option value="all">Categorias (Todas)</option>
-                  {CATEGORIES.map(cat => (
-                    <option key={cat} value={cat}>{cat}</option>
-                  ))}
-                </select>
-              </div>
-
-              {/* UF */}
-              <div className="space-y-1.5">
-                <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 block">Estado (UF)</label>
-                <select
-                  value={draft.uf}
-                  onChange={(e) => setDraft({ ...draft, uf: e.target.value })}
-                  className="w-full px-3 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-900/60 text-xs text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-600"
-                >
-                  <option value="all">Estados (Todos)</option>
-                  {uniqueUfs.map(uf => (
-                    <option key={uf} value={uf}>{uf}</option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Responsável */}
-              <div className="space-y-1.5">
-                <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 block">Responsável</label>
-                <select
-                  value={draft.responsible}
-                  onChange={(e) => setDraft({ ...draft, responsible: e.target.value })}
-                  className="w-full px-3 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-900/60 text-xs text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-600"
-                >
-                  <option value="all">Responsáveis (Todos)</option>
-                  {uniqueResponsibles.map(r => (
-                    <option key={r} value={r}>{r}</option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Ano */}
-              <div className="space-y-1.5">
-                <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 block">Ano</label>
-                <input
-                  type="number"
-                  value={draft.ano === 'all' ? '' : draft.ano}
-                  onChange={(e) => setDraft({ ...draft, ano: e.target.value ? e.target.value : 'all' })}
-                  placeholder="Ano (ex: 2026)"
-                  min="1900"
-                  max="2100"
-                  className="w-full px-3 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-900/60 text-xs text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-600"
-                />
-              </div>
-
-              {/* Ordenação */}
-              <div className="space-y-1.5">
-                <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 block">Ordenar por</label>
-                <select
-                  value={draft.sortBy}
-                  onChange={(e) => setDraft({ ...draft, sortBy: e.target.value })}
-                  className="w-full px-3 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-900/60 text-xs text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-600"
-                >
-                  <option value="newest">Mais recentes</option>
-                  <option value="oldest">Mais antigos</option>
-                  <option value="highest-value">Maior Valor (R$)</option>
-                  <option value="lowest-value">Menor Valor (R$)</option>
-                </select>
-              </div>
-
-              {/* Datas */}
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1.5">
-                  <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 block">Data de criação (de)</label>
-                  <input
-                    type="date"
-                    value={draft.dateFrom}
-                    onChange={(e) => setDraft({ ...draft, dateFrom: e.target.value })}
-                    className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-900/60 text-xs text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-600"
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 block">Data de criação (até)</label>
-                  <input
-                    type="date"
-                    value={draft.dateTo}
-                    onChange={(e) => setDraft({ ...draft, dateTo: e.target.value })}
-                    className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-900/60 text-xs text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-600"
-                  />
-                </div>
-              </div>
-
-              {/* Valores */}
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1.5">
-                  <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 block">Valor mín. (R$)</label>
-                  <input
-                    type="number"
-                    value={draft.valueMin}
-                    onChange={(e) => setDraft({ ...draft, valueMin: e.target.value })}
-                    placeholder="0"
-                    className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-900/60 text-xs text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-600"
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 block">Valor máx. (R$)</label>
-                  <input
-                    type="number"
-                    value={draft.valueMax}
-                    onChange={(e) => setDraft({ ...draft, valueMax: e.target.value })}
-                    placeholder="999999"
-                    className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-900/60 text-xs text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-600"
-                  />
-                </div>
-              </div>
+            <button
+              onClick={runSmartSearch}
+              className="px-3 py-2 rounded-xl bg-brand-600 hover:bg-brand-700 text-white font-bold text-[10px] uppercase tracking-wider shadow-sm transition-all flex items-center gap-1.5 shrink-0"
+            >
+              <Sparkles size={12} /> Buscar
+            </button>
+          </div>
+          {nlExplanation && (
+            <div className="flex items-start gap-1.5 text-[10px] text-brand-700 dark:text-brand-300 bg-brand-50 dark:bg-brand-950/20 border border-brand-100 dark:border-brand-800/40 rounded-lg px-2.5 py-1.5">
+              <BrainCircuit size={12} className="mt-0.5 shrink-0" />
+              <span>{nlExplanation}</span>
             </div>
-
-            <div className="px-5 py-4 border-t border-slate-100 dark:border-slate-700/50 flex gap-2 shrink-0">
-              <button
-                onClick={() => {
-                  clearAllFilters();
-                  setDraft({ ...draft, status: 'all', priority: 'all', category: 'all', uf: 'all', responsible: 'all', ano: 'all', dateFrom: '', dateTo: '', valueMin: '', valueMax: '' });
-                }}
-                className="px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 text-xs font-bold hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors flex items-center gap-1.5"
-              >
-                <FilterX size={14} /> Limpar
-              </button>
-              <button
-                onClick={applyFilters}
-                className="flex-1 px-4 py-2.5 rounded-xl bg-brand-600 hover:bg-brand-700 text-white font-bold text-xs uppercase tracking-wider shadow-sm transition-all flex items-center justify-center gap-1.5"
-              >
-                <Check size={14} /> Aplicar
-              </button>
-            </div>
-          </aside>
+          )}
         </div>
-      )}
+
+        {/* Status rápido */}
+        <div className="space-y-2">
+          <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 block">Status</label>
+          <div className="flex flex-wrap gap-1.5">
+            {[
+              { id: 'all', label: `Todas (${demands.length})` },
+              { id: 'pendente', label: `Pendentes (${demands.filter(d => d.status === 'pendente').length})` },
+              { id: 'analise', label: `Em Análise (${demands.filter(d => d.status === 'analise').length})` },
+              { id: 'concluido', label: `Concluídas (${demands.filter(d => d.status === 'concluido').length})` },
+              { id: 'rejeitado', label: `Rejeitadas (${demands.filter(d => d.status === 'rejeitado').length})` }
+            ].map(pill => (
+              <button
+                key={pill.id}
+                onClick={() => setDraft({ ...draft!, status: pill.id })}
+                className={`px-2.5 py-1.5 rounded-full text-[10px] font-semibold border transition-colors ${
+                  draft?.status === pill.id
+                    ? 'bg-slate-900 text-white border-slate-950 shadow-sm dark:bg-brand-600 dark:border-brand-600'
+                    : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700'
+                }`}
+              >
+                {pill.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <Select
+          label="Prioridade"
+          value={draft?.priority || 'all'}
+          onChange={(e) => setDraft({ ...draft!, priority: e.target.value })}
+        >
+          <option value="all">Todas Prioridades</option>
+          <option value="baixa">Prioridade Baixa</option>
+          <option value="media">Prioridade Média</option>
+          <option value="alta">Prioridade Alta</option>
+          <option value="urgente">Prioridade Urgente</option>
+        </Select>
+
+        <Select
+          label="Categoria"
+          value={draft?.category || 'all'}
+          onChange={(e) => setDraft({ ...draft!, category: e.target.value })}
+        >
+          <option value="all">Categorias (Todas)</option>
+          {CATEGORIES.map(cat => (
+            <option key={cat} value={cat}>{cat}</option>
+          ))}
+        </Select>
+
+        <Select
+          label="Estado (UF)"
+          value={draft?.uf || 'all'}
+          onChange={(e) => setDraft({ ...draft!, uf: e.target.value })}
+        >
+          <option value="all">Estados (Todos)</option>
+          {uniqueUfs.map(uf => (
+            <option key={uf} value={uf}>{uf}</option>
+          ))}
+        </Select>
+
+        <Select
+          label="Responsável"
+          value={draft?.responsible || 'all'}
+          onChange={(e) => setDraft({ ...draft!, responsible: e.target.value })}
+        >
+          <option value="all">Responsáveis (Todos)</option>
+          {uniqueResponsibles.map(r => (
+            <option key={r} value={r}>{r}</option>
+          ))}
+        </Select>
+
+        <Input
+          label="Ano"
+          type="number"
+          value={draft?.ano === 'all' ? '' : draft?.ano || ''}
+          onChange={(e) => setDraft({ ...draft!, ano: e.target.value ? e.target.value : 'all' })}
+          placeholder="Ano (ex: 2026)"
+          min={1900}
+          max={2100}
+        />
+
+        <Select
+          label="Ordenar por"
+          value={draft?.sortBy || 'newest'}
+          onChange={(e) => setDraft({ ...draft!, sortBy: e.target.value })}
+        >
+          <option value="newest">Mais recentes</option>
+          <option value="oldest">Mais antigos</option>
+          <option value="highest-value">Maior Valor (R$)</option>
+          <option value="lowest-value">Menor Valor (R$)</option>
+        </Select>
+
+        <div className="grid grid-cols-2 gap-3">
+          <Input
+            type="date"
+            label="Data de criação (de)"
+            value={draft?.dateFrom || ''}
+            onChange={(e) => setDraft({ ...draft!, dateFrom: e.target.value })}
+          />
+          <Input
+            type="date"
+            label="Data de criação (até)"
+            value={draft?.dateTo || ''}
+            onChange={(e) => setDraft({ ...draft!, dateTo: e.target.value })}
+          />
+          <Input
+            type="number"
+            label="Valor mín. (R$)"
+            value={draft?.valueMin || ''}
+            onChange={(e) => setDraft({ ...draft!, valueMin: e.target.value })}
+            placeholder="0"
+          />
+          <Input
+            type="number"
+            label="Valor máx. (R$)"
+            value={draft?.valueMax || ''}
+            onChange={(e) => setDraft({ ...draft!, valueMax: e.target.value })}
+            placeholder="999999"
+          />
+        </div>
+      </FiltersDrawer>
 
 
       {/* LIST or KANBAN VIEW */}
@@ -1038,11 +912,12 @@ export default function DemandsView({
         /* LIST VIEW */
         <div className="bg-white dark:bg-[var(--surface-card)] border border-slate-100 dark:border-slate-700/50 rounded-3xl shadow-sm overflow-hidden" id="list-view-container">
           {sortedDemands.length === 0 ? (
-            <div className="p-12 text-center space-y-3">
-              <AlertCircle size={40} className="text-slate-300 mx-auto" />
-              <h3 className="text-sm font-bold text-slate-700">Nenhuma demanda encontrada</h3>
-              <p className="text-xs text-slate-400">Tente ajustar seus filtros ou mude o termo pesquisado.</p>
-            </div>
+            <EmptyState
+              icon={<AlertCircle size={40} />}
+              title="Nenhuma demanda encontrada"
+              subtitle="Tente ajustar seus filtros ou mude o termo pesquisado."
+              className="p-12"
+            />
           ) : (
             <>
               {/* MOBILE: CARD LIST */}
@@ -1053,9 +928,7 @@ export default function DemandsView({
                       <span className="font-mono text-[10px] font-bold text-slate-500 bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded-md truncate max-w-[55%]">
                         Nº {demand.proposal_number || 'S/N'}
                       </span>
-                      <span className={`inline-block px-2.5 py-1 rounded-full text-[9px] font-bold uppercase tracking-wider border whitespace-nowrap ${getStatusBadgeClass(demand.status)}`}>
-                        {getStatusLabel(demand.status)}
-                      </span>
+                      <StatusBadge status={demand.status} className="py-1" />
                     </div>
 
                     <div className="cursor-pointer space-y-2" onClick={() => handleOpenDetail(demand)}>
@@ -1131,9 +1004,7 @@ export default function DemandsView({
                           )}
                         </td>
                         <td className="py-3.5 px-4 text-center whitespace-nowrap">
-                          <span className={`inline-block px-2.5 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider border whitespace-nowrap ${getStatusBadgeClass(demand.status)}`}>
-                            {getStatusLabel(demand.status)}
-                          </span>
+                          <StatusBadge status={demand.status} />
                         </td>
                         <td className="py-3.5 px-4 text-right whitespace-nowrap font-mono font-bold text-slate-800 dark:text-slate-200 tabular-nums">
                           {formatCurrency(demand.requested_value)}
@@ -1190,9 +1061,7 @@ export default function DemandsView({
                       >
                         <div className="flex justify-between items-start text-[9px]">
                           <span className="font-mono text-slate-400 font-bold">{d.id}</span>
-                          <span className={`px-1.5 py-0.5 rounded-xs font-bold uppercase ${getPriorityBadgeClass(d.priority)}`}>
-                            {d.priority}
-                          </span>
+                          <PriorityBadge priority={d.priority} />
                         </div>
 
                         <div>
@@ -1234,9 +1103,7 @@ export default function DemandsView({
                     <span className="text-xs bg-yellow-400 text-brand-900 font-mono font-black px-2.5 py-1 rounded-lg">
                     {detailedDemand.id}
                   </span>
-                  <span className={`px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider border ${getStatusBadgeClass(detailedDemand.status)}`}>
-                    {getStatusLabel(detailedDemand.status)}
-                  </span>
+                  <StatusBadge status={detailedDemand.status} className="px-2.5 py-1 rounded-lg text-[10px]" />
                 </div>
                 <h3 className="text-lg font-black tracking-tight mt-1 max-w-2xl">{detailedDemand.title}</h3>
                 <p className="text-xs text-blue-200">
@@ -1400,9 +1267,7 @@ export default function DemandsView({
                 </div>
                 <div className="bg-slate-50 p-4 rounded-xl border border-slate-100">
                   <span className="text-[10px] text-slate-400 block uppercase font-bold">Criticidade</span>
-                  <span className={`inline-block mt-1.5 px-2.5 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider border ${getPriorityBadgeClass(detailedDemand.priority)}`}>
-                    {detailedDemand.priority}
-                  </span>
+                  <PriorityBadge priority={detailedDemand.priority} className="mt-1.5" />
                 </div>
               </div>
 
@@ -1615,7 +1480,7 @@ export default function DemandsView({
                               <>
                                 <span>•</span>
                                 <span className="text-blue-700 bg-blue-50 font-semibold uppercase px-1.5 rounded">
-                                  Novo Status: {getStatusLabel(item.status_changed_to)}
+                                  Novo Status: {statusLabel(item.status_changed_to)}
                                 </span>
                               </>
                             )}
@@ -1814,38 +1679,16 @@ export default function DemandsView({
       )}
 
       {/* Delete Confirmation Modal */}
-      {deleteTarget && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => !deleting && setDeleteTarget(null)}>
-          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl max-w-sm w-full mx-4 p-6 space-y-4" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center text-red-600">
-                <AlertTriangle size={20} />
-              </div>
-              <div>
-                <h3 className="text-base font-black text-slate-900 dark:text-white">Excluir Demanda</h3>
-                <p className="text-xs text-slate-500">Tem certeza que deseja excluir esta demanda? Esta ação não poderá ser desfeita.</p>
-              </div>
-            </div>
-            <div className="flex gap-2 justify-end">
-              <button
-                onClick={() => setDeleteTarget(null)}
-                disabled={deleting}
-                className="px-4 py-2 rounded-xl border border-slate-200 text-slate-700 font-bold text-xs uppercase tracking-wider hover:bg-slate-50"
-              >
-                Cancelar
-              </button>
-              <button
-                onClick={handleDeleteConfirm}
-                disabled={deleting}
-                className="px-4 py-2 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold text-xs uppercase tracking-wider disabled:opacity-50 flex items-center gap-1.5"
-              >
-                {deleting ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
-                Excluir
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <ConfirmModal
+        open={!!deleteTarget}
+        title="Excluir Demanda"
+        message="Tem certeza que deseja excluir esta demanda? Esta ação não poderá ser desfeita."
+        confirmLabel="Excluir"
+        variant="danger"
+        loading={deleting}
+        onCancel={() => setDeleteTarget(null)}
+        onConfirm={handleDeleteConfirm}
+      />
     </div>
   );
 }

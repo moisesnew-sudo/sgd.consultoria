@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { Plug, KeyRound, Copy, Check, Code2, Webhook, RefreshCw } from 'lucide-react';
-import { integrationsApi } from '../services/api';
-import { useAuth } from '../contexts/AuthContext';
-import { Skeleton, CardSkeleton } from './ui/Skeleton';
+import { integrationsApi } from '../../services/api';
+import { useAuth } from '../../contexts/AuthContext';
+import { Skeleton, CardSkeleton } from '../ui/Skeleton';
+import { PageHeader } from '../ui/PageHeader';
 
 const METHOD_COLORS: Record<string, string> = {
   GET: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300',
@@ -42,17 +43,16 @@ export default function IntegrationView() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between flex-wrap gap-3">
-        <div>
-          <h2 className="text-2xl font-black tracking-tight text-slate-900 dark:text-white flex items-center gap-2">
-            <Plug className="text-brand-600" /> API & Integrações
-          </h2>
-          <p className="text-sm text-slate-500 dark:text-slate-400">Conecte o CGASI.SE a outros sistemas via REST API</p>
-        </div>
-        <button onClick={load} className="p-2 rounded-lg border border-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800" title="Atualizar">
-          <RefreshCw size={16} />
-        </button>
-      </div>
+      <PageHeader
+        title="API & IntegraÃ§Ãµes"
+        subtitle="Conecte o CGASI.SE a outros sistemas via REST API"
+        icon={<Plug className="text-brand-600" />}
+        actions={
+          <button onClick={load} className="p-2 rounded-lg border border-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800" title="Atualizar">
+            <RefreshCw size={16} />
+          </button>
+        }
+      />
 
       {loading ? (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -68,7 +68,7 @@ export default function IntegrationView() {
               </div>
               <div className="flex items-center gap-2 p-3 bg-amber-50 dark:bg-amber-900/20 rounded-lg border border-amber-200 dark:border-amber-700/50">
                 <p className="text-[11px] text-amber-700 dark:text-amber-300">
-                  O token de API é gerado e exibido apenas no momento da criação. Se necessário, gere um novo token na tela de administração.
+                  O token de API Ã© gerado e exibido apenas no momento da criaÃ§Ã£o. Se necessÃ¡rio, gere um novo token na tela de administraÃ§Ã£o.
                 </p>
               </div>
             </div>
@@ -90,16 +90,16 @@ export default function IntegrationView() {
           {/* Endpoints table */}
           <div className="bg-white dark:bg-slate-900/50 rounded-2xl border border-slate-100 dark:border-slate-700/50 overflow-hidden">
             <div className="px-4 py-3 border-b border-slate-100 dark:border-slate-700/50 text-xs font-bold text-slate-700 dark:text-slate-200 flex items-center gap-1.5">
-              <Code2 size={14} /> Endpoints Disponíveis
+              <Code2 size={14} /> Endpoints DisponÃ­veis
             </div>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="bg-slate-50 dark:bg-slate-800/50 text-left text-[10px] uppercase font-bold text-slate-500">
-                    <th className="px-4 py-2">Método</th>
+                    <th className="px-4 py-2">MÃ©todo</th>
                     <th className="px-4 py-2">Rota</th>
                     <th className="px-4 py-2">Auth</th>
-                    <th className="px-4 py-2">Descrição</th>
+                    <th className="px-4 py-2">DescriÃ§Ã£o</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-700/50">
@@ -109,7 +109,7 @@ export default function IntegrationView() {
                         <span className={`text-[10px] px-2 py-0.5 rounded font-bold ${METHOD_COLORS[e.method] || 'bg-slate-100 text-slate-600'}`}>{e.method}</span>
                       </td>
                       <td className="px-4 py-2 font-mono text-[11px] text-slate-600 dark:text-slate-300">{e.path}</td>
-                      <td className="px-4 py-2 text-xs">{e.auth ? <span className="text-amber-600 font-bold">🔒 JWT</span> : <span className="text-slate-400">Público</span>}</td>
+                      <td className="px-4 py-2 text-xs">{e.auth ? <span className="text-amber-600 font-bold">ðŸ”’ JWT</span> : <span className="text-slate-400">PÃºblico</span>}</td>
                       <td className="px-4 py-2 text-xs text-slate-500">{e.desc}</td>
                     </tr>
                   ))}
@@ -132,7 +132,7 @@ export default function IntegrationView() {
           </div>
         </>
       ) : (
-        <p className="text-sm text-slate-400 italic">Não foi possível carregar as informações de integração.</p>
+        <p className="text-sm text-slate-400 italic">NÃ£o foi possÃ­vel carregar as informaÃ§Ãµes de integraÃ§Ã£o.</p>
       )}
     </div>
   );

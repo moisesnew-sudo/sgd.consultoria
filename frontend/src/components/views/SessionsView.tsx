@@ -1,8 +1,10 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { LogOut, Monitor, Globe, Smartphone, Laptop, Clock, ShieldX, RefreshCw } from 'lucide-react';
-import { sessionsApi } from '../services/api';
-import { useAuth } from '../contexts/AuthContext';
-import { Skeleton } from './ui/Skeleton';
+import { sessionsApi } from '../../services/api';
+import { useAuth } from '../../contexts/AuthContext';
+import { Skeleton } from '../ui/Skeleton';
+import { PageHeader } from '../ui/PageHeader';
+import { EmptyState } from '../ui/EmptyState';
 
 export default function SessionsView() {
   const { user } = useAuth();
@@ -45,17 +47,16 @@ export default function SessionsView() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between flex-wrap gap-3">
-        <div>
-          <h2 className="text-2xl font-black tracking-tight text-slate-900 dark:text-white flex items-center gap-2">
-            <ShieldX className="text-brand-600" /> Sessões Ativas
-          </h2>
-          <p className="text-sm text-slate-500 dark:text-slate-400">Gerencie as sessões ativas do sistema</p>
-        </div>
-        <button onClick={load} className="p-2 rounded-lg border border-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800" title="Atualizar">
-          <RefreshCw size={16} />
-        </button>
-      </div>
+      <PageHeader
+        title="SessÃµes Ativas"
+        subtitle="Gerencie as sessÃµes ativas do sistema"
+        icon={<ShieldX className="text-brand-600" />}
+        actions={
+          <button onClick={load} className="p-2 rounded-lg border border-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800" title="Atualizar">
+            <RefreshCw size={16} />
+          </button>
+        }
+      />
 
       {loading ? (
         <div className="grid grid-cols-1 gap-3">
@@ -66,9 +67,12 @@ export default function SessionsView() {
           ))}
         </div>
       ) : sessions.length === 0 ? (
-        <div className="bg-white dark:bg-slate-900/50 rounded-2xl border border-slate-100 dark:border-slate-700/50 p-8 text-center">
-          <LogOut className="mx-auto text-slate-300 dark:text-slate-600 mb-3" size={40} />
-          <p className="text-slate-500 dark:text-slate-400">Nenhuma sessão ativa no momento.</p>
+        <div className="bg-white dark:bg-slate-900/50 rounded-2xl border border-slate-100 dark:border-slate-700/50">
+          <EmptyState
+            icon={<LogOut size={40} />}
+            title="Nenhuma sessão ativa no momento."
+            className="py-10"
+          />
         </div>
       ) : (
         <div className="space-y-3">
@@ -94,7 +98,7 @@ export default function SessionsView() {
                         <span className="flex items-center gap-1"><Globe size={12} /> {session.ip_address || 'N/A'}</span>
                         <span className="flex items-center gap-1">{getOsIcon(session.os)} {session.os || 'Desconhecido'}</span>
                         <span className="flex items-center gap-1"><Monitor size={12} /> {session.browser || 'Desconhecido'}</span>
-                        <span className="flex items-center gap-1"><Clock size={12} /> Última atividade: {new Date(session.last_activity).toLocaleString('pt-BR')}</span>
+                        <span className="flex items-center gap-1"><Clock size={12} /> Ãšltima atividade: {new Date(session.last_activity).toLocaleString('pt-BR')}</span>
                       </div>
                       <p className="text-[10px] text-slate-400 mt-1">Iniciada em: {new Date(session.started_at).toLocaleString('pt-BR')}</p>
                     </div>
@@ -102,7 +106,7 @@ export default function SessionsView() {
                   {session.active && (
                     <button onClick={() => handleTerminate(session.id)}
                       className="shrink-0 p-2 rounded-lg border border-red-200 hover:bg-red-50 text-red-500 dark:border-red-800 dark:hover:bg-red-900/20 transition-colors"
-                      title="Encerrar sessão">
+                      title="Encerrar sessÃ£o">
                       <LogOut size={14} />
                     </button>
                   )}

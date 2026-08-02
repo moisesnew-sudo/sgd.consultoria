@@ -1,5 +1,7 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { Clock, LogOut } from 'lucide-react';
+import { Modal } from '../ui/Modal';
+import { Button } from '../ui/Button';
 
 const INACTIVITY_TIMEOUT = 30 * 60 * 1000;
 const WARNING_BEFORE = 5 * 60 * 1000;
@@ -54,27 +56,31 @@ export default function InactivityWrapper({ children, onLogout }: { children: Re
     <>
       {children}
       {showWarning && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
-          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700 p-6 max-w-sm w-full mx-4 text-center animate-bounce-in">
+        <Modal
+          open
+          title="Sessão prestes a expirar"
+          size="sm"
+          hideClose
+          footer={
+            <>
+              <Button variant="outline" onClick={onLogout} icon={<LogOut size={14} />}>
+                Sair
+              </Button>
+              <Button variant="primary" onClick={handleStayActive} className="flex-1">
+                Manter Sessão
+              </Button>
+            </>
+          }
+        >
+          <div className="text-center">
             <div className="mx-auto w-14 h-14 rounded-full bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center mb-4">
               <Clock className="text-amber-600" size={28} />
             </div>
-            <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-2">Sessão prestes a expirar</h3>
-            <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">
+            <p className="text-sm text-slate-500 dark:text-slate-400">
               Sua sessão expirará em <span className="font-bold text-amber-600">{Math.floor(timeLeft / 60)}:{String(timeLeft % 60).padStart(2, '0')}</span> minutos devido à inatividade.
             </p>
-            <div className="flex gap-3">
-              <button onClick={handleStayActive}
-                className="flex-1 py-2.5 bg-brand-600 hover:bg-brand-700 text-white rounded-xl font-medium text-sm transition-colors">
-                Manter Sessão
-              </button>
-              <button onClick={onLogout}
-                className="flex items-center justify-center gap-1.5 py-2.5 px-4 border border-slate-200 dark:border-slate-600 rounded-xl text-sm text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
-                <LogOut size={14} /> Sair
-              </button>
-            </div>
           </div>
-        </div>
+        </Modal>
       )}
     </>
   );

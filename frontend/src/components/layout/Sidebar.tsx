@@ -5,10 +5,10 @@ import {
   Briefcase, ShieldCheck, LogOut, User, Sun, Moon, MonitorSmartphone,
   Activity, Shield, LogIn, HardDrive, FileSearch
 } from 'lucide-react';
-import { useAuth } from '../contexts/AuthContext';
-import { useTheme, ThemeMode } from '../contexts/ThemeContext';
-import { ROLE_LABELS } from '../services/api';
-import { LogoFull } from './ui/Logo';
+import { useAuth } from '../../contexts/AuthContext';
+import { useTheme, ThemeMode } from '../../contexts/ThemeContext';
+import { ROLE_LABELS } from '../../services/api';
+import { LogoFull } from '../ui/Logo';
 
 interface SidebarProps {
   activeTab: string;

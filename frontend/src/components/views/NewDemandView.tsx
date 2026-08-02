@@ -19,11 +19,12 @@ import {
   Check,
   RotateCcw
 } from 'lucide-react';
-import { Demand, DemandPriority, DemandStatus, Attachment } from '../types';
-import { demandsApi } from '../services/api';
-import { formatCurrencyInput, parseCurrencyInput } from '../lib/currency';
-import { useAuth } from '../contexts/AuthContext';
-import { useToast } from '../contexts/ToastContext';
+import { Demand, DemandPriority, DemandStatus, Attachment } from '../../types';
+import { demandsApi } from '../../services/api';
+import { formatCurrencyInput, parseCurrencyInput } from '../../lib/currency';
+import { STATUS_BADGE_CLS, statusLabel } from '../../lib/demandMeta';
+import { useAuth } from '../../contexts/AuthContext';
+import { useToast } from '../../contexts/ToastContext';
 
 interface NewDemandViewProps {
   municipalities: { name: string; uf: string }[];
@@ -43,20 +44,6 @@ const ORGAN_OPTIONS = [
   'SECRETARIA ESTADUAL DE EDUCAÇÃO', 'CAIXA ECONÔMICA FEDERAL', 'BNDES',
   'CONSELHO MUNICIPAL DE EDUCAÇÃO'
 ];
-
-const STATUS_LABELS: Record<DemandStatus, string> = {
-  pendente: 'Pendente',
-  analise: 'Em Análise',
-  concluido: 'Concluído',
-  rejeitado: 'Rejeitado'
-};
-
-const STATUS_STYLES: Record<DemandStatus, string> = {
-  pendente: 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/30 dark:text-amber-300 dark:border-amber-800/50',
-  analise: 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/30 dark:text-blue-300 dark:border-blue-800/50',
-  concluido: 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-300 dark:border-emerald-800/50',
-  rejeitado: 'bg-red-50 text-red-700 border-red-200 dark:bg-red-950/30 dark:text-red-300 dark:border-red-800/50'
-};
 
 const PRIORITIES: { value: DemandPriority; label: string; active: string }[] = [
   { value: 'baixa', label: 'Baixa', active: 'bg-slate-500 text-white shadow-xs' },
@@ -543,8 +530,7 @@ export default function NewDemandView({ municipalities, onAddDemand, onNavigateT
               <p className="text-sm text-slate-500 dark:text-slate-400">
                 Cadastre uma nova proposta de forma organizada e padronizada.
               </p>
-            </div>
-            <div className="flex flex-wrap items-center gap-2 shrink-0">
+            </div>            <div className="flex flex-wrap items-center gap-2 shrink-0">
               <button
                 type="button"
                 onClick={() => onNavigateToTab('dashboard')}
@@ -1017,8 +1003,8 @@ export default function NewDemandView({ municipalities, onAddDemand, onNavigateT
                 </div>
                 <div>
                   <p className="text-[9px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">Status</p>
-                  <span className={`inline-flex items-center px-2.5 py-1 rounded-full border text-[10px] font-bold ${STATUS_STYLES[status]}`}>
-                    {STATUS_LABELS[status]}
+                  <span className={`inline-flex items-center px-2.5 py-1 rounded-full border text-[10px] font-bold ${STATUS_BADGE_CLS[status]}`}>
+                    {statusLabel(status)}
                   </span>
                 </div>
                 <div>

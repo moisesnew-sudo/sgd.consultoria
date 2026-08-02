@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { KeyRound, ArrowLeft, CheckCircle, AlertCircle, Loader2, Eye, EyeOff, Mail } from 'lucide-react';
-import { passwordResetApi } from '../services/api';
+import { passwordResetApi } from '../../services/api';
 
 export default function ResetPasswordView({ onBack }: { onBack: () => void }) {
   const [step, setStep] = useState<'email' | 'token'>('email');

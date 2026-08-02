@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { Sparkles } from 'lucide-react';
-import { Demand } from '../types';
-import { buildPdfReport, ReportFilters } from './reports/pdfAutoReport';
+import { Demand } from '../../types';
+import { buildPdfReport, ReportFilters } from '../reports/pdfAutoReport';
+import { Spinner } from '../ui/Spinner';
 
 interface ReportFiltersInput {
   search?: string;
@@ -93,13 +94,7 @@ export default function ExecutiveReport({ demands, filters, reportType = 'execut
     }}>
       <div style={{ textAlign: 'center' }}>
         <div style={{ position: 'relative', width: 80, height: 80, margin: '0 auto 24px' }}>
-          <div style={{
-            width: 80, height: 80,
-            border: '3px solid rgba(32,201,151,0.2)',
-            borderTopColor: '#20C997',
-            borderRadius: '50%',
-            animation: 'rspin 1s linear infinite'
-          }} />
+          <Spinner size={80} className="text-[#20C997]" />
           <div style={{
             position: 'absolute', inset: 0,
             display: 'flex', alignItems: 'center', justifyContent: 'center'
@@ -109,7 +104,6 @@ export default function ExecutiveReport({ demands, filters, reportType = 'execut
         </div>
         <p style={{ color: 'white', fontSize: 18, fontWeight: 600, letterSpacing: '0.025em' }}>{msg}</p>
       </div>
-      <style>{`@keyframes rspin{to{transform:rotate(360deg)}}`}</style>
     </div>
   );
 }

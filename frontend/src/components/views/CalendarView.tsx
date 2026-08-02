@@ -5,11 +5,13 @@ import {
   PanelRight, Pencil, Trash2, Flag, Paperclip, User, MapPin, ListFilter, FilterX,
   RotateCcw, GripVertical, Bell, ShieldAlert, Hourglass, PlusCircle, Undo2, FileText
 } from 'lucide-react';
-import { demandsApi, formatDateShort } from '../services/api';
-import { useAuth } from '../contexts/AuthContext';
-import { useToast } from '../contexts/ToastContext';
-import { Demand, DemandStatus, DemandPriority } from '../types';
-import { Skeleton } from './ui/Skeleton';
+import { demandsApi, formatDateShort } from '../../services/api';
+import { useAuth } from '../../contexts/AuthContext';
+import { useToast } from '../../contexts/ToastContext';
+import { Demand, DemandStatus, DemandPriority } from '../../types';
+import { Skeleton } from '../ui/Skeleton';
+import { STATUS_LABELS, PRIORITY_LABELS } from '../../lib/demandMeta';
+import { StatusBadge, PageHeader, SummaryCard, Modal, FiltersDrawer, Select, Input } from '../ui';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -107,21 +109,6 @@ const TYPE_META: Record<EventType, { label: string; barCls: string; chip: string
     chip: 'bg-slate-100 text-slate-600 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700',
     dot: 'bg-slate-400'
   }
-};
-
-const STATUS_LABELS: Record<DemandStatus, string> = {
-  pendente: 'Pendente', analise: 'Em Análise', concluido: 'Concluído', rejeitado: 'Rejeitado'
-};
-
-const PRIORITY_LABELS: Record<DemandPriority, string> = {
-  baixa: 'Baixa', media: 'Média', alta: 'Alta', urgente: 'Urgente'
-};
-
-const STATUS_BADGE: Record<string, string> = {
-  pendente: 'bg-amber-100 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800/50',
-  analise: 'bg-blue-100 text-blue-700 border-blue-200 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-800/50',
-  concluido: 'bg-emerald-100 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800/50',
-  rejeitado: 'bg-red-100 text-red-700 border-red-200 dark:bg-red-950/40 dark:text-red-300 dark:border-red-800/50'
 };
 
 const COLOR_SWATCHES = [
@@ -234,51 +221,6 @@ const loadUserEvents = (): CalEvent[] => {
 // ---------------------------------------------------------------------------
 // Modal (genérico)
 // ---------------------------------------------------------------------------
-
-function Modal({
-  open, title, subtitle, onClose, children, footer
-}: {
-  open: boolean;
-  title: string;
-  subtitle?: string;
-  onClose: () => void;
-  children: React.ReactNode;
-  footer?: React.ReactNode;
-}) {
-  useEffect(() => {
-    if (!open) return;
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [open, onClose]);
-
-  if (!open) return null;
-
-  return (
-    <div className="fixed inset-0 z-[80] flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/40 backdrop-blur-xs animate-fade-in" onClick={onClose} />
-      <div className="relative w-full max-w-2xl max-h-[90vh] overflow-y-auto bg-white dark:bg-[#111a2e] rounded-2xl shadow-2xl animate-fade-in">
-        <div className="flex items-start justify-between gap-4 px-6 pt-5 pb-4 border-b border-slate-100 dark:border-slate-700/50">
-          <div>
-            <h3 className="text-base font-black text-slate-800 dark:text-white">{title}</h3>
-            {subtitle && <p className="text-[11px] text-slate-500 dark:text-slate-400">{subtitle}</p>}
-          </div>
-          <button
-            onClick={onClose}
-            aria-label="Fechar"
-            className="text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800"
-          >
-            <X size={18} />
-          </button>
-        </div>
-        <div className="px-6 py-5 space-y-4">{children}</div>
-        {footer && (
-          <div className="px-6 py-4 border-t border-slate-100 dark:border-slate-700/50 flex justify-end gap-2">{footer}</div>
-        )}
-      </div>
-    </div>
-  );
-}
 
 function Field({
   label, required, error, children, className = ''
@@ -1078,96 +1020,81 @@ export default function CalendarView({ onOpenDemand }: { onOpenDemand?: (demandI
   return (
     <div className="space-y-6">
       {/* HEADER */}
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-        <div>
-          <h2 className="text-2xl font-black tracking-tight text-slate-900 dark:text-white flex items-center gap-2">
-            <CalendarIcon className="text-blue-600 dark:text-blue-400" size={26} />
-            Calendário de Atividades
-          </h2>
-          <p className="text-sm text-slate-500 dark:text-slate-400">
-            Visualize, acompanhe e gerencie todas as atividades, prazos e demandas em um único lugar.
-          </p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <button
-            onClick={openFilters}
-            className={`flex items-center gap-2 px-3 py-2.5 rounded-xl border text-xs font-bold transition-colors ${
-              activeFilterCount > 0
-                ? 'bg-brand-50 dark:bg-brand-950/30 border-brand-300 dark:border-brand-800 text-brand-700 dark:text-brand-300'
-                : 'bg-white dark:bg-[#111a2e] border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800'
-            }`}
-          >
-            <SlidersHorizontal size={15} /> Filtros
-            {activeFilterCount > 0 && (
-              <span className="min-w-[18px] h-[18px] px-1 rounded-full bg-brand-600 text-white text-[9px] font-black flex items-center justify-center">
-                {activeFilterCount}
-              </span>
-            )}
-          </button>
-          <button
-            onClick={goToday}
-            className="px-3 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-[#111a2e] text-slate-700 dark:text-slate-200 text-xs font-bold hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
-          >
-            Hoje
-          </button>
-          <button
-            onClick={() => openNewEvent()}
-            className="flex items-center gap-2 px-3 py-2.5 rounded-xl bg-brand-600 hover:bg-brand-700 text-white text-xs font-bold shadow-sm transition-all"
-          >
-            <Plus size={15} /> Novo Evento
-          </button>
-          <button
-            onClick={() => setPanelOpen(p => !p)}
-            className={`lg:hidden p-2.5 rounded-xl border text-xs font-bold transition-colors ${
-              panelOpen
-                ? 'bg-brand-50 dark:bg-brand-950/30 border-brand-300 text-brand-700'
-                : 'bg-white dark:bg-[#111a2e] border-slate-200 dark:border-slate-700 text-slate-600'
-            }`}
-            title={panelOpen ? 'Ocultar painel' : 'Mostrar painel'}
-          >
-            <PanelRight size={15} />
-          </button>
-        </div>
-      </div>
+      <PageHeader
+        title="Calendário de Atividades"
+        subtitle="Visualize, acompanhe e gerencie todas as atividades, prazos e demandas em um único lugar."
+        icon={<CalendarIcon className="text-blue-600 dark:text-blue-400" size={26} />}
+        actions={
+          <>
+            <button
+              onClick={openFilters}
+              className={`flex items-center gap-2 px-3 py-2.5 rounded-xl border text-xs font-bold transition-colors ${
+                activeFilterCount > 0
+                  ? 'bg-brand-50 dark:bg-brand-950/30 border-brand-300 dark:border-brand-800 text-brand-700 dark:text-brand-300'
+                  : 'bg-white dark:bg-[#111a2e] border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800'
+              }`}
+            >
+              <SlidersHorizontal size={15} /> Filtros
+              {activeFilterCount > 0 && (
+                <span className="min-w-[18px] h-[18px] px-1 rounded-full bg-brand-600 text-white text-[9px] font-black flex items-center justify-center">
+                  {activeFilterCount}
+                </span>
+              )}
+            </button>
+            <button
+              onClick={goToday}
+              className="px-3 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-[#111a2e] text-slate-700 dark:text-slate-200 text-xs font-bold hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+            >
+              Hoje
+            </button>
+            <button
+              onClick={() => openNewEvent()}
+              className="flex items-center gap-2 px-3 py-2.5 rounded-xl bg-brand-600 hover:bg-brand-700 text-white text-xs font-bold shadow-sm transition-all"
+            >
+              <Plus size={15} /> Novo Evento
+            </button>
+            <button
+              onClick={() => setPanelOpen(p => !p)}
+              className={`lg:hidden p-2.5 rounded-xl border text-xs font-bold transition-colors ${
+                panelOpen
+                  ? 'bg-brand-50 dark:bg-brand-950/30 border-brand-300 text-brand-700'
+                  : 'bg-white dark:bg-[#111a2e] border-slate-200 dark:border-slate-700 text-slate-600'
+              }`}
+              title={panelOpen ? 'Ocultar painel' : 'Mostrar painel'}
+            >
+              <PanelRight size={15} />
+            </button>
+          </>
+        }
+      />
 
       {/* KPIs */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <div className="bg-white dark:bg-[#111a2e] border border-slate-100 dark:border-slate-700/50 rounded-2xl p-3.5 shadow-sm flex items-center gap-3">
-          <span className="w-9 h-9 shrink-0 rounded-xl bg-blue-50 dark:bg-blue-950/40 flex items-center justify-center">
-            <CalendarDays size={16} className="text-blue-600 dark:text-blue-400" />
-          </span>
-          <div className="min-w-0">
-            <p className="text-[9px] font-bold uppercase tracking-wider text-slate-400">Eventos do Mês</p>
-            <p className="text-lg font-black text-slate-800 dark:text-white leading-tight">{kpis.eventosMes}</p>
-          </div>
-        </div>
-        <div className="bg-white dark:bg-[#111a2e] border border-slate-100 dark:border-slate-700/50 rounded-2xl p-3.5 shadow-sm flex items-center gap-3">
-          <span className="w-9 h-9 shrink-0 rounded-xl bg-amber-50 dark:bg-amber-950/40 flex items-center justify-center">
-            <FolderKanban size={16} className="text-amber-600 dark:text-amber-400" />
-          </span>
-          <div className="min-w-0">
-            <p className="text-[9px] font-bold uppercase tracking-wider text-slate-400">Demandas Pendentes</p>
-            <p className="text-lg font-black text-slate-800 dark:text-white leading-tight">{kpis.pendentes}</p>
-          </div>
-        </div>
-        <div className="bg-white dark:bg-[#111a2e] border border-slate-100 dark:border-slate-700/50 rounded-2xl p-3.5 shadow-sm flex items-center gap-3">
-          <span className="w-9 h-9 shrink-0 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 flex items-center justify-center">
-            <CheckCircle2 size={16} className="text-emerald-600 dark:text-emerald-400" />
-          </span>
-          <div className="min-w-0">
-            <p className="text-[9px] font-bold uppercase tracking-wider text-slate-400">Demandas Concluídas</p>
-            <p className="text-lg font-black text-slate-800 dark:text-white leading-tight">{kpis.concluidas}</p>
-          </div>
-        </div>
-        <div className="bg-white dark:bg-[#111a2e] border border-slate-100 dark:border-slate-700/50 rounded-2xl p-3.5 shadow-sm flex items-center gap-3">
-          <span className={`w-9 h-9 shrink-0 rounded-xl flex items-center justify-center ${unreadCount > 0 ? 'bg-red-50 dark:bg-red-950/40' : 'bg-slate-100 dark:bg-slate-800'}`}>
-            <AlertTriangle size={16} className={unreadCount > 0 ? 'text-red-600 dark:text-red-400' : 'text-slate-400'} />
-          </span>
-          <div className="min-w-0">
-            <p className="text-[9px] font-bold uppercase tracking-wider text-slate-400">Alertas Ativos</p>
-            <p className={`text-lg font-black leading-tight ${unreadCount > 0 ? 'text-red-600 dark:text-red-400' : 'text-slate-800 dark:text-white'}`}>{unreadCount}</p>
-          </div>
-        </div>
+        <SummaryCard
+          label="Eventos do Mês"
+          value={kpis.eventosMes}
+          icon={<CalendarDays size={16} className="text-blue-600 dark:text-blue-400" />}
+          iconBgCls="bg-blue-50 dark:bg-blue-950/40"
+        />
+        <SummaryCard
+          label="Demandas Pendentes"
+          value={kpis.pendentes}
+          icon={<FolderKanban size={16} className="text-amber-600 dark:text-amber-400" />}
+          iconBgCls="bg-amber-50 dark:bg-amber-950/40"
+        />
+        <SummaryCard
+          label="Demandas Concluídas"
+          value={kpis.concluidas}
+          icon={<CheckCircle2 size={16} className="text-emerald-600 dark:text-emerald-400" />}
+          iconBgCls="bg-emerald-50 dark:bg-emerald-950/40"
+        />
+        <SummaryCard
+          label="Alertas Ativos"
+          value={unreadCount}
+          icon={<AlertTriangle size={16} className={unreadCount > 0 ? 'text-red-600 dark:text-red-400' : 'text-slate-400'} />}
+          iconBgCls={unreadCount > 0 ? 'bg-red-50 dark:bg-red-950/40' : 'bg-slate-100 dark:bg-slate-800'}
+          valueCls={`text-lg font-black leading-tight ${unreadCount > 0 ? 'text-red-600 dark:text-red-400' : 'text-slate-800 dark:text-white'}`}
+        />
       </div>
 
       {/* CONTENT */}
@@ -1518,108 +1445,52 @@ export default function CalendarView({ onOpenDemand }: { onOpenDemand?: (demandI
       </div>
 
       {/* FILTERS DRAWER */}
-      {filtersOpen && (
-        <div className="fixed inset-0 z-[70]">
-          <div className="absolute inset-0 bg-black/40 backdrop-blur-xs animate-fade-in" onClick={closeFilters} />
-          <aside
-            role="dialog"
-            aria-modal="true"
-            aria-label="Filtros do calendário"
-            className="absolute right-0 top-0 h-full w-full max-w-md bg-white dark:bg-[#111a2e] shadow-2xl animate-drawer flex flex-col"
-          >
-            <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 dark:border-slate-700/50 shrink-0">
-              <h3 className="text-sm font-black text-slate-800 dark:text-white flex items-center gap-2">
-                <SlidersHorizontal size={16} className="text-brand-600" /> Filtros
-              </h3>
-              <button
-                onClick={closeFilters}
-                aria-label="Fechar filtros"
-                className="text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800"
-              >
-                <X size={18} />
-              </button>
-            </div>
-
-            <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
-              <Field label="Pesquisar">
-                <input
-                  type="text"
-                  value={draft.search}
-                  onChange={e => setDraft({ ...draft, search: e.target.value })}
-                  placeholder="Título, município, proposta, responsável..."
-                  className={inputCls(false)}
-                />
-              </Field>
-
-              <div className="grid grid-cols-2 gap-3">
-                <Field label="Estado (UF)">
-                  <select value={draft.uf} onChange={e => setDraft({ ...draft, uf: e.target.value })} className={selectCls}>
-                    <option value="">Todas</option>
-                    {ufs.map(u => <option key={u} value={u}>{u}</option>)}
-                  </select>
-                </Field>
-                <Field label="Município">
-                  <select value={draft.municipality} onChange={e => setDraft({ ...draft, municipality: e.target.value })} className={selectCls}>
-                    <option value="">Todos</option>
-                    {municipalities.map(m => <option key={m} value={m}>{m}</option>)}
-                  </select>
-                </Field>
-                <Field label="Status">
-                  <select value={draft.status} onChange={e => setDraft({ ...draft, status: e.target.value })} className={selectCls}>
-                    <option value="">Todos</option>
-                    {Object.entries(STATUS_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-                  </select>
-                </Field>
-                <Field label="Responsável">
-                  <select value={draft.responsible} onChange={e => setDraft({ ...draft, responsible: e.target.value })} className={selectCls}>
-                    <option value="">Todos</option>
-                    {responsibles.map(r => <option key={r} value={r}>{r}</option>)}
-                  </select>
-                </Field>
-                <Field label="Ano">
-                  <select value={draft.ano} onChange={e => setDraft({ ...draft, ano: e.target.value })} className={selectCls}>
-                    <option value="">Todos</option>
-                    {years.map(y => <option key={y} value={y}>{y}</option>)}
-                  </select>
-                </Field>
-                <Field label="Tipo">
-                  <select value={draft.type} onChange={e => setDraft({ ...draft, type: e.target.value })} className={selectCls}>
-                    <option value="">Todos</option>
-                    {eventTypes.map(t => <option key={t} value={t}>{TYPE_META[t].label}</option>)}
-                  </select>
-                </Field>
-                <Field label="Criticidade">
-                  <select value={draft.priority} onChange={e => setDraft({ ...draft, priority: e.target.value })} className={selectCls}>
-                    <option value="">Todas</option>
-                    {Object.entries(PRIORITY_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-                  </select>
-                </Field>
-                <Field label="Período de">
-                  <input type="date" value={draft.from} onChange={e => setDraft({ ...draft, from: e.target.value })} className={selectCls} />
-                </Field>
-                <Field label="Período até">
-                  <input type="date" value={draft.to} onChange={e => setDraft({ ...draft, to: e.target.value })} className={selectCls} />
-                </Field>
-              </div>
-            </div>
-
-            <div className="px-5 py-4 border-t border-slate-100 dark:border-slate-700/50 flex gap-2 shrink-0">
-              <button
-                onClick={() => { setDraft(EMPTY_ADV); }}
-                className="px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 text-xs font-bold hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors flex items-center gap-1.5"
-              >
-                <FilterX size={14} /> Limpar
-              </button>
-              <button
-                onClick={applyFilters}
-                className="flex-1 px-4 py-2.5 rounded-xl bg-brand-600 hover:bg-brand-700 text-white font-bold text-xs uppercase tracking-wider shadow-sm transition-all flex items-center justify-center gap-1.5"
-              >
-                <Check size={14} /> Aplicar
-              </button>
-            </div>
-          </aside>
+      <FiltersDrawer
+        open={filtersOpen}
+        onClose={closeFilters}
+        onApply={applyFilters}
+        onClear={() => setDraft(EMPTY_ADV)}
+        title="Filtros do calendário"
+      >
+        <Input
+          label="Pesquisar"
+          value={draft.search}
+          onChange={e => setDraft({ ...draft, search: e.target.value })}
+          placeholder="Título, município, proposta, responsável..."
+        />
+        <div className="grid grid-cols-2 gap-3">
+          <Select label="Estado (UF)" value={draft.uf} onChange={e => setDraft({ ...draft, uf: e.target.value })}>
+            <option value="">Todas</option>
+            {ufs.map(u => <option key={u} value={u}>{u}</option>)}
+          </Select>
+          <Select label="Município" value={draft.municipality} onChange={e => setDraft({ ...draft, municipality: e.target.value })}>
+            <option value="">Todos</option>
+            {municipalities.map(m => <option key={m} value={m}>{m}</option>)}
+          </Select>
+          <Select label="Status" value={draft.status} onChange={e => setDraft({ ...draft, status: e.target.value })}>
+            <option value="">Todos</option>
+            {Object.entries(STATUS_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+          </Select>
+          <Select label="Responsável" value={draft.responsible} onChange={e => setDraft({ ...draft, responsible: e.target.value })}>
+            <option value="">Todos</option>
+            {responsibles.map(r => <option key={r} value={r}>{r}</option>)}
+          </Select>
+          <Select label="Ano" value={draft.ano} onChange={e => setDraft({ ...draft, ano: e.target.value })}>
+            <option value="">Todos</option>
+            {years.map(y => <option key={y} value={y}>{y}</option>)}
+          </Select>
+          <Select label="Tipo" value={draft.type} onChange={e => setDraft({ ...draft, type: e.target.value })}>
+            <option value="">Todos</option>
+            {eventTypes.map(t => <option key={t} value={t}>{TYPE_META[t].label}</option>)}
+          </Select>
+          <Select label="Criticidade" value={draft.priority} onChange={e => setDraft({ ...draft, priority: e.target.value })}>
+            <option value="">Todas</option>
+            {Object.entries(PRIORITY_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+          </Select>
+          <Input type="date" label="Período de" value={draft.from} onChange={e => setDraft({ ...draft, from: e.target.value })} />
+          <Input type="date" label="Período até" value={draft.to} onChange={e => setDraft({ ...draft, to: e.target.value })} />
         </div>
-      )}
+      </FiltersDrawer>
 
       {/* EVENT FORM MODAL */}
       <EventFormModal
@@ -1666,9 +1537,7 @@ export default function CalendarView({ onOpenDemand }: { onOpenDemand?: (demandI
                   {TYPE_META[selectedEvent.type].label}
                 </span>
                 {selectedEvent.status && (
-                  <span className={`px-2.5 py-1 rounded-full border text-[10px] font-bold ${STATUS_BADGE[selectedEvent.status] || STATUS_BADGE.pendente}`}>
-                    {STATUS_LABELS[selectedEvent.status as DemandStatus] || selectedEvent.status}
-                  </span>
+                  <StatusBadge status={selectedEvent.status as DemandStatus} className="px-2.5 py-1 rounded-full text-[10px]" />
                 )}
                 {selectedEvent.priority && (
                   <span className="px-2.5 py-1 rounded-full border text-[10px] font-bold bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-950/40 dark:text-purple-300 dark:border-purple-800/50">

@@ -1,31 +1,32 @@
 import React, { useState, useEffect, Suspense, lazy, useCallback } from 'react';
-import Sidebar from './components/Sidebar';
+import Sidebar from './components/layout/Sidebar';
 import { Header } from './components/ui/Header';
-import DemandsView from './components/DemandsView';
-import LoginView from './components/LoginView';
-import ResetPasswordView from './components/ResetPasswordView';
+import DemandsView from './components/views/DemandsView';
+import LoginView from './components/views/LoginView';
+import ResetPasswordView from './components/views/ResetPasswordView';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { ToastProvider } from './contexts/ToastContext';
 import { Demand, MunicipalityData } from './types';
 import { demandsApi, municipalitiesApi } from './services/api';
 import { Skeleton } from './components/ui/Skeleton';
+import { Spinner } from './components/ui/Spinner';
 import ErrorBoundary from './components/ui/ErrorBoundary';
 
-const DashboardView = lazy(() => import('./components/DashboardView'));
-const NewDemandView = lazy(() => import('./components/NewDemandView'));
-const MunicipalitiesView = lazy(() => import('./components/MunicipalitiesView'));
-const ReportsView = lazy(() => import('./components/ReportsView'));
-const SettingsView = lazy(() => import('./components/SettingsView'));
-const UsersView = lazy(() => import('./components/UsersView'));
-const CalendarView = lazy(() => import('./components/CalendarView'));
-const AuditView = lazy(() => import('./components/AuditView'));
-const AuditDashboardView = lazy(() => import('./components/AuditDashboardView'));
-const IntegrationView = lazy(() => import('./components/IntegrationView'));
-const SessionsView = lazy(() => import('./components/SessionsView'));
-const BackupManagementView = lazy(() => import('./components/BackupManagementView'));
-const MonitoringView = lazy(() => import('./components/MonitoringView'));
-const LgpdView = lazy(() => import('./components/LgpdView'));
-const InactivityWrapper = lazy(() => import('./components/InactivityWrapper'));
+const DashboardView = lazy(() => import('./components/views/DashboardView'));
+const NewDemandView = lazy(() => import('./components/views/NewDemandView'));
+const MunicipalitiesView = lazy(() => import('./components/views/MunicipalitiesView'));
+const ReportsView = lazy(() => import('./components/views/ReportsView'));
+const SettingsView = lazy(() => import('./components/views/SettingsView'));
+const UsersView = lazy(() => import('./components/views/UsersView'));
+const CalendarView = lazy(() => import('./components/views/CalendarView'));
+const AuditView = lazy(() => import('./components/views/AuditView'));
+const AuditDashboardView = lazy(() => import('./components/views/AuditDashboardView'));
+const IntegrationView = lazy(() => import('./components/views/IntegrationView'));
+const SessionsView = lazy(() => import('./components/views/SessionsView'));
+const BackupManagementView = lazy(() => import('./components/views/BackupManagementView'));
+const MonitoringView = lazy(() => import('./components/views/MonitoringView'));
+const LgpdView = lazy(() => import('./components/views/LgpdView'));
+const InactivityWrapper = lazy(() => import('./components/layout/InactivityWrapper'));
 
 function ViewFallback() {
   return (
@@ -130,7 +131,7 @@ function AppContent() {
   if (authLoading || isLoading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 dark:from-[#0a1628] dark:to-[#0b1120] flex flex-col items-center justify-center gap-4">
-        <div className="w-12 h-12 border-[3px] border-gov-200 dark:border-gov-800 border-t-gov-700 dark:border-t-gov-500 rounded-full animate-spin" />
+        <Spinner size={48} className="text-gov-700 dark:text-gov-500" />
         <div className="text-center">
           <div className="flex items-baseline gap-1 justify-center">
             <p className="text-base font-extrabold tracking-tight text-gov-900 dark:text-white">CGASI</p>
