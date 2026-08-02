@@ -1,7 +1,6 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState, useCallback, useRef } from 'react';
 import { CardSkeleton } from '../ui/Skeleton';
 import {
-  Calendar,
   Hourglass,
   CheckCircle2,
   AlertTriangle,
@@ -14,7 +13,8 @@ import {
   BarChart3,
   PieChart as PieIcon,
   Activity,
-  Trophy
+  Trophy,
+  RefreshCw,
 } from 'lucide-react';
 import {
   ResponsiveContainer,
@@ -33,6 +33,14 @@ import { Demand } from '../../types';
 import { demandsApi, formatCurrency, formatDate } from '../../services/api';
 import { Card, Kpi } from '../ui/Card';
 import { useAuth } from '../../contexts/AuthContext';
+import QuickActions from './dashboard/QuickActions';
+import ComparisonCard from './dashboard/ComparisonCard';
+import DeadlinesCard from './dashboard/DeadlinesCard';
+import AlertsPanel from './dashboard/AlertsPanel';
+import MiniCalendar from './dashboard/MiniCalendar';
+import QuickReports from './dashboard/QuickReports';
+import LatestDemands from './dashboard/LatestDemands';
+import { DashboardCalEvent } from './dashboard/types';
 
 interface DashboardViewProps {
   onNavigateToTab: (tab: string) => void;
@@ -58,6 +66,9 @@ const PRIORITY_COLOR: Record<string, string> = {
   baixa: '#94a3b8', media: '#3b82f6', alta: '#f59e0b', urgente: '#f43f5e',
 };
 
+const REFRESH_MS = 60000;
+const EVENTS_KEY = 'sgd_calendar_events_v1';
+
 const formatCompactCurrency = (value: number): string => {
   if (value >= 1e9) return `R$ ${(value / 1e9).toFixed(2)} bi`;
   if (value >= 1e6) return `R$ ${(value / 1e6).toFixed(2)} mi`;
@@ -77,31 +88,74 @@ const CustomPieTooltip = ({ active, payload }: any) => {
   );
 };
 
+const normalizeCalEvents = (data: any[]): DashboardCalEvent[] =>
+  (data || [])
+    .map((e: any) => ({
+      id: String(e.id || e.date || Math.random()),
+      title: e.title || 'Evento',
+      date: String(e.date || '').slice(0, 10),
+      type: e.type || 'outros',
+    }))
+    .filter(e => e.date);
+
+const loadUserCalEvents = (): DashboardCalEvent[] => {
+  try {
+    const raw = JSON.parse(localStorage.getItem(EVENTS_KEY) || '[]') as any[];
+    return raw
+      .map((e: any) => ({
+        id: String(e.id || Math.random()),
+        title: e.title || 'Evento',
+        date: String(e.date || '').slice(0, 10),
+        type: e.type || 'outros',
+      }))
+      .filter(e => e.date);
+  } catch {
+    return [];
+  }
+};
+
 export default function DashboardView({ onNavigateToTab, onSelectDemand }: DashboardViewProps) {
-  const { hasPermission } = useAuth();
+  const { user, hasPermission } = useAuth();
   const [demands, setDemands] = useState<Demand[]>([]);
+  const [prevDemands, setPrevDemands] = useState<Demand[]>([]);
+  const [calEvents, setCalEvents] = useState<DashboardCalEvent[]>(() => loadUserCalEvents());
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [yearFilter, setYearFilter] = useState<string>('all');
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const hasLoadedRef = useRef(false);
 
-  useEffect(() => {
-    loadAll();
-  }, [yearFilter]);
-
-  const loadAll = async () => {
+  const loadAll = useCallback(async () => {
     try {
-      setIsLoading(true);
-      const data = await demandsApi.getAll({
-        limit: 1000,
-        ano: yearFilter !== 'all' ? yearFilter : undefined,
-      });
-      setDemands(data.data);
+      const currentYear = String(new Date().getFullYear());
+      const selected = yearFilter !== 'all' ? yearFilter : currentYear;
+      const previous = String(Number(selected) - 1);
+      const [cur, prev, cal] = await Promise.all([
+        demandsApi.getAll({ limit: 1000, ano: selected }),
+        demandsApi.getAll({ limit: 1000, ano: previous }),
+        demandsApi.getCalendarEvents().catch(() => [] as any[]),
+      ]);
+      setDemands(cur.data);
+      setPrevDemands(prev.data);
+      setCalEvents([...loadUserCalEvents(), ...normalizeCalEvents(cal)]);
+      hasLoadedRef.current = true;
+      setError(null);
+      setLastUpdated(new Date());
     } catch (err: any) {
-      setError(err.message || 'Erro ao carregar dados do dashboard');
+      if (!hasLoadedRef.current) setError(err.message || 'Erro ao carregar dados do dashboard');
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [yearFilter]);
+
+  useEffect(() => {
+    loadAll();
+  }, [loadAll]);
+
+  useEffect(() => {
+    const id = setInterval(loadAll, REFRESH_MS);
+    return () => clearInterval(id);
+  }, [loadAll]);
 
   const metrics = useMemo(() => {
     const total = demands.length;
@@ -184,6 +238,18 @@ export default function DashboardView({ onNavigateToTab, onSelectDemand }: Dashb
       .slice(0, 5);
   }, [demands]);
 
+  const comparisonYears = useMemo(() => {
+    const selected = yearFilter !== 'all' ? Number(yearFilter) : new Date().getFullYear();
+    return { current: selected, previous: selected - 1 };
+  }, [yearFilter]);
+
+  const greeting = useMemo(() => {
+    const h = new Date().getHours();
+    const name = user?.name ? user.name.split(' ')[0] : '';
+    const period = h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite';
+    return `${period}${name ? `, ${name}` : ''}!`;
+  }, [user]);
+
   if (isLoading) {
     return (
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -210,22 +276,33 @@ export default function DashboardView({ onNavigateToTab, onSelectDemand }: Dashb
   const fmtPct = (n: number) => (metrics.total > 0 ? Math.round((n / metrics.total) * 100) : 0);
 
   return (
-    <div className="space-y-8" id="dashboard-view-root">
+    <div className="space-y-6" id="dashboard-view-root">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2 text-brand-600 dark:text-brand-400 text-xs font-bold uppercase tracking-widest">
             <span className="w-2 h-2 rounded-full bg-brand-500 animate-ping" />
-            Painel de Controle
+            Centro de Controle do SGD
           </div>
           <h2 className="text-2xl md:text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight mt-1">
             Visão Geral
           </h2>
           <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
-            {new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+            {greeting} Hoje é {new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}.
           </p>
         </div>
-        <div className="flex gap-2 items-center">
+        <div className="flex flex-wrap gap-2 items-center">
+          <span className="flex items-center gap-1.5 px-2.5 py-2 rounded-xl bg-white dark:bg-[#111a2e] border border-slate-200 dark:border-slate-700 text-[10px] font-semibold text-slate-500 dark:text-slate-400">
+            <Clock size={12} className="text-emerald-500" />
+            {lastUpdated ? `Atualizado às ${lastUpdated.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}` : 'Atualizando...'}
+          </span>
+          <button
+            onClick={loadAll}
+            title="Atualizar agora"
+            className="p-2.5 rounded-xl bg-white dark:bg-[#111a2e] border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-all"
+          >
+            <RefreshCw size={15} />
+          </button>
           <select
             value={yearFilter}
             onChange={(e) => setYearFilter(e.target.value)}
@@ -252,6 +329,9 @@ export default function DashboardView({ onNavigateToTab, onSelectDemand }: Dashb
           </button>
         </div>
       </div>
+
+      {/* Quick Actions */}
+      <QuickActions onNavigateToTab={onNavigateToTab} canCreate={hasPermission('demands.create')} />
 
       {/* KPI GRID */}
       <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
@@ -281,6 +361,65 @@ export default function DashboardView({ onNavigateToTab, onSelectDemand }: Dashb
           </button>
         </div>
       )}
+
+      {/* COMPARISON + DEADLINES */}
+      <section className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <ComparisonCard
+          current={demands}
+          previous={prevDemands}
+          currentYear={comparisonYears.current}
+          previousYear={comparisonYears.previous}
+        />
+        <DeadlinesCard demands={demands} onSelectDemand={onSelectDemand} onNavigateToTab={onNavigateToTab} />
+      </section>
+
+      {/* CALENDAR + ALERTS + QUICK REPORTS */}
+      <section className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <MiniCalendar events={calEvents} onNavigateToTab={onNavigateToTab} />
+        <AlertsPanel demands={demands} events={calEvents} onNavigateToTab={onNavigateToTab} />
+        <QuickReports onNavigateToTab={onNavigateToTab} />
+      </section>
+
+      {/* LATEST DEMANDS + RECENT ACTIVITY */}
+      <section className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <LatestDemands demands={demands} onSelectDemand={onSelectDemand} onNavigateToTab={onNavigateToTab} />
+
+        <Card title="Atividade Recente" subtitle="Últimas atualizações" icon={<Clock size={18} />}
+          action={
+            <button onClick={() => onNavigateToTab('demands')} className="text-xs font-semibold text-brand-600 dark:text-brand-400 hover:underline flex items-center gap-1">
+              Ver todas <ArrowRight size={14} />
+            </button>
+          }
+        >
+          {recentEvents.length === 0 ? (
+            <div className="p-8 text-center text-slate-400 text-xs">Nenhuma atividade recente encontrada.</div>
+          ) : (
+            <div className="relative border-l-2 border-slate-100 dark:border-slate-700 ml-3 pl-6 space-y-5">
+              {recentEvents.map((evt) => (
+                <div key={evt.id} className="relative group cursor-pointer" onClick={() => { onSelectDemand({ id: evt.demandId } as Demand); }}>
+                  <span className="absolute -left-[31px] top-1.5 w-4 h-4 rounded-full border-2 border-white dark:border-[#111a2e] bg-brand-600 shadow-sm" />
+                  <div className="space-y-1">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between text-xs gap-1">
+                      <span className="font-bold text-slate-800 dark:text-slate-100 group-hover:text-brand-700 dark:group-hover:text-brand-300 transition-colors">{evt.title}</span>
+                      <span className="text-[10px] text-slate-400 font-mono bg-slate-50 dark:bg-slate-800 px-2 py-0.5 rounded">{formatDate(evt.created_at)}</span>
+                    </div>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 font-mono">Demanda: <strong className="text-slate-700 dark:text-slate-200">{evt.demandId}</strong> | {evt.demandTitle}</p>
+                    <div className="flex items-center gap-2 text-[10px] text-slate-400 mt-1">
+                      <span>Por: <strong>{evt.user_name}</strong></span>
+                      {evt.status_changed_to && (
+                        <>
+                          <span>•</span>
+                          <span className="text-brand-600 dark:text-brand-400 bg-brand-50 dark:bg-brand-900/40 px-1.5 py-0.2 rounded font-semibold uppercase">Status: {STATUS_LABEL[evt.status_changed_to]}</span>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </Card>
+      </section>
 
       {/* SECONDARY KPIs */}
       <section className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -385,8 +524,6 @@ export default function DashboardView({ onNavigateToTab, onSelectDemand }: Dashb
         </Card>
       </section>
 
-
-
       {/* RANKINGS */}
       <section className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <Card title="Ranking de Municípios" subtitle="Por volume de demandas" icon={<Trophy size={18} />}>
@@ -423,45 +560,6 @@ export default function DashboardView({ onNavigateToTab, onSelectDemand }: Dashb
               </div>
             ))}
           </div>
-        </Card>
-      </section>
-
-      {/* RECENT ACTIVITY */}
-      <section>
-        <Card title="Atividade Recente" subtitle="Últimas atualizações" icon={<Clock size={18} />}
-          action={
-            <button onClick={() => onNavigateToTab('demands')} className="text-xs font-semibold text-brand-600 dark:text-brand-400 hover:underline flex items-center gap-1">
-              Ver todas <ArrowRight size={14} />
-            </button>
-          }
-        >
-          {recentEvents.length === 0 ? (
-            <div className="p-8 text-center text-slate-400 text-xs">Nenhuma atividade recente encontrada.</div>
-          ) : (
-            <div className="relative border-l-2 border-slate-100 dark:border-slate-700 ml-3 pl-6 space-y-5">
-              {recentEvents.map((evt) => (
-                <div key={evt.id} className="relative group cursor-pointer" onClick={() => { onSelectDemand({ id: evt.demandId } as Demand); }}>
-                  <span className="absolute -left-[31px] top-1.5 w-4 h-4 rounded-full border-2 border-white dark:border-[#111a2e] bg-brand-600 shadow-sm" />
-                  <div className="space-y-1">
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between text-xs gap-1">
-                      <span className="font-bold text-slate-800 dark:text-slate-100 group-hover:text-brand-700 dark:group-hover:text-brand-300 transition-colors">{evt.title}</span>
-                      <span className="text-[10px] text-slate-400 font-mono bg-slate-50 dark:bg-slate-800 px-2 py-0.5 rounded">{formatDate(evt.created_at)}</span>
-                    </div>
-                    <p className="text-xs text-slate-500 dark:text-slate-400 font-mono">Demanda: <strong className="text-slate-700 dark:text-slate-200">{evt.demandId}</strong> | {evt.demandTitle}</p>
-                    <div className="flex items-center gap-2 text-[10px] text-slate-400 mt-1">
-                      <span>Por: <strong>{evt.user_name}</strong></span>
-                      {evt.status_changed_to && (
-                        <>
-                          <span>•</span>
-                          <span className="text-brand-600 dark:text-brand-400 bg-brand-50 dark:bg-brand-900/40 px-1.5 py-0.2 rounded font-semibold uppercase">Status: {STATUS_LABEL[evt.status_changed_to]}</span>
-                        </>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
         </Card>
       </section>
     </div>
