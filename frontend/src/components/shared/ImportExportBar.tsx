@@ -367,7 +367,7 @@ export default function ImportExportBar({ rows, filters, onImported }: ImportExp
     a.download = `sgd-demandas-${now.toISOString().slice(0, 10)}.xlsx`;
     a.click();
     URL.revokeObjectURL(url);
-    logExport('excel', rows.length, filters);
+    logExport('excel', rows.length, filters, rows.map(r => r.id));
   };
 
   const exportCsv = () => {
@@ -385,7 +385,7 @@ export default function ImportExportBar({ rows, filters, onImported }: ImportExp
     a.download = `sgd-demandas-${new Date().toISOString().slice(0, 10)}.csv`;
     a.click();
     URL.revokeObjectURL(url);
-    logExport('csv', rows.length, filters);
+    logExport('csv', rows.length, filters, rows.map(r => r.id));
   };
 
   const exportPdf = async () => {
@@ -397,7 +397,7 @@ export default function ImportExportBar({ rows, filters, onImported }: ImportExp
       mode: 'compact',
       fileName: `sgd-demandas-${new Date().toISOString().slice(0, 10)}.pdf`,
     });
-    logExport('pdf', rows.length, filters);
+    logExport('pdf', rows.length, filters, rows.map(r => r.id));
   };
 
   const exportFullReport = async () => {
@@ -411,7 +411,7 @@ export default function ImportExportBar({ rows, filters, onImported }: ImportExp
       title: 'RELATÓRIO EXECUTIVO DE DEMANDAS',
       fileName: `sgd-relatorio-executivo-${new Date().toISOString().slice(0, 10)}.pdf`,
     });
-    logExport('pdf', rows.length, filters);
+    logExport('pdf', rows.length, filters, rows.map(r => r.id));
   };
 
   const printPdf = async () => {

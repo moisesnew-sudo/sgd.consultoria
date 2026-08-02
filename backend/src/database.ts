@@ -317,6 +317,8 @@ export async function initDatabase() {
     ALTER TABLE users ADD COLUMN IF NOT EXISTS tenant_id INTEGER DEFAULT 1;
     ALTER TABLE municipalities ADD COLUMN IF NOT EXISTS tenant_id INTEGER DEFAULT 1;
     ALTER TABLE timeline_events ADD COLUMN IF NOT EXISTS tenant_id INTEGER DEFAULT 1;
+    ALTER TABLE timeline_events ADD COLUMN IF NOT EXISTS event_type TEXT DEFAULT 'note';
+    ALTER TABLE timeline_events ADD COLUMN IF NOT EXISTS details JSONB;
     ALTER TABLE comments ADD COLUMN IF NOT EXISTS tenant_id INTEGER DEFAULT 1;
     ALTER TABLE attachments ADD COLUMN IF NOT EXISTS tenant_id INTEGER DEFAULT 1;
     ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS tenant_id INTEGER DEFAULT 1;

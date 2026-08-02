@@ -70,6 +70,17 @@ async function saveDemandVersion(demandId: string, snapshot: any, changedBy: num
   );
 }
 
+async function logStatusChange(demandId: string, from: string, to: string, userName: string) {
+  await addTimelineEvent(demandId, 'Status Alterado',
+    `Status alterado de "${from}" para "${to}" por ${userName}`,
+    userName, to, 'status_changed', { from, to });
+  if (to === 'concluido') {
+    await addTimelineEvent(demandId, 'Demanda Concluída',
+      `Demanda concluída por ${userName}`,
+      userName, to, 'concluded', { from, to });
+  }
+}
+
 // ✅ CORREÇÃO: Geração segura de ID usando crypto.randomUUID()
 function generateDemandId(organ: string, year: number): string {
   const shortUuid = crypto.randomUUID().replace(/-/g, '').slice(0, 8).toUpperCase();
@@ -246,7 +257,9 @@ router.post('/', authenticateToken, requirePermission('demands.create'), async (
        data.responsible_email || req.user!.email, data.responsible_phone || '', data.notes || '',
        req.user!.id, now, now, anoVal]
     );
-    await addTimelineEvent(id, 'Demanda Cadastrada', `Demanda criada por ${req.user!.name}`, req.user!.name, data.status || 'pendente');
+    await addTimelineEvent(id, 'Demanda Cadastrada', `Demanda criada por ${req.user!.name}`, req.user!.name, data.status || 'pendente', 'created', {
+      status: data.status || 'pendente', municipality: data.municipality, uf: data.uf, requested_value: data.requested_value || 0
+    });
     await run(
       'UPDATE municipalities SET demands_count = demands_count + 1, total_value = total_value + $1, updated_at = NOW() WHERE name = $2 AND uf = $3',
       [data.requested_value || 0, data.municipality, data.uf]
@@ -284,11 +297,15 @@ router.put('/:id', authenticateToken, requirePermission('demands.edit'), async (
     const result = buildUpdateQuery('demands', data, 'id', req.params.id as string);
     if (result) {
       await run(result.sql, result.values);
+      const changedFields = Object.keys(data).filter(k => k !== 'status');
       if (data.status && data.status !== existing.status) {
-        const user = await get<{ name: string }>('SELECT name FROM users WHERE id = $1', [req.user!.id]);
-        await addTimelineEvent(req.params.id as string, 'Status Alterado',
-          `Status alterado de "${existing.status}" para "${data.status}" por ${user?.name || req.user!.name}`,
-          user?.name || req.user!.name, data.status);
+        await logStatusChange(req.params.id as string, existing.status, data.status, req.user!.name);
+      }
+      if (changedFields.length > 0) {
+        await addTimelineEvent(req.params.id as string, 'Demanda Editada',
+          `Demanda editada por ${req.user!.name}${changedFields.length > 0 ? ` (campos: ${changedFields.join(', ')})` : ''}`,
+          req.user!.name, data.status && data.status !== existing.status ? data.status : undefined,
+          'updated', { changed: changedFields });
       }
     }
     const updated = await get('SELECT * FROM demands WHERE id = $1 AND deleted_at IS NULL', [req.params.id as string]);
@@ -318,6 +335,9 @@ router.delete('/:id', authenticateToken, requirePermission('demands.delete'), as
     const demand = await get('SELECT * FROM demands WHERE id = $1 AND deleted_at IS NULL', [req.params.id as string]);
     if (!demand) return res.status(404).json({ error: 'Demanda não encontrada' });
     await run('UPDATE demands SET deleted_at = NOW(), deleted_by = $1 WHERE id = $2', [req.user!.id, req.params.id as string]);
+    await addTimelineEvent(req.params.id as string, 'Demanda Excluída', `Demanda excluída por ${req.user!.name}`, req.user!.name, demand.status, 'deleted', {
+      status: demand.status, municipality: demand.municipality, uf: demand.uf
+    });
     await run(
       'UPDATE municipalities SET demands_count = GREATEST(demands_count - 1, 0), total_value = GREATEST(total_value - $1, 0), updated_at = NOW() WHERE name = $2 AND uf = $3',
       [demand.requested_value, demand.municipality, demand.uf]
@@ -345,7 +365,7 @@ router.post('/:id/restore', authenticateToken, requirePermission('demands.delete
       'UPDATE municipalities SET demands_count = demands_count + 1, total_value = total_value + $1, updated_at = NOW() WHERE name = $2 AND uf = $3',
       [demand.requested_value, demand.municipality, demand.uf]
     );
-    await addTimelineEvent(req.params.id as string, 'Demanda Restaurada', `Demanda restaurada por ${req.user!.name}`, req.user!.name, demand.status);
+    await addTimelineEvent(req.params.id as string, 'Demanda Restaurada', `Demanda restaurada por ${req.user!.name}`, req.user!.name, demand.status, 'restored');
     await logAudit({
       entity_type: 'demand', entity_id: req.params.id as string, action: 'restore',
       user_id: req.user!.id, user_name: req.user!.name,
@@ -367,9 +387,17 @@ router.post('/:id/timeline', authenticateToken, requirePermission('demands.edit'
     if (!demand) return res.status(404).json({ error: 'Demanda não encontrada' });
     const data = timelineEventSchema.parse(req.body);
     const eventId = await addTimelineEvent(req.params.id as string, data.title,
-      data.description || 'Nenhuma descrição informada.', req.user!.name, data.status_changed_to);
+      data.description || 'Nenhuma descrição informada.', req.user!.name,
+      data.status_changed_to,
+      data.status_changed_to ? 'status_changed' : 'note',
+      data.status_changed_to ? { from: demand.status, to: data.status_changed_to } : null);
     if (data.status_changed_to) {
       await run('UPDATE demands SET status = $1, updated_at = NOW() WHERE id = $2', [data.status_changed_to, req.params.id as string]);
+      if (data.status_changed_to === 'concluido') {
+        await addTimelineEvent(req.params.id as string, 'Demanda Concluída',
+          `Demanda concluída por ${req.user!.name}`,
+          req.user!.name, 'concluido', 'concluded', { from: demand.status, to: 'concluido' });
+      }
     }
     const event = await get('SELECT * FROM timeline_events WHERE id = $1', [eventId]);
     res.status(201).json(event);

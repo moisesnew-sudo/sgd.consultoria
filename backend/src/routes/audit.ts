@@ -123,11 +123,11 @@ router.get('/dashboard-stats', authenticateToken, requireRole('admin'), async (r
 router.post('/log-export', authenticateToken, async (req: Request, res: Response) => {
   try {
     const { ip_address } = extractMeta(req);
-    const { export_type, record_count, filters } = req.body;
+    const { export_type, record_count, filters, demand_ids } = req.body;
     if (!['pdf', 'excel', 'csv'].includes(export_type)) {
       return res.status(400).json({ error: 'Tipo de exportação inválido' });
     }
-    await logExport(req, req.user!, export_type, record_count || 0, filters);
+    await logExport(req, req.user!, export_type, record_count || 0, filters, Array.isArray(demand_ids) ? demand_ids : undefined);
     res.json({ message: 'Exportação registrada' });
   } catch (error) {
     logger.error('Log export error:', error);

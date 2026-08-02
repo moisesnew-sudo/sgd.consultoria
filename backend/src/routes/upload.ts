@@ -137,7 +137,8 @@ router.post('/demands/:id/attachments', authenticateToken, requirePermission('de
       }
 
       await addTimelineEvent(req.params.id as string, 'Arquivos Anexados',
-        `${files.length} arquivo(s) anexado(s) por ${req.user!.name}`, req.user!.name);
+        `${files.length} arquivo(s) anexado(s) por ${req.user!.name}`, req.user!.name, undefined, 'attachment',
+        { file_count: files.length, file_names: files.map(f => f.originalname) });
 
       await logAudit({
         entity_type: 'demand', entity_id: req.params.id as string, action: 'upload',

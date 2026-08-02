@@ -34,7 +34,6 @@ import {
 import { Demand, DemandStatus, DemandPriority, TimelineEvent, PaginatedResponse } from '../../types';
 import { demandsApi, formatCurrency, formatDate } from '../../services/api';
 import { formatCurrencyInput, parseCurrencyInput } from '../../lib/currency';
-import { statusLabel } from '../../lib/demandMeta';
 import { StatusBadge, PriorityBadge, PageHeader, SummaryCard, EmptyState, FiltersDrawer, Select, Input, SmartSearchInput, Highlight } from '../ui';
 import { ConfirmModal } from '../ui/ConfirmModal';
 import { useAuth } from '../../contexts/AuthContext';
@@ -46,6 +45,7 @@ import { summarizeDemand, suggestPriority, findSimilar, parseNaturalLanguage } f
 import { parseFieldQuery, matchesQuery, buildSuggestions } from '../../lib/search';
 const ImportExportBar = lazy(() => import('../shared/ImportExportBar'));
 import DemandHistory from '../shared/DemandHistory';
+import DemandTimeline from '../shared/DemandTimeline';
 
 interface DemandsViewProps {
   demands: Demand[];
@@ -147,6 +147,9 @@ export default function DemandsView({
         ...detailedDemand,
         attachments: [...(detailedDemand.attachments || []), ...uploaded]
       });
+      demandsApi.getById(detailedDemand.id).then((fresh) => {
+        setDetailedDemand(prev => (prev && prev.id === fresh.id ? fresh : prev));
+      }).catch(() => { /* mantém estado local */ });
       toast('success', 'Upload concluído', `${uploaded.length} arquivo(s) anexado(s)`);
     } catch (error: any) {
       toast('error', 'Erro no upload', error?.message || 'Erro ao enviar arquivos');
@@ -445,6 +448,14 @@ export default function DemandsView({
       setDetailedDemand(updatedDemand);
       onUpdateDemand(updatedDemand);
 
+      // Sincroniza timeline completa (ex.: conclusão gera eventos extras no servidor)
+      if (newEventStatus !== 'no-change') {
+        demandsApi.getById(detailedDemand.id).then((fresh) => {
+          setDetailedDemand(prev => (prev && prev.id === fresh.id ? fresh : prev));
+          onUpdateDemand(fresh);
+        }).catch(() => { /* mantém estado local */ });
+      }
+
       // Clear form
       setNewEventTitle('');
       setNewEventDesc('');
@@ -483,6 +494,10 @@ export default function DemandsView({
         ...detailedDemand,
         comments: [...(detailedDemand.comments || []), comment],
       });
+      demandsApi.getById(detailedDemand.id).then((fresh) => {
+        setDetailedDemand(prev => (prev && prev.id === fresh.id ? fresh : prev));
+        onUpdateDemand(fresh);
+      }).catch(() => { /* mantém estado local */ });
       setNewComment('');
       toast('success', 'Comentário adicionado');
     } catch (error) {
@@ -1448,33 +1463,7 @@ export default function DemandsView({
                   )}
 
                   {/* Timeline */}
-                  <div className="relative border-l-2 border-slate-100 ml-2 pl-4 space-y-4">
-                    {(detailedDemand.timeline || []).map((item) => (
-                      <div key={item.id} className="relative group text-xs text-slate-600">
-                        <span className="absolute -left-[23px] top-1 w-3 h-3 rounded-full border-2 border-white bg-slate-900 shadow-xs" />
-                        <div className="space-y-0.5">
-                          <div className="flex justify-between items-center text-[10px]">
-                            <strong className="text-slate-800 font-bold">{item.title}</strong>
-                            <span className="text-[9px] text-slate-400 font-mono bg-slate-50 px-1.5 py-0.2 rounded">
-                              {formatDate(item.created_at)}
-                            </span>
-                          </div>
-                          <p className="text-slate-500 text-[11px] leading-relaxed">{item.description}</p>
-                          <div className="text-[9px] text-slate-400 flex items-center gap-1">
-                            <span>Agente: <strong>{item.user_name}</strong></span>
-                            {item.status_changed_to && (
-                              <>
-                                <span>•</span>
-                                <span className="text-blue-700 bg-blue-50 font-semibold uppercase px-1.5 rounded">
-                                  Novo Status: {statusLabel(item.status_changed_to)}
-                                </span>
-                              </>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
+                  <DemandTimeline events={detailedDemand.timeline || []} />
                 </div>
 
                 {/* Right Side: Attachments & Notes */}

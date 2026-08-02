@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { get, all, run } from '../database.js';
 import { authenticateToken, requirePermission } from '../middleware/auth.js';
 import { logAudit } from '../lib/audit.js';
+import { addTimelineEvent } from '../lib/helpers.js';
 import { logger } from '../lib/logger.js';
 
 const router = Router();
@@ -45,6 +46,8 @@ router.post('/:id/comments', authenticateToken, requirePermission('demands.edit'
       [req.params.id as string, req.user!.id, req.user!.name, body]
     );
     const comment = result.rows[0];
+    await addTimelineEvent(req.params.id as string, 'Comentário Adicionado',
+      body.substring(0, 160), req.user!.name, undefined, 'comment', { comment_id: comment.id });
     await logAudit({
       entity_type: 'demand', entity_id: req.params.id as string, action: 'comment',
       user_id: req.user!.id, user_name: req.user!.name, details: { body: body.substring(0, 80) }

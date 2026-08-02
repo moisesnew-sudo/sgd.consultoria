@@ -44,6 +44,10 @@ export interface MunicipalityData {
   region: Region;
 }
 
+export type TimelineEventType =
+  | 'created' | 'updated' | 'status_changed' | 'concluded' | 'comment'
+  | 'attachment' | 'export' | 'deleted' | 'restored' | 'note';
+
 export interface TimelineEvent {
   id: string;
   demand_id: string;
@@ -51,6 +55,8 @@ export interface TimelineEvent {
   description: string;
   user_name: string;
   status_changed_to?: DemandStatus;
+  event_type?: TimelineEventType;
+  details?: Record<string, any> | null;
   created_at: string;
 }
 

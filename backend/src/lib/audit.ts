@@ -1,4 +1,5 @@
 import { run } from '../database.js';
+import { addTimelineEvent } from './helpers.js';
 import { logger } from './logger.js';
 
 export interface AuditEntry {
@@ -65,7 +66,7 @@ export async function logAudit(entry: AuditEntry): Promise<void> {
   }
 }
 
-export async function logExport(req: any, user: any, exportType: string, recordCount: number, filters?: any): Promise<void> {
+export async function logExport(req: any, user: any, exportType: string, recordCount: number, filters?: any, demandIds?: string[]): Promise<void> {
   try {
     const { ip_address } = extractMeta(req);
     await run(
@@ -73,6 +74,15 @@ export async function logExport(req: any, user: any, exportType: string, recordC
        VALUES ($1, $2, $3, $4, $5, $6)`,
       [user.id, user.name, exportType, recordCount, filters ? JSON.stringify(filters) : null, ip_address]
     );
+    const ids = (demandIds || []).slice(0, 50);
+    if (ids.length > 0) {
+      const typeLabel = exportType === 'pdf' ? 'PDF' : exportType === 'excel' ? 'Excel' : 'CSV';
+      for (const id of ids) {
+        await addTimelineEvent(id, 'Exportação Registrada',
+          `Dados exportados em ${typeLabel} por ${user.name} (${recordCount} registro(s))`,
+          user.name, undefined, 'export', { export_type: exportType, record_count: recordCount });
+      }
+    }
   } catch (err) {
     logger.error('Export log error (non-fatal):', err);
   }

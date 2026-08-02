@@ -340,11 +340,11 @@ export const demandsApi = {
 };
 
 // Export logging
-export const logExport = async (exportType: 'pdf' | 'excel' | 'csv', recordCount: number, filters?: any) => {
+export const logExport = async (exportType: 'pdf' | 'excel' | 'csv', recordCount: number, filters?: any, demandIds?: string[]) => {
   try {
     await request('/audit/log-export', {
       method: 'POST',
-      body: JSON.stringify({ export_type: exportType, record_count: recordCount, filters }),
+      body: JSON.stringify({ export_type: exportType, record_count: recordCount, filters, demand_ids: demandIds }),
     });
   } catch { /* non-critical */ }
 };
