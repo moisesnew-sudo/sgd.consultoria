@@ -7,6 +7,7 @@ import {
 import { auditApi, formatDate } from '../../services/api';
 import { AuditLog } from '../../types';
 import { Input, Select, FiltersDrawer } from '../ui';
+import { ENTITY_LABELS, ENTITY_OPTIONS, AUDIT_ACTION_LABELS, AUDIT_ACTION_OPTIONS, STATUS_LABELS, PRIORITY_LABELS } from '../../lib/demandMeta';
 
 const ACTION_CONFIG: Record<string, { label: string; verb: string; icon: React.ReactNode; color: string; bg: string; ring: string }> = {
   create:           { label: 'Criação',           verb: 'cadastrou',       icon: <PlusCircle size={14} />,   color: 'text-emerald-600', bg: 'bg-emerald-100 dark:bg-emerald-900/40', ring: 'ring-emerald-500/20' },
@@ -21,14 +22,6 @@ const ACTION_CONFIG: Record<string, { label: string; verb: string; icon: React.R
   export:           { label: 'Exportação',        verb: 'exportou dados de', icon: <Download size={14} />,    color: 'text-teal-600',    bg: 'bg-teal-100 dark:bg-teal-900/40',     ring: 'ring-teal-500/20' },
   update_permissions: { label: 'Permissões',      verb: 'alterou permissões de', icon: <Shield size={14} />,  color: 'text-orange-600',  bg: 'bg-orange-100 dark:bg-orange-900/40', ring: 'ring-orange-500/20' },
 };
-
-const ENTITY_LABELS: Record<string, string> = {
-  demand: 'Demanda', user: 'Usuário', session: 'Sessão', backup: 'Backup',
-  export_log: 'Exportação', export: 'Exportação', settings: 'Configuração', timeline: 'Timeline'
-};
-
-const ENTITY_OPTIONS = ['demand', 'user', 'session', 'backup', 'export', 'settings'];
-const ACTION_OPTIONS = ['create', 'update', 'delete', 'restore', 'comment', 'login', 'login_failed', 'upload', 'export', 'update_permissions'];
 const PAGE_SIZE = 100;
 
 function getAvatarColor(name: string): string {
@@ -77,18 +70,10 @@ const FIELD_LABELS: Record<string, string> = {
   title: 'Título', description: 'Descrição', category: 'Categoria'
 };
 
-const STATUS_LABELS: Record<string, string> = {
-  pendente: 'Pendente', analise: 'Em Análise', concluido: 'Concluído', rejeitado: 'Rejeitado'
-};
-
-const PRIORITY_LABELS: Record<string, string> = {
-  baixa: 'Baixa', media: 'Média', alta: 'Alta', urgente: 'Urgente'
-};
-
 function formatFieldValue(field: string, value: any): string {
   if (value === null || value === undefined) return '—';
-  if (field === 'status') return STATUS_LABELS[value] || value;
-  if (field === 'priority') return PRIORITY_LABELS[value] || value;
+  if (field === 'status') return STATUS_LABELS[value as keyof typeof STATUS_LABELS] || value;
+  if (field === 'priority') return PRIORITY_LABELS[value as keyof typeof PRIORITY_LABELS] || value;
   if (field === 'value' || field === 'requested_value') {
     const num = Number(value);
     return isNaN(num) ? String(value) : `R$ ${num.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
@@ -530,7 +515,7 @@ export default function AuditTimeline({ embedded = false, compact = false, maxIt
         </Select>
         <Select label="Ação" value={draft.action} onChange={e => setDraft(prev => ({ ...prev, action: e.target.value }))}>
           <option value="all">Todas as ações</option>
-          {ACTION_OPTIONS.map(a => <option key={a} value={a}>{ACTION_CONFIG[a]?.label || a}</option>)}
+          {AUDIT_ACTION_OPTIONS.map(a => <option key={a} value={a}>{AUDIT_ACTION_LABELS[a] || a}</option>)}
         </Select>
         <Select label="Usuário" value={draft.userName} onChange={e => setDraft(prev => ({ ...prev, userName: e.target.value }))}>
           <option value="all">Todos os usuários</option>

@@ -124,10 +124,6 @@ export function signRefreshToken(userId: number, family: string): string {
   });
 }
 
-export function getTokenExpiry(secondsFromNow: number): Date {
-  return new Date(Date.now() + secondsFromNow * 1000);
-}
-
 export const authenticateRefreshToken = async (req: Request, res: Response, next: NextFunction) => {
   const refreshToken = req.cookies?.refresh_token || req.body?.refreshToken;
   if (!refreshToken) {
@@ -166,16 +162,4 @@ export const authenticateRefreshToken = async (req: Request, res: Response, next
   } catch (error) {
     return res.status(401).json({ error: 'Refresh token inválido ou expirado' });
   }
-};
-
-export const optionalAuth = (req: Request, res: Response, next: NextFunction) => {
-  const token = req.cookies?.token || req.headers['authorization']?.split(' ')[1];
-  if (token) {
-    try {
-      const decoded = jwt.verify(token, JWT_SECRET!) as UserResponse;
-      req.user = decoded;
-    } catch (error) {
-    }
-  }
-  next();
 };

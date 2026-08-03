@@ -8,23 +8,6 @@ export type DemandPriority = (typeof DEMAND_PRIORITIES)[number];
 export type UserRole = (typeof USER_ROLES)[number];
 export type Region = (typeof REGIONS)[number];
 
-export interface TokenPair {
-  accessToken: string;
-  refreshToken: string;
-  expiresIn: number;
-}
-
-export interface RefreshToken {
-  id: number;
-  user_id: number;
-  token_hash: string;
-  family: string;
-  expires_at: string;
-  revoked: boolean;
-  created_at: string;
-  replaced_by?: string;
-}
-
 export interface User {
   id: number;
   email: string;
@@ -54,16 +37,6 @@ export interface MunicipalityData {
   population: number;
   hdi: number;
   region: Region;
-}
-
-export interface TimelineEvent {
-  id: string;
-  demand_id: string;
-  title: string;
-  description: string;
-  user_name: string;
-  status_changed_to?: DemandStatus;
-  created_at: string;
 }
 
 export interface Attachment {
@@ -103,23 +76,8 @@ export interface Demand {
   created_at: string;
   updated_at: string;
   ano?: number;
-  timeline?: TimelineEvent[];
+  timeline?: { id: string; demand_id: string; title: string; description: string; user_name: string; status_changed_to?: DemandStatus; created_at: string }[];
   attachments?: Attachment[];
-}
-
-export interface SystemSettings {
-  id?: number;
-  sla_days_baixa: number;
-  sla_days_media: number;
-  sla_days_alta: number;
-  sla_days_urgente: number;
-  auto_triage: boolean;
-  email_notifications: boolean;
-  budget_cap: number;
-}
-
-export interface AuthRequest extends Express.Request {
-  user?: UserResponse;
 }
 
 export interface Permission {

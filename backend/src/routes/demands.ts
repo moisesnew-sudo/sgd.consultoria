@@ -2,7 +2,7 @@ import { Router, Request, Response } from 'express';
 import { z } from 'zod';
 import crypto from 'crypto';
 import { get, all, run } from '../database.js';
-import { Demand, DEMAND_STATUSES, DEMAND_PRIORITIES } from '../types.js';
+import { DEMAND_STATUSES, DEMAND_PRIORITIES } from '../types.js';
 import { authenticateToken, requirePermission } from '../middleware/auth.js';
 import { logAudit, extractMeta } from '../lib/audit.js';
 import { logger } from '../lib/logger.js';
@@ -205,6 +205,125 @@ router.get('/calendar/events', authenticateToken, requirePermission('demands.vie
     res.status(500).json({ error: 'Erro ao buscar eventos' });
   }
 });
+
+router.get('/stats/dashboard', authenticateToken, async (req: Request, res: Response) => {
+  try {
+    const total = await get<{ count: string }>('SELECT COUNT(*) as count FROM demands WHERE deleted_at IS NULL');
+    const cacheKey = 'dashboard-stats';
+    const cached = getCached<any>(cacheKey);
+    if (cached) return res.json(cached);
+
+    const byStatus = await all<{ status: string; count: string }>(
+      'SELECT status, COUNT(*) as count FROM demands WHERE deleted_at IS NULL GROUP BY status ORDER BY count DESC'
+    );
+    const byPriority = await all<{ priority: string; count: string }>(
+      'SELECT priority, COUNT(*) as count FROM demands WHERE deleted_at IS NULL GROUP BY priority ORDER BY count DESC'
+    );
+    const byUf = await all<{ uf: string; count: string }>(
+      'SELECT uf, COUNT(*) as count FROM demands WHERE deleted_at IS NULL GROUP BY uf ORDER BY count DESC'
+    );
+    const totalValue = await get<{ total: string | null }>('SELECT SUM(requested_value) as total FROM demands WHERE deleted_at IS NULL');
+    const today = new Date().toISOString().split('T')[0];
+    const todayCount = await get<{ count: string }>(
+      'SELECT COUNT(*) as count FROM demands WHERE deleted_at IS NULL AND DATE(created_at) = $1', [today]
+    );
+    const overdue = await getAllOverdue();
+    const result = {
+      total: parseInt(total?.count || '0'),
+      byStatus: byStatus.reduce((acc, item) => ({ ...acc, [item.status]: parseInt(item.count) }), {}),
+      byPriority: byPriority.reduce((acc, item) => ({ ...acc, [item.priority]: parseInt(item.count) }), {}),
+      byUf: byUf.map(u => ({ uf: u.uf, count: parseInt(u.count) })),
+      totalValue: parseFloat(totalValue?.total || '0'),
+      todayCount: parseInt(todayCount?.count || '0'),
+      overdue
+    };
+    setCache(cacheKey, result, 30_000);
+    res.json(result);
+  } catch (error) {
+    logger.error('Dashboard stats error', { error });
+    res.status(500).json({ error: 'Erro ao buscar estatísticas' });
+  }
+});
+
+router.get('/stats/executive', authenticateToken, requirePermission('dashboard.view'), async (req: Request, res: Response) => {
+  try {
+    const { year, uf, status, dateFrom, dateTo } = req.query as Record<string, string>;
+    const cacheKey = `executive-stats:${year || ''}:${uf || ''}:${status || ''}:${dateFrom || ''}:${dateTo || ''}`;
+    const cached = getCached<any>(cacheKey);
+    if (cached) return res.json(cached);
+
+    const conditions = ['deleted_at IS NULL'];
+    const params: any[] = [];
+    let idx = 1;
+
+    if (year) { conditions.push(`EXTRACT(YEAR FROM created_at) = $${idx++}`); params.push(parseInt(year)); }
+    if (uf) { conditions.push(`uf = $${idx++}`); params.push(uf.toUpperCase()); }
+    if (status) { conditions.push(`status = $${idx++}`); params.push(status); }
+    if (dateFrom) { conditions.push(`created_at >= $${idx++}`); params.push(dateFrom); }
+    if (dateTo) { conditions.push(`created_at <= ($${idx++}::date + INTERVAL '1 day')`); params.push(dateTo); }
+
+    const where = conditions.join(' AND ');
+    const base = `FROM demands WHERE ${where}`;
+    const w = where;
+
+    const [totalRow, totalValueRow, avgValueRow, ...rest] = await Promise.all([
+      get<{ count: string }>(`SELECT COUNT(*) as count ${base}`, params),
+      get<{ total: string | null }>(`SELECT COALESCE(SUM(requested_value), 0) as total ${base}`, params),
+      get<{ avg: string | null }>(`SELECT COALESCE(AVG(requested_value), 0) as avg ${base}`, params),
+      all<{ uf: string; count: string; total_value: string }>(
+        `SELECT uf, COUNT(*) as count, COALESCE(SUM(requested_value), 0) as total_value FROM demands WHERE ${w} GROUP BY uf ORDER BY count DESC`, params),
+      all<{ status: string; count: string; total_value: string }>(
+        `SELECT status, COUNT(*) as count, COALESCE(SUM(requested_value), 0) as total_value FROM demands WHERE ${w} GROUP BY status ORDER BY count DESC`, params),
+      all<{ organ: string; count: string; total_value: string }>(
+        `SELECT organ, COUNT(*) as count, COALESCE(SUM(requested_value), 0) as total_value FROM demands WHERE ${w} AND organ != '' GROUP BY organ ORDER BY count DESC LIMIT 12`, params),
+      all<{ municipality: string; uf: string; count: string; total_value: string }>(
+        `SELECT municipality, uf, COUNT(*) as count, COALESCE(SUM(requested_value), 0) as total_value FROM demands WHERE ${w} GROUP BY municipality, uf ORDER BY count DESC LIMIT 15`, params),
+      all<{ month: string; count: string; total_value: string }>(
+        `SELECT TO_CHAR(created_at, 'YYYY-MM') as month, COUNT(*) as count, COALESCE(SUM(requested_value), 0) as total_value FROM demands WHERE ${w} GROUP BY month ORDER BY month`, params),
+    ]);
+
+    const [byUf, byStatus, byOrgan, byMunicipality, byMonth] = rest;
+
+    const result = {
+      summary: {
+        total: parseInt(totalRow?.count || '0'),
+        totalValue: parseFloat(totalValueRow?.total || '0'),
+        avgValue: parseFloat(avgValueRow?.avg || '0'),
+        pending: parseInt((byStatus.find((s: any) => s.status === 'pendente') as any)?.count || '0'),
+        inAnalysis: parseInt((byStatus.find((s: any) => s.status === 'analise') as any)?.count || '0'),
+        completed: parseInt((byStatus.find((s: any) => s.status === 'concluido') as any)?.count || '0'),
+        rejected: parseInt((byStatus.find((s: any) => s.status === 'rejeitado') as any)?.count || '0'),
+      },
+      byUf: byUf.map((u: any) => ({ uf: u.uf, count: parseInt(u.count), totalValue: parseFloat(u.total_value) })),
+      byStatus: byStatus.map((s: any) => ({ status: s.status, count: parseInt(s.count), totalValue: parseFloat(s.total_value) })),
+      byOrgan: byOrgan.map((o: any) => ({ organ: o.organ, count: parseInt(o.count), totalValue: parseFloat(o.total_value) })),
+      byMunicipality: byMunicipality.map((m: any) => ({ municipality: m.municipality, uf: m.uf, count: parseInt(m.count), totalValue: parseFloat(m.total_value) })),
+      byMonth: byMonth.map((m: any) => ({ month: m.month, count: parseInt(m.count), totalValue: parseFloat(m.total_value) })),
+    };
+
+    setCache(cacheKey, result, 60_000);
+    res.json(result);
+  } catch (error) {
+    logger.error('Executive stats error', { error });
+    res.status(500).json({ error: 'Erro ao buscar estatísticas executivas' });
+  }
+});
+
+async function getAllOverdue() {
+  const result = await get<{ count: string }>(`
+    SELECT COUNT(*) as count FROM demands
+    WHERE status IN ('pendente', 'analise')
+    AND deleted_at IS NULL
+    AND EXTRACT(EPOCH FROM (NOW() - created_at)) / 86400 >
+    CASE priority
+      WHEN 'urgente' THEN 5
+      WHEN 'alta' THEN 15
+      WHEN 'media' THEN 30
+      ELSE 45
+    END
+  `);
+  return parseInt(result?.count || '0');
+}
 
 router.get('/:id/versions', authenticateToken, requirePermission('demands.view'), async (req: Request, res: Response) => {
   try {
@@ -424,124 +543,5 @@ router.post('/:id/timeline', authenticateToken, requirePermission('demands.edit'
     res.status(500).json({ error: 'Erro ao adicionar evento' });
   }
 });
-
-router.get('/stats/dashboard', authenticateToken, async (req: Request, res: Response) => {
-  try {
-    const total = await get<{ count: string }>('SELECT COUNT(*) as count FROM demands WHERE deleted_at IS NULL');
-    const cacheKey = 'dashboard-stats';
-    const cached = getCached<any>(cacheKey);
-    if (cached) return res.json(cached);
-
-    const byStatus = await all<{ status: string; count: string }>(
-      'SELECT status, COUNT(*) as count FROM demands WHERE deleted_at IS NULL GROUP BY status ORDER BY count DESC'
-    );
-    const byPriority = await all<{ priority: string; count: string }>(
-      'SELECT priority, COUNT(*) as count FROM demands WHERE deleted_at IS NULL GROUP BY priority ORDER BY count DESC'
-    );
-    const byUf = await all<{ uf: string; count: string }>(
-      'SELECT uf, COUNT(*) as count FROM demands WHERE deleted_at IS NULL GROUP BY uf ORDER BY count DESC'
-    );
-    const totalValue = await get<{ total: string | null }>('SELECT SUM(requested_value) as total FROM demands WHERE deleted_at IS NULL');
-    const today = new Date().toISOString().split('T')[0];
-    const todayCount = await get<{ count: string }>(
-      'SELECT COUNT(*) as count FROM demands WHERE deleted_at IS NULL AND DATE(created_at) = $1', [today]
-    );
-    const overdue = await getAllOverdue();
-    const result = {
-      total: parseInt(total?.count || '0'),
-      byStatus: byStatus.reduce((acc, item) => ({ ...acc, [item.status]: parseInt(item.count) }), {}),
-      byPriority: byPriority.reduce((acc, item) => ({ ...acc, [item.priority]: parseInt(item.count) }), {}),
-      byUf: byUf.map(u => ({ uf: u.uf, count: parseInt(u.count) })),
-      totalValue: parseFloat(totalValue?.total || '0'),
-      todayCount: parseInt(todayCount?.count || '0'),
-      overdue
-    };
-    setCache(cacheKey, result, 30_000);
-    res.json(result);
-  } catch (error) {
-    logger.error('Dashboard stats error', { error });
-    res.status(500).json({ error: 'Erro ao buscar estatísticas' });
-  }
-});
-
-router.get('/stats/executive', authenticateToken, requirePermission('dashboard.view'), async (req: Request, res: Response) => {
-  try {
-    const { year, uf, status, dateFrom, dateTo } = req.query as Record<string, string>;
-    const cacheKey = `executive-stats:${year || ''}:${uf || ''}:${status || ''}:${dateFrom || ''}:${dateTo || ''}`;
-    const cached = getCached<any>(cacheKey);
-    if (cached) return res.json(cached);
-
-    const conditions = ['deleted_at IS NULL'];
-    const params: any[] = [];
-    let idx = 1;
-
-    if (year) { conditions.push(`EXTRACT(YEAR FROM created_at) = $${idx++}`); params.push(parseInt(year)); }
-    if (uf) { conditions.push(`uf = $${idx++}`); params.push(uf.toUpperCase()); }
-    if (status) { conditions.push(`status = $${idx++}`); params.push(status); }
-    if (dateFrom) { conditions.push(`created_at >= $${idx++}`); params.push(dateFrom); }
-    if (dateTo) { conditions.push(`created_at <= ($${idx++}::date + INTERVAL '1 day')`); params.push(dateTo); }
-
-    const where = conditions.join(' AND ');
-    const base = `FROM demands WHERE ${where}`;
-    const w = where;
-
-    const [totalRow, totalValueRow, avgValueRow, ...rest] = await Promise.all([
-      get<{ count: string }>(`SELECT COUNT(*) as count ${base}`, params),
-      get<{ total: string | null }>(`SELECT COALESCE(SUM(requested_value), 0) as total ${base}`, params),
-      get<{ avg: string | null }>(`SELECT COALESCE(AVG(requested_value), 0) as avg ${base}`, params),
-      all<{ uf: string; count: string; total_value: string }>(
-        `SELECT uf, COUNT(*) as count, COALESCE(SUM(requested_value), 0) as total_value FROM demands WHERE ${w} GROUP BY uf ORDER BY count DESC`, params),
-      all<{ status: string; count: string; total_value: string }>(
-        `SELECT status, COUNT(*) as count, COALESCE(SUM(requested_value), 0) as total_value FROM demands WHERE ${w} GROUP BY status ORDER BY count DESC`, params),
-      all<{ organ: string; count: string; total_value: string }>(
-        `SELECT organ, COUNT(*) as count, COALESCE(SUM(requested_value), 0) as total_value FROM demands WHERE ${w} AND organ != '' GROUP BY organ ORDER BY count DESC LIMIT 12`, params),
-      all<{ municipality: string; uf: string; count: string; total_value: string }>(
-        `SELECT municipality, uf, COUNT(*) as count, COALESCE(SUM(requested_value), 0) as total_value FROM demands WHERE ${w} GROUP BY municipality, uf ORDER BY count DESC LIMIT 15`, params),
-      all<{ month: string; count: string; total_value: string }>(
-        `SELECT TO_CHAR(created_at, 'YYYY-MM') as month, COUNT(*) as count, COALESCE(SUM(requested_value), 0) as total_value FROM demands WHERE ${w} GROUP BY month ORDER BY month`, params),
-    ]);
-
-    const [byUf, byStatus, byOrgan, byMunicipality, byMonth] = rest;
-
-    const result = {
-      summary: {
-        total: parseInt(totalRow?.count || '0'),
-        totalValue: parseFloat(totalValueRow?.total || '0'),
-        avgValue: parseFloat(avgValueRow?.avg || '0'),
-        pending: parseInt((byStatus.find((s: any) => s.status === 'pendente') as any)?.count || '0'),
-        inAnalysis: parseInt((byStatus.find((s: any) => s.status === 'analise') as any)?.count || '0'),
-        completed: parseInt((byStatus.find((s: any) => s.status === 'concluido') as any)?.count || '0'),
-        rejected: parseInt((byStatus.find((s: any) => s.status === 'rejeitado') as any)?.count || '0'),
-      },
-      byUf: byUf.map((u: any) => ({ uf: u.uf, count: parseInt(u.count), totalValue: parseFloat(u.total_value) })),
-      byStatus: byStatus.map((s: any) => ({ status: s.status, count: parseInt(s.count), totalValue: parseFloat(s.total_value) })),
-      byOrgan: byOrgan.map((o: any) => ({ organ: o.organ, count: parseInt(o.count), totalValue: parseFloat(o.total_value) })),
-      byMunicipality: byMunicipality.map((m: any) => ({ municipality: m.municipality, uf: m.uf, count: parseInt(m.count), totalValue: parseFloat(m.total_value) })),
-      byMonth: byMonth.map((m: any) => ({ month: m.month, count: parseInt(m.count), totalValue: parseFloat(m.total_value) })),
-    };
-
-    setCache(cacheKey, result, 60_000);
-    res.json(result);
-  } catch (error) {
-    logger.error('Executive stats error', { error });
-    res.status(500).json({ error: 'Erro ao buscar estatísticas executivas' });
-  }
-});
-
-async function getAllOverdue() {
-  const result = await get<{ count: string }>(`
-    SELECT COUNT(*) as count FROM demands
-    WHERE status IN ('pendente', 'analise')
-    AND deleted_at IS NULL
-    AND EXTRACT(EPOCH FROM (NOW() - created_at)) / 86400 >
-    CASE priority
-      WHEN 'urgente' THEN 5
-      WHEN 'alta' THEN 15
-      WHEN 'media' THEN 30
-      ELSE 45
-    END
-  `);
-  return parseInt(result?.count || '0');
-}
 
 export default router;

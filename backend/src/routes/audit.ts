@@ -1,5 +1,5 @@
 import { Router, Request, Response } from 'express';
-import { get, all, run } from '../database.js';
+import { get, all } from '../database.js';
 import { authenticateToken, requirePermission } from '../middleware/auth.js';
 import { extractMeta, logExport } from '../lib/audit.js';
 import { logger } from '../lib/logger.js';

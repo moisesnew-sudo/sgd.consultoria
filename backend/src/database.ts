@@ -30,11 +30,6 @@ pool.on('error', (err) => {
   logger.error('Database pool error', { error: err instanceof Error ? err.message : err });
 });
 
-export async function query(sql: string, params?: any[]) {
-  const result = await pool.query(sql, params);
-  return result;
-}
-
 export async function get<T = any>(sql: string, params?: any[]): Promise<T | undefined> {
   const result = await pool.query(sql, params);
   return result.rows[0] as T | undefined;
@@ -67,7 +62,7 @@ export async function transaction<T>(fn: (client: PoolClient) => Promise<T>): Pr
 
 export async function initDatabase() {
   // ... (mesmo conteúdo do original, mantido para compatibilidade)
-  await query(`
+  await run(`
     CREATE TABLE IF NOT EXISTS users (
       id SERIAL PRIMARY KEY,
       email TEXT UNIQUE NOT NULL,
@@ -450,4 +445,4 @@ export async function initDatabase() {
   logger.info('Tabelas criadas/verificadas');
 }
 
-export default { query, get, all, run, initDatabase };
+export default { get, all, run, initDatabase };

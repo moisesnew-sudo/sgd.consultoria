@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { MapPin, Plus, Search, Edit2, Trash2, X, Save, Loader2 } from 'lucide-react';
 import { municipalitiesApi } from '../../services/api';
 import { MunicipalityData } from '../../types';
+import { BRAZILIAN_STATES } from '../../lib/demandMeta';
 import { useToast } from '../../contexts/ToastContext';
 import { ConfirmModal } from '../ui/ConfirmModal';
 import { PageHeader } from '../ui/PageHeader';
@@ -14,12 +15,6 @@ interface MunicipalitiesViewProps {
   municipalities: MunicipalityData[];
   setMunicipalities: React.Dispatch<React.SetStateAction<MunicipalityData[]>>;
 }
-
-const BRAZILIAN_STATES = [
-  'AC', 'AL', 'AP', 'AM', 'BA', 'CE', 'DF', 'ES', 'GO', 'MA',
-  'MT', 'MS', 'MG', 'PA', 'PB', 'PR', 'PE', 'PI', 'RJ', 'RN',
-  'RS', 'RO', 'RR', 'SC', 'SP', 'SE', 'TO'
-];
 
 const REGIONS: { [key: string]: string[] } = {
   'Norte': ['AC', 'AM', 'AP', 'PA', 'RO', 'RR', 'TO'],

@@ -44,14 +44,6 @@ async function isAccountLocked(email: string): Promise<boolean> {
   return parseInt(recent?.count || '0') >= MAX_LOGIN_ATTEMPTS;
 }
 
-async function endUserSessions(userId: number, excludeTokenHash?: string) {
-  if (excludeTokenHash) {
-    await run('UPDATE active_sessions SET active = FALSE WHERE user_id = $1 AND token_hash != $2', [userId, excludeTokenHash]);
-  } else {
-    await run('UPDATE active_sessions SET active = FALSE WHERE user_id = $1', [userId]);
-  }
-}
-
 async function savePasswordHistory(userId: number, passwordHash: string) {
   await run('INSERT INTO password_history (user_id, password_hash) VALUES ($1, $2)', [userId, passwordHash]);
   await run(

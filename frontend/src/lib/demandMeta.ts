@@ -28,20 +28,6 @@ export const PRIORITY_BADGE_CLS: Record<DemandPriority, string> = {
   urgente: 'bg-red-100 text-red-700 border-red-200 dark:bg-red-950/40 dark:text-red-300 dark:border-red-800/50'
 };
 
-export const STATUS_COLOR: Record<DemandStatus, string> = {
-  pendente: '#f59e0b',
-  analise: '#3b82f6',
-  concluido: '#10b981',
-  rejeitado: '#ef4444'
-};
-
-export const PRIORITY_COLOR: Record<DemandPriority, string> = {
-  baixa: '#64748b',
-  media: '#3b82f6',
-  alta: '#f59e0b',
-  urgente: '#ef4444'
-};
-
 export function statusLabel(status: DemandStatus): string {
   return STATUS_LABELS[status] || status;
 }
@@ -49,3 +35,24 @@ export function statusLabel(status: DemandStatus): string {
 export function priorityLabel(priority: DemandPriority): string {
   return PRIORITY_LABELS[priority] || priority;
 }
+
+export const BRAZILIAN_STATES = [
+  'AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG','PA',
+  'PB','PR','PE','PI','RJ','RN','RS','RO','RR','SC','SP','SE','TO'
+] as const;
+
+export const ENTITY_LABELS: Record<string, string> = {
+  demand: 'Demanda', user: 'Usuário', session: 'Sessão', backup: 'Backup',
+  export_log: 'Exportação', export: 'Exportação', settings: 'Configuração', timeline: 'Timeline'
+};
+
+export const ENTITY_OPTIONS = ['demand', 'user', 'session', 'backup', 'export', 'settings'];
+
+export const AUDIT_ACTION_LABELS: Record<string, string> = {
+  create: 'Criação', update: 'Edição', delete: 'Exclusão', restore: 'Restauração',
+  comment: 'Comentário', login: 'Login', login_failed: 'Falha de Login',
+  login_locked: 'Conta Bloqueada', upload: 'Upload', export: 'Exportação',
+  update_permissions: 'Permissões'
+};
+
+export const AUDIT_ACTION_OPTIONS = ['create', 'update', 'delete', 'restore', 'comment', 'login', 'login_failed', 'upload', 'export', 'update_permissions'];

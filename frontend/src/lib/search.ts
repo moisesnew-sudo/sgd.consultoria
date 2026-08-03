@@ -13,10 +13,6 @@ export function normalize(value: string): string {
     .trim();
 }
 
-export function escapeRegex(value: string): string {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-}
-
 /* ---------------------------------------------------------------------------
  * Pesquisa estruturada: "campo:valor"
  * Suporta: municipio, objeto, status, orgao, numero, valor, usuario, ano,

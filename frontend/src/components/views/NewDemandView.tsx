@@ -22,7 +22,7 @@ import {
 import { Demand, DemandPriority, DemandStatus, Attachment } from '../../types';
 import { demandsApi } from '../../services/api';
 import { formatCurrencyInput, parseCurrencyInput } from '../../lib/currency';
-import { STATUS_BADGE_CLS, statusLabel } from '../../lib/demandMeta';
+import { STATUS_BADGE_CLS, statusLabel, BRAZILIAN_STATES } from '../../lib/demandMeta';
 import { useAuth } from '../../contexts/AuthContext';
 import { useToast } from '../../contexts/ToastContext';
 
@@ -31,12 +31,6 @@ interface NewDemandViewProps {
   onAddDemand: (newDemand: Demand) => void;
   onNavigateToTab: (tab: string) => void;
 }
-
-const BRAZILIAN_STATES = [
-  'AC', 'AL', 'AP', 'AM', 'BA', 'CE', 'DF', 'ES', 'GO', 'MA',
-  'MT', 'MS', 'MG', 'PA', 'PB', 'PR', 'PE', 'PI', 'RJ', 'RN',
-  'RS', 'RO', 'RR', 'SC', 'SP', 'SE', 'TO'
-];
 
 const ORGAN_OPTIONS = [
   'MEC', 'FNDE', 'MEC/FNDE', 'MINISTÉRIO DA SAÚDE', 'MS', 'MAPA',
