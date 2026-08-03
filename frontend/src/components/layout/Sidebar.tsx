@@ -3,7 +3,7 @@ import {
   LayoutDashboard, FilePlus2, FolderKanban, MapPin, FileBarChart,
   Calendar, Settings, Menu, X, Users, ScrollText, Plug, Database,
   Briefcase, ShieldCheck, LogOut, User, Sun, Moon, MonitorSmartphone,
-  Activity, Shield, LogIn, HardDrive, FileSearch
+  Activity, Shield, LogIn, HardDrive, FileSearch, BarChart3
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useTheme, ThemeMode } from '../../contexts/ThemeContext';
@@ -34,7 +34,8 @@ export default function Sidebar({ activeTab, setActiveTab, isOpen, setIsOpen, pe
 
   const menuItems = [
     ...(isAuthenticated && hasPermission('dashboard.view') ? [
-      { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, badge: null }
+      { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, badge: null },
+      { id: 'executive-panel', label: 'Painel Executivo', icon: BarChart3, badge: null },
     ] : []),
     ...(isAuthenticated && canCreate ? [
       { id: 'new-demand', label: 'Nova Demanda', icon: FilePlus2, badge: null }

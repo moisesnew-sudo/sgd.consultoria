@@ -7,6 +7,7 @@ import {
   UserRole,
   PaginatedResponse, 
   DashboardStats,
+  ExecutiveStats,
   TimelineEvent,
   PermissionCategory,
   UserPermission,
@@ -316,6 +317,12 @@ export const demandsApi = {
     }),
 
   getDashboardStats: () => request<DashboardStats>('/demands/stats/dashboard'),
+  getExecutiveStats: (params?: { year?: string; uf?: string; status?: string; dateFrom?: string; dateTo?: string }) => {
+    const qs = new URLSearchParams();
+    if (params) Object.entries(params).forEach(([k, v]) => { if (v) qs.append(k, v); });
+    const q = qs.toString();
+    return request<ExecutiveStats>(`/demands/stats/executive${q ? '?' + q : ''}`);
+  },
 
   getCalendarEvents: () => request<Record<string, any>[]>('/demands/calendar/events'),
 

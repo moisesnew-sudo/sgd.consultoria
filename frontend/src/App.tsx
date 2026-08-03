@@ -26,6 +26,7 @@ const SessionsView = lazy(() => import('./components/views/SessionsView'));
 const BackupManagementView = lazy(() => import('./components/views/BackupManagementView'));
 const MonitoringView = lazy(() => import('./components/views/MonitoringView'));
 const LgpdView = lazy(() => import('./components/views/LgpdView'));
+const ExecutivePanelView = lazy(() => import('./components/views/ExecutivePanelView'));
 const InactivityWrapper = lazy(() => import('./components/layout/InactivityWrapper'));
 
 function ViewFallback() {
@@ -187,6 +188,12 @@ function AppContent() {
                 onNavigateToTab={handleNavigateToTab}
                 onSelectDemand={handleSelectDemandFromDashboard}
               />
+            </Suspense></ErrorBoundary>
+          )}
+
+          {activeTab === 'executive-panel' && (
+            <ErrorBoundary><Suspense fallback={<ViewFallback />}>
+              <ExecutivePanelView />
             </Suspense></ErrorBoundary>
           )}
 

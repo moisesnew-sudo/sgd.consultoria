@@ -144,6 +144,23 @@ export interface DashboardStats {
   overdue: number;
 }
 
+export interface ExecutiveStats {
+  summary: {
+    total: number;
+    totalValue: number;
+    avgValue: number;
+    pending: number;
+    inAnalysis: number;
+    completed: number;
+    rejected: number;
+  };
+  byUf: { uf: string; count: number; totalValue: number }[];
+  byStatus: { status: string; count: number; totalValue: number }[];
+  byOrgan: { organ: string; count: number; totalValue: number }[];
+  byMunicipality: { municipality: string; uf: string; count: number; totalValue: number }[];
+  byMonth: { month: string; count: number; totalValue: number }[];
+}
+
 export interface AuditLog {
   id: number;
   entity_type: string;
