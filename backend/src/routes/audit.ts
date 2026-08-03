@@ -1,14 +1,14 @@
 import { Router, Request, Response } from 'express';
 import { get, all, run } from '../database.js';
-import { authenticateToken, requireRole } from '../middleware/auth.js';
+import { authenticateToken, requirePermission } from '../middleware/auth.js';
 import { extractMeta, logExport } from '../lib/audit.js';
 import { logger } from '../lib/logger.js';
 
 const router = Router();
 
-router.get('/', authenticateToken, requireRole('admin'), async (req: Request, res: Response) => {
+router.get('/', authenticateToken, requirePermission('audit.view'), async (req: Request, res: Response) => {
   try {
-    const { entity_type, entity_id, action, user_id, start_date, end_date, page = '1', limit = '100' } = req.query;
+    const { entity_type, entity_id, action, user_id, start_date, end_date, search, page = '1', limit = '100' } = req.query;
     let sql = 'SELECT * FROM audit_logs WHERE 1=1';
     const params: any[] = [];
     if (entity_type) { sql += ` AND entity_type = $${params.length + 1}`; params.push(entity_type); }
@@ -17,6 +17,11 @@ router.get('/', authenticateToken, requireRole('admin'), async (req: Request, re
     if (user_id) { sql += ` AND user_id = $${params.length + 1}`; params.push(parseInt(user_id as string)); }
     if (start_date) { sql += ` AND created_at >= $${params.length + 1}`; params.push(start_date); }
     if (end_date) { sql += ` AND created_at <= $${params.length + 1}`; params.push(end_date); }
+    if (search) {
+      const t = `%${search}%`;
+      sql += ` AND (user_name ILIKE $${params.length + 1} OR entity_id ILIKE $${params.length + 2} OR action ILIKE $${params.length + 3} OR details::text ILIKE $${params.length + 4})`;
+      params.push(t, t, t, t);
+    }
 
     const countResult = await get<{ count: string }>(sql.replace('SELECT *', 'SELECT COUNT(*) as count'), params);
     const total = parseInt(countResult?.count || '0');
@@ -34,7 +39,7 @@ router.get('/', authenticateToken, requireRole('admin'), async (req: Request, re
   }
 });
 
-router.get('/dashboard-stats', authenticateToken, requireRole('admin'), async (req: Request, res: Response) => {
+router.get('/dashboard-stats', authenticateToken, requirePermission('audit.dashboard'), async (req: Request, res: Response) => {
   try {
     const { start_date, end_date } = req.query;
 

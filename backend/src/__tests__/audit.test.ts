@@ -52,8 +52,8 @@ describe('Audit', () => {
     expect(res.status).toBe(400);
   });
 
-  it('deve rejeitar acesso ao audit para não-admin', async () => {
-    const token = await loginAs('gestor@sgd.gov.br', 'Gestor2026!');
+  it('deve rejeitar acesso ao audit para usuário sem permissão', async () => {
+    const token = await loginAs('analista@sgd.gov.br', 'Analista2026!');
     const res = await request(app)
       .get('/api/audit')
       .set('Authorization', `Bearer ${token}`);

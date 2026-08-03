@@ -5,8 +5,6 @@ import { loginAs, admin, gestor } from './helpers.js';
 
 describe('Permissions - Admin-only routes', () => {
   const adminRoutes: { method: 'get' | 'post' | 'put' | 'delete'; path: string }[] = [
-    { method: 'get', path: '/api/audit' },
-    { method: 'get', path: '/api/audit/dashboard-stats' },
     { method: 'get', path: '/api/sessions' },
     { method: 'get', path: '/api/backups' },
     { method: 'get', path: '/api/lgpd/dashboard' },

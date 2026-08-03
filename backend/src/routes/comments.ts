@@ -15,7 +15,7 @@ const commentSchema = z.object({
 router.get('/:id/comments', authenticateToken, async (req: Request, res: Response) => {
   try {
     // ✅ CORREÇÃO: Verifica se demanda existe
-    const demand = await get('SELECT id FROM demands WHERE id = $1 AND deleted_at IS NULL', [req.params.id as string]);
+    const demand = await get('SELECT id, title FROM demands WHERE id = $1 AND deleted_at IS NULL', [req.params.id as string]);
     if (!demand) {
       return res.status(404).json({ error: 'Demanda não encontrada' });
     }
@@ -36,7 +36,7 @@ router.post('/:id/comments', authenticateToken, requirePermission('demands.edit'
       return res.status(403).json({ error: 'Seu perfil (Consulta) é somente leitura' });
     }
     // ✅ CORREÇÃO: Verifica se demanda existe antes de comentar
-    const demand = await get('SELECT id FROM demands WHERE id = $1 AND deleted_at IS NULL', [req.params.id as string]);
+    const demand = await get('SELECT id, title FROM demands WHERE id = $1 AND deleted_at IS NULL', [req.params.id as string]);
     if (!demand) {
       return res.status(404).json({ error: 'Demanda não encontrada' });
     }
@@ -50,7 +50,7 @@ router.post('/:id/comments', authenticateToken, requirePermission('demands.edit'
       body.substring(0, 160), req.user!.name, undefined, 'comment', { comment_id: comment.id });
     await logAudit({
       entity_type: 'demand', entity_id: req.params.id as string, action: 'comment',
-      user_id: req.user!.id, user_name: req.user!.name, details: { body: body.substring(0, 80) }
+      user_id: req.user!.id, user_name: req.user!.name, details: { entity_title: demand.title, body: body.substring(0, 80) }
     });
     res.status(201).json(comment);
   } catch (e) {

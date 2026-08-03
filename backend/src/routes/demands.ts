@@ -269,7 +269,10 @@ router.post('/', authenticateToken, requirePermission('demands.create'), async (
     await logAudit({
       entity_type: 'demand', entity_id: id, action: 'create',
       user_id: req.user!.id, user_name: req.user!.name,
-      details: { municipality: data.municipality, uf: data.uf, value: data.requested_value || 0 },
+      details: {
+        entity_title: data.title,
+        after: { status: data.status || 'pendente', priority: data.priority || 'media', municipality: data.municipality, uf: data.uf, value: data.requested_value || 0, organ: data.organ || '', responsible: data.responsible_name || req.user!.name }
+      },
       ip_address, user_agent
     });
     clearCache('dashboard-stats');
@@ -312,7 +315,13 @@ router.put('/:id', authenticateToken, requirePermission('demands.edit'), async (
     await logAudit({
       entity_type: 'demand', entity_id: req.params.id as string, action: 'update',
       user_id: req.user!.id, user_name: req.user!.name,
-      details: { changed: Object.keys(data), status: data.status }, ip_address, user_agent
+      details: {
+        entity_title: existing.title,
+        before: { status: existing.status, priority: existing.priority, municipality: existing.municipality, uf: existing.uf, value: existing.requested_value, organ: existing.organ, responsible: existing.responsible_name },
+        after: { status: data.status || existing.status, priority: data.priority || existing.priority, municipality: data.municipality || existing.municipality, uf: data.uf || existing.uf, value: data.requested_value ?? existing.requested_value, organ: data.organ || existing.organ, responsible: data.responsible_name || existing.responsible_name },
+        changed: Object.keys(data)
+      },
+      ip_address, user_agent
     });
     clearCache('dashboard-stats');
     res.json(updated);
@@ -345,7 +354,11 @@ router.delete('/:id', authenticateToken, requirePermission('demands.delete'), as
     await logAudit({
       entity_type: 'demand', entity_id: req.params.id as string, action: 'delete',
       user_id: req.user!.id, user_name: req.user!.name,
-      details: { municipality: demand.municipality, uf: demand.uf }, ip_address, user_agent
+      details: {
+        entity_title: demand.title,
+        before: { status: demand.status, priority: demand.priority, municipality: demand.municipality, uf: demand.uf, value: demand.requested_value, organ: demand.organ, responsible: demand.responsible_name }
+      },
+      ip_address, user_agent
     });
     clearCache('dashboard-stats');
     res.json({ message: 'Demanda removida com sucesso' });
@@ -369,7 +382,11 @@ router.post('/:id/restore', authenticateToken, requirePermission('demands.delete
     await logAudit({
       entity_type: 'demand', entity_id: req.params.id as string, action: 'restore',
       user_id: req.user!.id, user_name: req.user!.name,
-      details: { municipality: demand.municipality, uf: demand.uf }, ip_address, user_agent
+      details: {
+        entity_title: demand.title,
+        after: { status: demand.status, municipality: demand.municipality, uf: demand.uf, value: demand.requested_value }
+      },
+      ip_address, user_agent
     });
     res.json({ message: 'Demanda restaurada com sucesso' });
   } catch (error) {

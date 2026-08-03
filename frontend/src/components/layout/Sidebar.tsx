@@ -58,9 +58,11 @@ export default function Sidebar({ activeTab, setActiveTab, isOpen, setIsOpen, pe
     ...(isAuthenticated && canManageUsers ? [
       { id: 'backup', label: 'Backups', icon: HardDrive, badge: null }
     ] : []),
-    ...(isAuthenticated && (user?.role === 'admin' || user?.role === 'administrador') ? [
+    ...(isAuthenticated && hasPermission('audit.view') ? [
       { id: 'audit-dashboard', label: 'Auditoria', icon: Activity, badge: null },
       { id: 'audit', label: 'Logs', icon: ScrollText, badge: null },
+    ] : []),
+    ...(isAuthenticated && (user?.role === 'admin' || user?.role === 'administrador') ? [
       { id: 'sessions', label: 'Sessões', icon: LogIn, badge: null },
       { id: 'monitoring', label: 'Monitoramento', icon: Shield, badge: null },
       { id: 'lgpd', label: 'LGPD', icon: FileSearch, badge: null },
