@@ -47,13 +47,13 @@ router.post('/request', async (req: Request, res: Response) => {
         [user.id, tokenHash]
       );
 
-      const resetLink = `${process.env.FRONTEND_URL || 'https://gruposgd.com.br'}/reset-password?token=${token}`;
       // ✅ CORREÇÃO: Log seguro (não expõe token/link completo)
       if (process.env.NODE_ENV !== 'production') {
         logger.info('Token de reset gerado', { email, expires: '30min' });
       }
 
-
+      // ⚠️ PENDENTE DE IMPLEMENTAÇÃO: envio do email com o link de redefinição.
+      // O token é gerado e persistido, mas o FRONTEND_URL não é utilizado por nenhum serviço de email.
 
       await logAudit({
         entity_type: 'auth', entity_id: String(user.id), action: 'password_reset_requested',

@@ -196,7 +196,8 @@ router.post('/refresh', authenticateRefreshToken, async (req: Request, res: Resp
     });
 
     setTokenCookies(res, newAccessToken, newRefreshToken);
-    res.json({ token: newAccessToken, refreshToken: newRefreshToken });
+    const csrfToken = setCsrfCookie(res);
+    res.json({ token: newAccessToken, refreshToken: newRefreshToken, csrfToken });
   } catch (error) {
     logger.error('Refresh error', { error: error instanceof Error ? error.message : error });
     res.status(500).json({ error: 'Erro ao renovar token' });

@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import request from 'supertest';
 import app from '../server.js';
-import { loginAs, admin } from './helpers.js';
+import { loginAs, loginAsWithCsrf, admin } from './helpers.js';
 
 describe('Audit', () => {
   it('deve listar logs de auditoria (admin)', async () => {
@@ -35,19 +35,23 @@ describe('Audit', () => {
   });
 
   it('deve registrar exportação', async () => {
-    const token = await loginAs(admin.email, admin.password);
+    const { token, csrfToken } = await loginAsWithCsrf(admin.email, admin.password);
     const res = await request(app)
       .post('/api/audit/log-export')
       .set('Authorization', `Bearer ${token}`)
+      .set('X-CSRF-Token', csrfToken)
+      .set('Cookie', `csrf_token=${csrfToken}`)
       .send({ export_type: 'excel', record_count: 10, filters: { status: 'pendente' } });
     expect(res.status).toBe(200);
   });
 
   it('deve rejeitar export_type inválido', async () => {
-    const token = await loginAs(admin.email, admin.password);
+    const { token, csrfToken } = await loginAsWithCsrf(admin.email, admin.password);
     const res = await request(app)
       .post('/api/audit/log-export')
       .set('Authorization', `Bearer ${token}`)
+      .set('X-CSRF-Token', csrfToken)
+      .set('Cookie', `csrf_token=${csrfToken}`)
       .send({ export_type: 'txt', record_count: 10 });
     expect(res.status).toBe(400);
   });

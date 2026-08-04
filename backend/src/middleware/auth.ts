@@ -29,9 +29,16 @@ export interface AuthRequest extends Request {
   user?: UserResponse;
 }
 
+const BLACKLIST_CLEANUP_INTERVAL = 15 * 60 * 1000;
+let lastBlacklistCleanup = 0;
+
 const cleanupBlacklist = async () => {
+  const now = Date.now();
+  if (now - lastBlacklistCleanup < BLACKLIST_CLEANUP_INTERVAL) {
+    return;
+  }
+  lastBlacklistCleanup = now;
   try {
-    const { run } = await import('../database.js');
     await run('DELETE FROM token_blacklist WHERE expires_at < NOW()');
   } catch { }
 };

@@ -12,16 +12,18 @@ router.get('/health', authenticateToken, async (req: Request, res: Response) => 
     await get('SELECT 1');
     const dbTime = Date.now() - start;
 
-    const totalDemands = await get<{ count: string }>('SELECT COUNT(*) as count FROM demands WHERE deleted_at IS NULL');
-    const activeUsers = await get<{ count: string }>(
-      "SELECT COUNT(*) as count FROM active_sessions WHERE active = TRUE AND last_activity > NOW() - INTERVAL '30 minutes'"
-    );
-    const lastBackup = await get<{ created_at: string }>(
-      "SELECT created_at FROM backups WHERE status = 'completed' ORDER BY created_at DESC LIMIT 1"
-    );
-    const integrations = await get<{ count: string }>(
-      `SELECT COUNT(*) as count FROM audit_logs WHERE entity_type = 'integration' AND created_at > NOW() - INTERVAL '24 hours'`
-    );
+    const [totalDemands, activeUsers, lastBackup, integrations] = await Promise.all([
+      get<{ count: string }>('SELECT COUNT(*) as count FROM demands WHERE deleted_at IS NULL'),
+      get<{ count: string }>(
+        "SELECT COUNT(*) as count FROM active_sessions WHERE active = TRUE AND last_activity > NOW() - INTERVAL '30 minutes'"
+      ),
+      get<{ created_at: string }>(
+        "SELECT created_at FROM backups WHERE status = 'completed' ORDER BY created_at DESC LIMIT 1"
+      ),
+      get<{ count: string }>(
+        `SELECT COUNT(*) as count FROM audit_logs WHERE entity_type = 'integration' AND created_at > NOW() - INTERVAL '24 hours'`
+      )
+    ]);
 
     const totalMem = os.totalmem();
     const freeMem = os.freemem();

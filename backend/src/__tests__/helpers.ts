@@ -11,5 +11,15 @@ export async function loginAs(email: string, password: string): Promise<string> 
   return res.body.token;
 }
 
+export async function loginAsWithCsrf(email: string, password: string): Promise<{ token: string; csrfToken: string }> {
+  const res = await request(app)
+    .post('/api/auth/login')
+    .send({ email, password });
+  if (res.status !== 200) {
+    throw new Error(`Login failed for ${email}: ${res.status} ${JSON.stringify(res.body)}`);
+  }
+  return { token: res.body.token, csrfToken: res.body.csrfToken };
+}
+
 export const admin = { email: 'admin@sgd.gov.br', password: 'Admin2026!' };
 export const gestor = { email: 'gestor@sgd.gov.br', password: 'Gestor2026!' };

@@ -1,7 +1,5 @@
 export { Button } from './Button';
 export type { ButtonVariant, ButtonSize } from './Button';
-export { Badge } from './Badge';
-export type { BadgeVariant, BadgeSize } from './Badge';
 export { Input, Select, Textarea } from './Fields';
 export type { InputProps, SelectProps, TextareaProps } from './Fields';
 export { Tooltip } from './Tooltip';

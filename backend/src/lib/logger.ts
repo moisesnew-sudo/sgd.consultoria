@@ -2,10 +2,6 @@ const LOG_LEVELS = { debug: 0, info: 1, warn: 2, error: 3 } as const;
 type LogLevel = keyof typeof LOG_LEVELS;
 let _currentLevel: LogLevel = (process.env.LOG_LEVEL as LogLevel) || 'info';
 
-export function setLogLevel(level: LogLevel) {
-  _currentLevel = level;
-}
-
 function shouldLog(level: LogLevel): boolean {
   return LOG_LEVELS[level] >= (LOG_LEVELS[_currentLevel] || 1);
 }

@@ -65,6 +65,7 @@ import backupsRoutes from './routes/backups.js';
 import monitoringRoutes from './routes/monitoring.js';
 import lgpdRoutes from './routes/lgpd.js';
 import uploadRoutes from './routes/upload.js';
+import { csrfProtection } from './middleware/csrf.js';
 import { runSeed } from './seed.js';
 import { initDatabase, run } from './database.js';
 
@@ -185,6 +186,12 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // API Routes
 app.use('/api/auth', authRoutes);
+app.use('/api/password-reset', passwordResetRoutes);
+
+// ✅ CORREÇÃO: CSRF ativado nos endpoints de escrita (cliente envia X-CSRF-Token)
+// /api/auth e /api/password-reset ficam fora da proteção: exigem fluxo sem cookie csrf preexistente
+app.use(csrfProtection);
+
 app.use('/api/demands', demandsRoutes);
 app.use('/api/demands', commentsRoutes);
 app.use('/api/municipalities', municipalitiesRoutes);
@@ -192,7 +199,6 @@ app.use('/api/settings', settingsRoutes);
 app.use('/api/audit', auditRoutes);
 app.use('/api/integrations', integrationsRoutes);
 app.use('/api/permissions', permissionsRoutes);
-app.use('/api/password-reset', passwordResetRoutes);
 app.use('/api/sessions', sessionsRoutes);
 app.use('/api/backups', backupsRoutes);
 app.use('/api/monitoring', monitoringRoutes);

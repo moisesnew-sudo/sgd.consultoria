@@ -343,9 +343,11 @@ router.get('/:id', authenticateToken, requirePermission('demands.view'), async (
   try {
     const demand = await get('SELECT * FROM demands WHERE id = $1 AND deleted_at IS NULL', [req.params.id as string]);
     if (!demand) return res.status(404).json({ error: 'Demanda não encontrada' });
-    const timeline = await all('SELECT * FROM timeline_events WHERE demand_id = $1 ORDER BY created_at DESC', [demand.id]);
-    const attachments = await all('SELECT * FROM attachments WHERE demand_id = $1 AND deleted_at IS NULL', [demand.id]);
-    const comments = await all('SELECT * FROM comments WHERE demand_id = $1 AND deleted_at IS NULL ORDER BY created_at ASC', [demand.id]);
+    const [timeline, attachments, comments] = await Promise.all([
+      all('SELECT * FROM timeline_events WHERE demand_id = $1 ORDER BY created_at DESC', [demand.id]),
+      all('SELECT * FROM attachments WHERE demand_id = $1 AND deleted_at IS NULL', [demand.id]),
+      all('SELECT * FROM comments WHERE demand_id = $1 AND deleted_at IS NULL ORDER BY created_at ASC', [demand.id])
+    ]);
     res.json({ ...demand, timeline, attachments, comments });
   } catch (error) {
     logger.error('Get demand error', { error });

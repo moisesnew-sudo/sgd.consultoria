@@ -29,12 +29,12 @@ function validateTable(table: string): string {
 }
 
 async function exportAllData(): Promise<string> {
+  const [tableRows, users] = await Promise.all([
+    Promise.all(SAFE_TABLES.map(table => all(`SELECT * FROM ${validateTable(table)}`))),
+    all('SELECT id, email, name, role, active, created_at, updated_at, deleted_at FROM users')
+  ]);
   const data: Record<string, any> = {};
-  for (const table of SAFE_TABLES) {
-    const rows = await all(`SELECT * FROM ${validateTable(table)}`);
-    data[table] = rows;
-  }
-  const users = await all('SELECT id, email, name, role, active, created_at, updated_at, deleted_at FROM users');
+  SAFE_TABLES.forEach((table, i) => { data[table] = tableRows[i]; });
   data['users'] = users;
 
   return JSON.stringify({ version: 'sgd-v3', timestamp: new Date().toISOString(), data }, null, 2);
@@ -177,7 +177,9 @@ router.post('/:id/restore', authenticateToken, requireRole('admin'), async (req:
       for (const table of SAFE_TABLES.concat(['users'])) {
         if (data[table] && Array.isArray(data[table])) {
           for (const row of data[table]) {
-            const cols = Object.keys(row).filter(k => sanitizeColumnName(k) || true);
+            const cols = Object.keys(row).filter(k => {
+              try { sanitizeColumnName(k); return true; } catch { return false; }
+            });
             const vals = cols.map(c => row[c]);
             const placeholders = cols.map((_, i) => `$${i + 1}`).join(', ');
             try {
