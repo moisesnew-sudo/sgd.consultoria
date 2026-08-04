@@ -148,7 +148,7 @@ export default function BackupManagementView() {
                       : 'bg-red-50 text-red-600 dark:bg-red-900/20 dark:text-red-400'
                   }`}>
                     {vr.valid ? <CheckCircle size={14} /> : <XCircle size={14} />}
-                    <span>{vr.valid ? 'Integridade verificada' : 'Hash nÃ£o corresponde! Backup corrompido?'}</span>
+                    <span>{vr.valid ? 'Integridade verificada' : 'Hash não corresponde! Backup corrompido?'}</span>
                   </div>
                 );
               })()}
@@ -160,7 +160,7 @@ export default function BackupManagementView() {
       <ConfirmModal
         open={confirmRestore !== null}
         title="Restaurar Backup"
-        message="Tem certeza que deseja restaurar este backup? Todos os dados atuais serÃ£o substituÃ­dos e todas as sessÃµes serÃ£o encerradas. Esta aÃ§Ã£o nÃ£o pode ser desfeita."
+        message="Tem certeza que deseja restaurar este backup? Todos os dados atuais serão substituídos e todas as sessões serão encerradas. Esta ação não pode ser desfeita."
         confirmLabel="Restaurar"
         variant="danger"
         loading={restoring !== null}
