@@ -1,7 +1,7 @@
 import { useCallback } from 'react';
 import {
   LayoutDashboard, FilePlus2, FolderKanban, MapPin, FileBarChart,
-  Calendar, Settings, Menu, X, Users, ScrollText, Plug, Database,
+  Calendar, Settings, Users, ScrollText, Plug, Database,
   Briefcase, ShieldCheck, LogOut, User, Sun, Moon, MonitorSmartphone,
   Activity, Shield, LogIn, HardDrive, FileSearch, BarChart3
 } from 'lucide-react';
@@ -32,42 +32,53 @@ export default function Sidebar({ activeTab, setActiveTab, isOpen, setIsOpen, pe
   const canManageUsers = hasPermission('users.view');
   const canViewSettings = hasPermission('settings.view');
 
-  const menuItems = [
-    ...(isAuthenticated && hasPermission('dashboard.view') ? [
-      { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, badge: null },
-      { id: 'executive-panel', label: 'Painel Executivo', icon: BarChart3, badge: null },
-    ] : []),
-    ...(isAuthenticated && canCreate ? [
-      { id: 'new-demand', label: 'Nova Demanda', icon: FilePlus2, badge: null }
-    ] : []),
-    ...(isAuthenticated && hasPermission('demands.view') ? [
-      { id: 'demands', label: 'Demandas', icon: FolderKanban, badge: null }
-    ] : []),
-    ...(isAuthenticated && hasPermission('demands.view') ? [
-      { id: 'calendar', label: 'Calendário', icon: Calendar, badge: null }
-    ] : []),
-    ...(isAuthenticated && hasPermission('reports.view') ? [
-      { id: 'reports', label: 'Relatórios', icon: FileBarChart, badge: null }
-    ] : []),
-    ...(isAuthenticated && canManageUsers ? [
-      { id: 'users', label: 'Usuários', icon: Users, badge: null },
-    ] : []),
-    ...(isAuthenticated && hasPermission('settings.view') ? [
-      { id: 'settings', label: 'Configurações', icon: Settings, badge: null }
-    ] : []),
-    ...(isAuthenticated && canManageUsers ? [
-      { id: 'backup', label: 'Backups', icon: HardDrive, badge: null }
-    ] : []),
-    ...(isAuthenticated && hasPermission('audit.view') ? [
-      { id: 'audit-dashboard', label: 'Auditoria', icon: Activity, badge: null },
-      { id: 'audit', label: 'Logs', icon: ScrollText, badge: null },
-    ] : []),
-    ...(isAuthenticated && (user?.role === 'admin' || user?.role === 'administrador') ? [
-      { id: 'sessions', label: 'Sessões', icon: LogIn, badge: null },
-      { id: 'monitoring', label: 'Monitoramento', icon: Shield, badge: null },
-      { id: 'lgpd', label: 'LGPD', icon: FileSearch, badge: null },
-    ] : []),
-  ];
+  const menuGroups = [
+    {
+      label: 'Principal',
+      items: [
+        ...(isAuthenticated && hasPermission('dashboard.view') ? [
+          { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+          { id: 'executive-panel', label: 'Painel Executivo', icon: BarChart3 },
+        ] : []),
+      ],
+    },
+    {
+      label: 'Demandas',
+      items: [
+        ...(isAuthenticated && canCreate ? [
+          { id: 'new-demand', label: 'Nova Demanda', icon: FilePlus2 }
+        ] : []),
+        ...(isAuthenticated && hasPermission('demands.view') ? [
+          { id: 'demands', label: 'Demandas', icon: FolderKanban },
+          { id: 'calendar', label: 'Calendário', icon: Calendar },
+        ] : []),
+        ...(isAuthenticated && hasPermission('reports.view') ? [
+          { id: 'reports', label: 'Relatórios', icon: FileBarChart }
+        ] : []),
+      ],
+    },
+    {
+      label: 'Administração',
+      items: [
+        ...(isAuthenticated && canManageUsers ? [
+          { id: 'users', label: 'Usuários', icon: Users },
+          { id: 'backup', label: 'Backups', icon: HardDrive },
+        ] : []),
+        ...(isAuthenticated && canViewSettings ? [
+          { id: 'settings', label: 'Configurações', icon: Settings }
+        ] : []),
+        ...(isAuthenticated && hasPermission('audit.view') ? [
+          { id: 'audit-dashboard', label: 'Auditoria', icon: Activity },
+          { id: 'audit', label: 'Logs', icon: ScrollText },
+        ] : []),
+        ...(isAuthenticated && (user?.role === 'admin' || user?.role === 'administrador') ? [
+          { id: 'sessions', label: 'Sessões', icon: LogIn },
+          { id: 'monitoring', label: 'Monitoramento', icon: Shield },
+          { id: 'lgpd', label: 'LGPD', icon: FileSearch },
+        ] : []),
+      ],
+    },
+  ].filter(g => g.items.length > 0);
 
   const handleLogout = useCallback(async () => {
     await logout();
@@ -82,14 +93,6 @@ export default function Sidebar({ activeTab, setActiveTab, isOpen, setIsOpen, pe
 
   return (
     <>
-      <button
-        onClick={() => setIsOpen(!isOpen)}
-        className="lg:hidden fixed top-4 left-4 z-50 p-2.5 rounded-xl bg-gov-700 text-white shadow-lg focus:outline-none focus:ring-2 focus:ring-gold hover:bg-gov-800 transition-colors"
-        aria-label={isOpen ? 'Fechar menu' : 'Abrir menu'}
-      >
-        {isOpen ? <X size={22} /> : <Menu size={22} />}
-      </button>
-
       {isOpen && (
         <div className="lg:hidden fixed inset-0 z-40 bg-black/60 backdrop-blur-sm" onClick={() => setIsOpen(false)} />
       )}
@@ -120,34 +123,38 @@ export default function Sidebar({ activeTab, setActiveTab, isOpen, setIsOpen, pe
           )}
         </div>
 
-        <nav className="flex-1 overflow-y-auto custom-scrollbar p-3 space-y-0.5" aria-label="Navegação principal">
-          {menuItems.map((item) => {
-            const Icon = item.icon;
-            const isActive = activeTab === item.id;
+        <nav className="flex-1 overflow-y-auto custom-scrollbar p-3 space-y-3" aria-label="Navegação principal">
+          {menuGroups.map((group) => {
             return (
-              <button
-                key={item.id}
-                onClick={() => handleNav(item.id)}
-                className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-sm font-medium transition-all group focus:outline-none focus:ring-2 focus:ring-gold/60 ${
-                  isActive
-                    ? 'bg-gov-700/40 text-white shadow-sm border-l-[3px] border-gold'
-                    : 'text-slate-400 hover:bg-white/5 hover:text-slate-200'
-                }`}
-                aria-current={isActive ? 'page' : undefined}
-              >
-                <span className="flex items-center gap-3 min-w-0">
-                  <Icon
-                    size={19}
-                    className={`shrink-0 ${isActive ? 'text-white' : 'text-slate-500 group-hover:text-slate-300'}`}
-                  />
-                  <span className="truncate">{item.label}</span>
-                </span>
-                {item.badge !== null && (
-                  <span className="shrink-0 bg-gold text-gov-900 font-bold text-[10px] px-2 py-0.5 rounded-full animate-pulse shadow-sm ml-2">
-                    {item.badge}
-                  </span>
-                )}
-              </button>
+              <div key={group.label} className="space-y-0.5">
+                <p className="px-3.5 pt-1 pb-1 text-[9px] font-bold uppercase tracking-widest text-slate-500/70">
+                  {group.label}
+                </p>
+                {group.items.map((item) => {
+                  const ItemIcon = item.icon;
+                  const isActive = activeTab === item.id;
+                  return (
+                    <button
+                      key={item.id}
+                      onClick={() => handleNav(item.id)}
+                      className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium transition-all group focus:outline-none focus:ring-2 focus:ring-gold/60 ${
+                        isActive
+                          ? 'bg-gov-700/40 text-white shadow-sm border-l-[3px] border-gold'
+                          : 'text-slate-400 hover:bg-white/5 hover:text-slate-200'
+                      }`}
+                      aria-current={isActive ? 'page' : undefined}
+                    >
+                      <span className="flex items-center gap-3 min-w-0">
+                        <ItemIcon
+                          size={19}
+                          className={`shrink-0 ${isActive ? 'text-white' : 'text-slate-500 group-hover:text-slate-300'}`}
+                        />
+                        <span className="truncate">{item.label}</span>
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
             );
           })}
         </nav>

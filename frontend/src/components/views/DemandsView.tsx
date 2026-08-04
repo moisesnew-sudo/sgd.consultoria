@@ -1628,12 +1628,20 @@ export default function DemandsView({
               )}
             </div>
             <div className="p-4 bg-slate-50 border-t border-slate-100 sticky bottom-0 z-10 flex flex-col sm:flex-row gap-2 justify-between">
-              <button
-                onClick={handlePrintDemand}
-                className="py-2.5 px-4 rounded-xl border border-slate-200 hover:bg-slate-100 text-slate-700 font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2"
-              >
-                <Printer size={14} /> Imprimir
-              </button>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  onClick={handlePrintDemand}
+                  className="py-2.5 px-4 rounded-xl border border-slate-200 hover:bg-slate-100 text-slate-700 font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2"
+                >
+                  <Printer size={14} /> Imprimir
+                </button>
+                <button
+                  onClick={() => setDetailedDemand(null)}
+                  className="py-2.5 px-6 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs uppercase tracking-wider"
+                >
+                  Fechar
+                </button>
+              </div>
               {canDelete && (
                 <button
                   onClick={() => setDeleteTarget(detailedDemand.id)}
@@ -1642,12 +1650,6 @@ export default function DemandsView({
                   <Trash2 size={14} /> Excluir
                 </button>
               )}
-              <button
-                onClick={() => setDetailedDemand(null)}
-                className="py-2.5 px-6 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs uppercase tracking-wider"
-              >
-                Fechar
-              </button>
             </div>
           </div>
         </div>

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import {
-  Settings as SettingsIcon, Shield, Upload, Download, Save, Loader2, Key, Eye, EyeOff
+  Settings as SettingsIcon, Shield, Download, Save, Loader2, Key, Eye, EyeOff, LogOut
 } from 'lucide-react';
 import { settingsApi } from '../../services/api';
 import { useAuth } from '../../contexts/AuthContext';
@@ -23,7 +23,7 @@ export default function SettingsView({ onBackToLogin }: SettingsViewProps) {
   const { toast } = useToast();
   
   const [settings, setSettings] = useState<AppSettings>({
-    organization_name: 'CGASI.SE - CoordenaÃ§Ã£o Geral de ArticulaÃ§Ã£o e SupervisÃ£o Institucional da SecretÃ¡ria Executiva/ MAPA',
+    organization_name: 'CGASI.SE - Coordenação Geral de Articulação e Supervisão Institucional da Secretaria Executiva/ MAPA',
     primary_color: '#2E7D32',
     accent_color: '#2563eb',
     logo_url: ''
@@ -34,6 +34,7 @@ export default function SettingsView({ onBackToLogin }: SettingsViewProps) {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showCurrentPassword, setShowCurrentPassword] = useState(false);
   const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isChangingPassword, setIsChangingPassword] = useState(false);
   const [message, setMessage] = useState('');
@@ -63,7 +64,7 @@ export default function SettingsView({ onBackToLogin }: SettingsViewProps) {
     setMessage('');
     try {
       await settingsApi.update(settings);
-      setMessage('ConfiguraÃ§Ãµes salvas com sucesso!');
+      setMessage('Configurações salvas com sucesso!');
       setTimeout(() => setMessage(''), 3000);
     } catch (err: any) {
       setMessage('Erro ao salvar: ' + (err.message || 'Tente novamente'));
@@ -78,7 +79,7 @@ export default function SettingsView({ onBackToLogin }: SettingsViewProps) {
       return;
     }
     if (newPassword !== confirmPassword) {
-      setMessage('As senhas nÃ£o coincidem.');
+      setMessage('As senhas não coincidem.');
       return;
     }
     if (newPassword.length < 8) {
@@ -120,8 +121,8 @@ export default function SettingsView({ onBackToLogin }: SettingsViewProps) {
   return (
     <div className="max-w-3xl mx-auto space-y-6">
       <PageHeader
-        title="ConfiguraÃ§Ãµes do Sistema"
-        subtitle="Gerencie parÃ¢metros gerais, seguranÃ§a e dados do sistema."
+        title="Configurações do Sistema"
+        subtitle="Gerencie parâmetros gerais, segurança e dados do sistema."
         icon={<SettingsIcon className="text-brand-700" size={26} />}
       />
 
@@ -138,11 +139,11 @@ export default function SettingsView({ onBackToLogin }: SettingsViewProps) {
       {/* General Settings */}
       <div className="bg-white border border-slate-100 rounded-3xl p-6 shadow-sm space-y-5">
         <h3 className="text-xs font-extrabold text-brand-700 uppercase tracking-widest flex items-center gap-2">
-          <SettingsIcon size={16} /> AparÃªncia
+          <SettingsIcon size={16} /> Aparência
         </h3>
 
         <div className="space-y-1">
-          <label className="text-xs font-bold text-slate-700 block">Nome da OrganizaÃ§Ã£o</label>
+          <label className="text-xs font-bold text-slate-700 block">Nome da Organização</label>
           <input
             type="text"
             value={settings.organization_name}
@@ -153,7 +154,7 @@ export default function SettingsView({ onBackToLogin }: SettingsViewProps) {
 
         <div className="grid grid-cols-2 gap-4">
           <div className="space-y-1">
-            <label className="text-xs font-bold text-slate-700 block">Cor PrimÃ¡ria</label>
+            <label className="text-xs font-bold text-slate-700 block">Cor Primária</label>
             <div className="flex items-center gap-2">
               <input
                 type="color"
@@ -194,19 +195,19 @@ export default function SettingsView({ onBackToLogin }: SettingsViewProps) {
           className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-brand-700 hover:bg-brand-800 text-white font-bold text-xs uppercase tracking-wider cursor-pointer disabled:opacity-50 transition-colors"
         >
           {isSaving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
-          Salvar AparÃªncia
+          Salvar Aparência
         </button>
       </div>
 
       {/* Password */}
       <div className="bg-white border border-slate-100 rounded-3xl p-6 shadow-sm space-y-5">
         <h3 className="text-xs font-extrabold text-brand-700 uppercase tracking-widest flex items-center gap-2">
-          <Shield size={16} /> SeguranÃ§a
+          <Shield size={16} /> Segurança
         </h3>
 
         <div className="bg-slate-50 rounded-xl p-4 mb-4">
           <p className="text-xs text-slate-600">
-            UsuÃ¡rio logado: <strong className="text-slate-900">{user?.name}</strong> ({user?.email})
+            Usuário logado: <strong className="text-slate-900">{user?.name}</strong> ({user?.email})
           </p>
           <p className="text-[10px] text-slate-400 mt-1 uppercase font-bold">Perfil: {user?.role === 'admin' ? 'Administrador' : user?.role === 'gestor' ? 'Gestor' : user?.role === 'analista' ? 'Analista' : 'Consulta'}</p>
         </div>
@@ -238,7 +239,7 @@ export default function SettingsView({ onBackToLogin }: SettingsViewProps) {
                 type={showNewPassword ? 'text' : 'password'}
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
-                placeholder="MÃ­nimo 8 caracteres"
+                placeholder="Mínimo 8 caracteres"
                 className="w-full px-4 py-2.5 pr-10 rounded-xl border border-slate-200 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-brand-600 focus:border-transparent"
               />
               <button
@@ -253,12 +254,21 @@ export default function SettingsView({ onBackToLogin }: SettingsViewProps) {
 
           <div className="space-y-1">
             <label className="text-xs font-bold text-slate-700 block">Confirmar Nova Senha *</label>
-            <input
-              type="password"
-              value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
-              className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-brand-600 focus:border-transparent"
-            />
+            <div className="relative">
+              <input
+                type={showConfirmPassword ? 'text' : 'password'}
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                className="w-full px-4 py-2.5 pr-10 rounded-xl border border-slate-200 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-brand-600 focus:border-transparent"
+              />
+              <button
+                type="button"
+                onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+              >
+                {showConfirmPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+              </button>
+            </div>
           </div>
 
           <button
@@ -288,23 +298,23 @@ export default function SettingsView({ onBackToLogin }: SettingsViewProps) {
         </div>
 
         <p className="text-[10px] text-slate-400">
-          A exportaÃ§Ã£o inclui todas as demandas, municÃ­pios e configuraÃ§Ãµes do sistema.
+          A exportação inclui todas as demandas, municípios e configurações do sistema.
         </p>
       </div>
 
-      {/* Danger Zone */}
-      <div className="bg-red-50/50 border border-red-200 rounded-3xl p-6 space-y-4">
-        <h3 className="text-xs font-extrabold text-red-600 uppercase tracking-widest flex items-center gap-2">
-          <Shield size={16} /> Zona de Perigo
+      {/* Session */}
+      <div className="bg-white border border-slate-100 rounded-3xl p-6 shadow-sm space-y-4">
+        <h3 className="text-xs font-extrabold text-brand-700 uppercase tracking-widest flex items-center gap-2">
+          <LogOut size={16} /> Sessão
         </h3>
-        <p className="text-xs text-red-600/80">
-          Ao sair, vocÃª precisarÃ¡ inserir suas credenciais novamente para acessar o sistema.
+        <p className="text-xs text-slate-500">
+          Ao sair, você precisará inserir suas credenciais novamente para acessar o sistema.
         </p>
         <button
           onClick={onBackToLogin}
-          className="px-5 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold text-xs uppercase tracking-wider cursor-pointer transition-colors"
+          className="flex items-center gap-2 px-5 py-2.5 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 font-bold text-xs uppercase tracking-wider cursor-pointer transition-colors"
         >
-          Sair e Voltar ao Login
+          <LogOut size={14} /> Sair e Voltar ao Login
         </button>
       </div>
     </div>

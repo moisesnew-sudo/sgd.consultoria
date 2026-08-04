@@ -48,8 +48,8 @@ export default function SessionsView() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="SessÃµes Ativas"
-        subtitle="Gerencie as sessÃµes ativas do sistema"
+        title="Sessões Ativas"
+        subtitle="Gerencie as sessões ativas do sistema"
         icon={<ShieldX className="text-brand-600" />}
         actions={
           <button onClick={load} className="p-2 rounded-lg border border-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800" title="Atualizar">
@@ -96,9 +96,9 @@ export default function SessionsView() {
                       </div>
                       <div className="flex items-center gap-3 mt-1 text-xs text-slate-500 dark:text-slate-400 flex-wrap">
                         <span className="flex items-center gap-1"><Globe size={12} /> {session.ip_address || 'N/A'}</span>
-                        <span className="flex items-center gap-1">{getOsIcon(session.os)} {session.os || 'Desconhecido'}</span>
+                        <span className="flex items-center gap-1">{session.os || 'Desconhecido'}</span>
                         <span className="flex items-center gap-1"><Monitor size={12} /> {session.browser || 'Desconhecido'}</span>
-                        <span className="flex items-center gap-1"><Clock size={12} /> Ãšltima atividade: {new Date(session.last_activity).toLocaleString('pt-BR')}</span>
+                        <span className="flex items-center gap-1"><Clock size={12} /> Última atividade: {new Date(session.last_activity).toLocaleString('pt-BR')}</span>
                       </div>
                       <p className="text-[10px] text-slate-400 mt-1">Iniciada em: {new Date(session.started_at).toLocaleString('pt-BR')}</p>
                     </div>
@@ -106,7 +106,7 @@ export default function SessionsView() {
                   {session.active && (
                     <button onClick={() => handleTerminate(session.id)}
                       className="shrink-0 p-2 rounded-lg border border-red-200 hover:bg-red-50 text-red-500 dark:border-red-800 dark:hover:bg-red-900/20 transition-colors"
-                      title="Encerrar sessÃ£o">
+                      title="Encerrar sessão">
                       <LogOut size={14} />
                     </button>
                   )}

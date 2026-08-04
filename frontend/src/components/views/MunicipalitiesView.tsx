@@ -80,14 +80,14 @@ export default function MunicipalitiesView({ municipalities, setMunicipalities }
           m => m.name.toLowerCase() === formName.trim().toLowerCase() && m.uf === formUf
         );
         if (exists) {
-          toast('warning', 'MunicÃ­pio jÃ¡ cadastrado para esta UF.');
+          toast('warning', 'Município já cadastrado para esta UF.');
           return;
         }
         const created = await municipalitiesApi.create({ name: formName.trim(), uf: formUf });
         setMunicipalities(prev => [...prev, created]);
       }
       setShowModal(false);
-      toast('success', editingMunicipality ? 'MunicÃ­pio atualizado' : 'MunicÃ­pio cadastrado');
+      toast('success', editingMunicipality ? 'Município atualizado' : 'Município cadastrado');
     } catch (err: any) {
       toast('error', 'Erro ao salvar', err?.message || 'Tente novamente');
     } finally {
@@ -104,7 +104,7 @@ export default function MunicipalitiesView({ municipalities, setMunicipalities }
     try {
       if (deleteTarget.id) await municipalitiesApi.delete(deleteTarget.id);
       setMunicipalities(prev => prev.filter(x => !(x.name === deleteTarget.name && x.uf === deleteTarget.uf)));
-      toast('success', 'MunicÃ­pio removido com sucesso');
+      toast('success', 'Município removido com sucesso');
     } catch (err: any) {
       toast('error', 'Erro ao remover', err?.message || 'Tente novamente');
     } finally {
@@ -120,8 +120,8 @@ export default function MunicipalitiesView({ municipalities, setMunicipalities }
   return (
     <div className="space-y-6">
       <PageHeader
-        title="MunicÃ­pios Cadastrados"
-        subtitle={`${municipalities.length} municÃ­pios registrados em ${Object.keys(ufCounts).length} estados.`}
+        title="Municípios Cadastrados"
+        subtitle={`${municipalities.length} municípios registrados em ${Object.keys(ufCounts).length} estados.`}
         icon={<MapPin className="text-brand-700" size={26} />}
         actions={
           <button
@@ -129,7 +129,7 @@ export default function MunicipalitiesView({ municipalities, setMunicipalities }
             className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-brand-700 text-white text-xs font-bold uppercase tracking-wider hover:bg-brand-800 transition-colors shadow-sm cursor-pointer"
           >
             <Plus size={16} />
-            Novo MunicÃ­pio
+            Novo Município
           </button>
         }
       />
@@ -140,7 +140,7 @@ export default function MunicipalitiesView({ municipalities, setMunicipalities }
           <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
           <input
             type="text"
-            placeholder="Buscar municÃ­pio..."
+            placeholder="Buscar município..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 text-sm text-slate-800 bg-white focus:outline-none focus:ring-2 focus:ring-brand-600 focus:border-transparent"
@@ -160,24 +160,28 @@ export default function MunicipalitiesView({ municipalities, setMunicipalities }
 
       {/* Municipalities Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-        {filteredMunicipalities.map((m, idx) => (
-              <div key={idx} className="bg-white border border-slate-100 rounded-2xl p-4 shadow-sm hover:shadow-md transition-shadow group">
+        {filteredMunicipalities.map((m) => (
+              <div key={`${m.name}-${m.uf}`} className="bg-white border border-slate-100 rounded-2xl p-4 shadow-sm hover:shadow-md transition-shadow group">
             <div className="flex items-start justify-between">
               <div>
                 <h3 className="text-sm font-bold text-slate-800">{m.name}</h3>
                 <p className="text-xs text-slate-500 mt-0.5">
-                  {m.uf} Â· {getRegionForUf(m.uf)}
+                  {m.uf} · {getRegionForUf(m.uf)}
                 </p>
               </div>
-              <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+              <div className="flex gap-1">
                 <button
                     onClick={() => handleEdit(m)}
+                    title={`Editar ${m.name}`}
+                    aria-label={`Editar ${m.name}`}
                     className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-blue-600 transition-colors cursor-pointer"
                   >
                     <Edit2 size={14} />
                   </button>
                   <button
                     onClick={() => handleDelete(m)}
+                  title={`Remover ${m.name}`}
+                  aria-label={`Remover ${m.name}`}
                   className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-red-500 transition-colors cursor-pointer"
                 >
                   <Trash2 size={14} />
@@ -226,8 +230,8 @@ export default function MunicipalitiesView({ municipalities, setMunicipalities }
 
       <ConfirmModal
         open={deleteTarget !== null}
-        title="Remover MunicÃ­pio"
-        message={`Tem certeza que deseja remover ${deleteTarget?.name} - ${deleteTarget?.uf}? Esta aÃ§Ã£o nÃ£o poderÃ¡ ser desfeita.`}
+        title="Remover Município"
+        message={`Tem certeza que deseja remover ${deleteTarget?.name} - ${deleteTarget?.uf}? Esta ação não poderá ser desfeita.`}
         confirmLabel="Remover"
         variant="danger"
         onConfirm={confirmDelete}

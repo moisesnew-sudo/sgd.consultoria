@@ -228,56 +228,6 @@ export default function ReportsView({ demands }: ReportsViewProps) {
         title="Relatórios e Análises"
         subtitle={`Dados consolidados de ${filtered.length} demandas`}
         icon={<BarChart3 className="text-brand-700 dark:text-brand-400" size={26} />}
-        actions={
-          <>
-            <button
-              onClick={openFilters}
-              className={`flex items-center gap-2 px-3 py-2.5 rounded-xl border text-xs font-bold transition-colors relative ${
-                activeFilterCount > 0
-                  ? 'bg-brand-50 dark:bg-brand-950/30 border-brand-300 dark:border-brand-800 text-brand-700 dark:text-brand-300'
-                  : 'bg-white dark:bg-[#111a2e] border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800'
-              }`}
-            >
-              <SlidersHorizontal size={15} />
-              Filtros
-              {activeFilterCount > 0 && (
-                <span className="min-w-[18px] h-[18px] px-1 rounded-full bg-brand-600 text-white text-[9px] font-black flex items-center justify-center">
-                  {activeFilterCount}
-                </span>
-              )}
-            </button>
-
-            {canExport && (
-              <ExportMenu
-                items={exportItems}
-                buttonLabel="Exportar"
-                buttonIcon={<Download size={15} />}
-              />
-            )}
-
-            {canEmit && (
-              <>
-                <select
-                  value={reportType}
-                  onChange={(e) => setReportType(e.target.value)}
-                  className="px-3 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-900/60 text-xs text-slate-700 dark:text-slate-200 bg-white focus:ring-2 focus:ring-brand-600 focus:outline-none"
-                  title="Tipo de Relatório"
-                >
-                  <option value="executivo">Executivo Geral (IA)</option>
-                  <option value="municipio">Por Município</option>
-                  <option value="estado">Por Estado</option>
-                  <option value="orgao">Por Órgão</option>
-                </select>
-                <button
-                  onClick={() => setShowReport(true)}
-                  className="flex items-center gap-1.5 px-3 py-2.5 rounded-xl bg-gradient-to-r from-brand-600 to-brand-700 hover:from-brand-700 hover:to-brand-800 text-white text-xs font-bold uppercase tracking-wider cursor-pointer shadow-sm"
-                >
-                  <Sparkles size={14} /> Gerar Relatório
-                </button>
-              </>
-            )}
-          </>
-        }
       />
 
       {/* ACTION BAR */}

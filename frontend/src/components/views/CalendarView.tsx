@@ -473,7 +473,6 @@ export default function CalendarView({ onOpenDemand }: { onOpenDemand?: (demandI
   const [current, setCurrent] = useState(new Date());
   const [viewMode, setViewMode] = useState<ViewMode>('month');
   const [quickFilters, setQuickFilters] = useState<EventType[]>([]);
-  const [hiddenTypes, setHiddenTypes] = useState<EventType[]>([]);
   const [hideSystem, setHideSystem] = useState(false);
   const [search, setSearch] = useState('');
   const [advFilters, setAdvFilters] = useState<AdvFilters>(EMPTY_ADV);
@@ -548,7 +547,6 @@ export default function CalendarView({ onOpenDemand }: { onOpenDemand?: (demandI
   const filteredEvents = useMemo(() => {
     const q = advFilters.search.trim().toLowerCase();
     return allEvents.filter(e => {
-      if (hiddenTypes.includes(e.type)) return false;
       if (e.source === 'system' && hideSystem) return false;
       if (quickFilters.length > 0 && !quickFilters.includes(e.type)) return false;
       if (e.done) return false;
@@ -567,7 +565,7 @@ export default function CalendarView({ onOpenDemand }: { onOpenDemand?: (demandI
       ].some(x => String(x ?? '').toLowerCase().includes(q))) return false;
       return true;
     });
-  }, [allEvents, hiddenTypes, hideSystem, quickFilters, advFilters]);
+  }, [allEvents, hideSystem, quickFilters, advFilters]);
 
   const searchFiltered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -1399,41 +1397,18 @@ export default function CalendarView({ onOpenDemand }: { onOpenDemand?: (demandI
                 </button>
               ))}
             </div>
-          </div>
-
-          {/* Calendars */}
-          <div className="bg-white dark:bg-[#111a2e] border border-slate-100 dark:border-slate-700/50 rounded-2xl p-4 shadow-sm space-y-3">
-            <h3 className="text-xs font-black text-slate-800 dark:text-white flex items-center gap-1.5">
-              <CalendarDays size={14} className="text-brand-600" /> Calendários
-            </h3>
-            <div className="space-y-2">
-              {ALL_TYPES.map(t => (
-                <label key={t} className="flex items-center gap-2 cursor-pointer group">
-                  <input
-                    type="checkbox"
-                    checked={!hiddenTypes.includes(t)}
-                    onChange={() => setHiddenTypes(prev => prev.includes(t) ? prev.filter(x => x !== t) : [...prev, t])}
-                    className="w-3.5 h-3.5 rounded accent-brand-600"
-                  />
-                  <span className={`w-2 h-2 rounded-full ${TYPE_META[t].dot}`} />
-                  <span className="text-[11px] font-bold text-slate-600 dark:text-slate-300 group-hover:text-slate-800 dark:group-hover:text-white transition-colors">
-                    {TYPE_META[t].label}
-                  </span>
-                </label>
-              ))}
-              <label className="flex items-center gap-2 cursor-pointer group border-t border-slate-100 dark:border-slate-700/50 pt-2">
-                <input
-                  type="checkbox"
-                  checked={!hideSystem}
-                  onChange={() => setHideSystem(v => !v)}
-                  className="w-3.5 h-3.5 rounded accent-brand-600"
-                />
-                <span className="w-2 h-2 rounded-full bg-slate-400" />
-                <span className="text-[11px] font-bold text-slate-600 dark:text-slate-300 group-hover:text-slate-800 dark:group-hover:text-white transition-colors">
-                  Eventos do Sistema
-                </span>
-              </label>
-            </div>
+            <label className="flex items-center gap-2 cursor-pointer group border-t border-slate-100 dark:border-slate-700/50 pt-3">
+              <input
+                type="checkbox"
+                checked={!hideSystem}
+                onChange={() => setHideSystem(v => !v)}
+                className="w-3.5 h-3.5 rounded accent-brand-600"
+              />
+              <span className="w-2 h-2 rounded-full bg-slate-400" />
+              <span className="text-[11px] font-bold text-slate-600 dark:text-slate-300 group-hover:text-slate-800 dark:group-hover:text-white transition-colors">
+                Eventos do Sistema
+              </span>
+            </label>
           </div>
         </aside>
       </div>
