@@ -41,7 +41,7 @@ export default function MunicipalitiesView({ municipalities, setMunicipalities }
   const [formUf, setFormUf] = useState('CE');
   const [isSaving, setIsSaving] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<MunicipalityData | null>(null);
-  const [ibgeSuggestions, setIbgeSuggestions] = useState<{ nome: string; uf: string }[]>([]);
+  const [ibgeSuggestions, setIbgeSuggestions] = useState<{ value: string; label: string; secondary: string }[]>([]);
   const [ibgeHint, setIbgeHint] = useState('');
 
   useEffect(() => {
@@ -251,7 +251,7 @@ export default function MunicipalitiesView({ municipalities, setMunicipalities }
             <Input label="Nome do Município *" required list="ibge-municipality-options" spellCheck={false} autoComplete="off" value={formName} onChange={(e) => setFormName(e.target.value)} placeholder="Ex: Petrolina" hint={ibgeHint} />
             <datalist id="ibge-municipality-options">
               {ibgeSuggestions.map((s, i) => (
-                <option key={`${s.nome}-${s.uf}-${i}`} value={s.nome} />
+                <option key={`${s.value}-${s.secondary}-${i}`} value={s.value} />
               ))}
             </datalist>
           </div>

@@ -89,6 +89,17 @@ export async function initDatabase() {
       UNIQUE(name, uf)
     );
 
+    CREATE TABLE IF NOT EXISTS organs (
+      id SERIAL PRIMARY KEY,
+      name TEXT NOT NULL,
+      active BOOLEAN DEFAULT TRUE,
+      created_by INTEGER REFERENCES users(id),
+      created_at TIMESTAMPTZ DEFAULT NOW(),
+      updated_at TIMESTAMPTZ DEFAULT NOW(),
+      UNIQUE(name)
+    );
+    CREATE UNIQUE INDEX IF NOT EXISTS uq_organs_name_upper ON organs (UPPER(name));
+
     CREATE TABLE IF NOT EXISTS demands (
       id TEXT PRIMARY KEY,
       title TEXT NOT NULL,

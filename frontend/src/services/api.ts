@@ -480,11 +480,45 @@ export const standardizationApi = {
     const res = await request<{ data: { nome: string; uf: string }[]; count: number }>(
       `/standardization/municipalities${params.toString() ? '?' + params.toString() : ''}`
     );
-    return res.data;
+    return res.data.map(m => ({ value: m.nome, label: m.nome, secondary: m.uf }));
+  },
+
+  suggestObjects: async (q: string) => {
+    const params = new URLSearchParams();
+    if (q) params.append('q', q);
+    const res = await request<{ data: string[]; count: number }>(
+      `/standardization/objects${params.toString() ? '?' + params.toString() : ''}`
+    );
+    return res.data.map(t => ({ value: t }));
   },
 
   scan: () => request<unknown>('/standardization/scan', { method: 'POST' }),
   apply: () => request<unknown>('/standardization/apply', { method: 'POST' }),
+};
+
+// Órgãos (cadastro mestre)
+export interface Org {
+  id: number;
+  name: string;
+  active: boolean;
+}
+
+export const organsApi = {
+  list: () => request<Org[]>('/organs'),
+
+  create: (name: string) =>
+    request<Org>('/organs', { method: 'POST', body: JSON.stringify({ name }) }),
+
+  update: (id: number, name: string) =>
+    request<Org>(`/organs/${id}`, { method: 'PUT', body: JSON.stringify({ name }) }),
+
+  deactivate: (id: number) =>
+    request<{ message: string }>(`/organs/${id}`, { method: 'DELETE' }),
+};
+
+// Usuários (seletor de responsável)
+export const usersApi = {
+  active: () => request<{ id: number; name: string; email: string }[]>('/users/active'),
 };
 
 // Settings API

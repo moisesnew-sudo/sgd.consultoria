@@ -365,6 +365,19 @@ router.get('/users', authenticateToken, requirePermission('users.view'), async (
   }
 });
 
+// Lista compacta de usuários ativos — usada no seletor de responsável da demanda.
+router.get('/users/active', authenticateToken, async (_req: Request, res: Response) => {
+  try {
+    const users = await all(
+      'SELECT id, name, email FROM users WHERE active = TRUE AND deleted_at IS NULL ORDER BY name ASC'
+    );
+    res.json(users);
+  } catch (error) {
+    logger.error('List active users error', { error: error instanceof Error ? error.message : error });
+    res.status(500).json({ error: 'Erro ao listar usuários ativos' });
+  }
+});
+
 router.post('/users', authenticateToken, requirePermission('users.create'), async (req: Request, res: Response) => {
   try {
     if (req.user?.role !== 'admin' && req.user?.role !== 'administrador' && req.user?.role !== 'gestor') {

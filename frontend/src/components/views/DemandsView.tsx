@@ -32,9 +32,11 @@ import {
   Building2
 } from 'lucide-react';
 import { Demand, DemandStatus, DemandPriority, TimelineEvent, PaginatedResponse } from '../../types';
-import { demandsApi, formatCurrency, formatDate } from '../../services/api';
+import { demandsApi, standardizationApi, organsApi, usersApi, Org, formatCurrency, formatDate } from '../../services/api';
 import { formatCurrencyInput, parseCurrencyInput } from '../../lib/currency';
+import { BRAZILIAN_STATES } from '../../lib/demandMeta';
 import { StatusBadge, PriorityBadge, PageHeader, SummaryCard, EmptyState, FiltersDrawer, Select, Input, SmartSearchInput, Highlight } from '../ui';
+import { SearchSelect } from '../ui/SearchSelect';
 import { ConfirmModal } from '../ui/ConfirmModal';
 import { useAuth } from '../../contexts/AuthContext';
 import { useToast } from '../../contexts/ToastContext';
@@ -191,6 +193,24 @@ export default function DemandsView({
   const [editResponsiblePhone, setEditResponsiblePhone] = useState('');
   const [editAno, setEditAno] = useState<number | undefined>(undefined);
   const [editNotes, setEditNotes] = useState('');
+
+  // Cadastro mestre (órgãos) e usuários ativos para os seletores de padronização.
+  const [organs, setOrgans] = useState<Org[]>([]);
+  const [activeUsers, setActiveUsers] = useState<{ id: number; name: string; email: string }[]>([]);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const [orgRes, usersRes] = await Promise.all([organsApi.list(), usersApi.active()]);
+        if (!cancelled) {
+          setOrgans(orgRes);
+          setActiveUsers(usersRes);
+        }
+      } catch { /* não crítico */ }
+    })();
+    return () => { cancelled = true; };
+  }, []);
   const [isSavingEdit, setIsSavingEdit] = useState(false);
 
   // Auto-open demand if selected from dashboard
@@ -231,6 +251,17 @@ export default function DemandsView({
     setEditNotes(demand.notes || '');
     setEditAno(demand.ano ?? new Date().getFullYear());
     setIsEditingDemand(true);
+  };
+
+  // Cria um novo órgão no cadastro mestre (admin) e o adiciona à lista local.
+  const createOrgan = async (name: string) => {
+    const created = await organsApi.create(name);
+    setOrgans(prev =>
+      prev.some(o => o.name.toUpperCase() === created.name.toUpperCase())
+        ? prev
+        : [...prev, created]
+    );
+    return { value: created.name };
   };
 
   const handleQuickEdit = (demand: Demand) => {
@@ -1140,20 +1171,37 @@ export default function DemandsView({
                   <h3 className="text-sm font-extrabold text-brand-700 uppercase tracking-widest">Editar Demanda</h3>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="space-y-1">
+                    <div className="space-y-1 md:col-span-2">
                       <label className="text-xs font-bold text-slate-700 block">Título *</label>
-                      <input type="text" value={editTitle} onChange={(e) => setEditTitle(e.target.value.toUpperCase())}
-                        className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-brand-600 focus:outline-none" />
+                      <SearchSelect
+                        value={editTitle}
+                        onChange={(v) => setEditTitle(v.toUpperCase())}
+                        fetcher={(q) => standardizationApi.suggestObjects(q)}
+                        allowFreeText
+                        placeholder="Ex: CONSTRUÇÃO DE CRECHE"
+                        spellCheck={true}
+                      />
                     </div>
                     <div className="space-y-1">
                       <label className="text-xs font-bold text-slate-700 block">Município *</label>
-                      <input type="text" value={editMunicipality} onChange={(e) => setEditMunicipality(e.target.value.toUpperCase())}
-                        className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-brand-600 focus:outline-none" />
+                      <SearchSelect
+                        value={editMunicipality}
+                        onChange={(v) => setEditMunicipality(v.toUpperCase())}
+                        fetcher={(q) => standardizationApi.suggestMunicipalities(q, editUf)}
+                        strict
+                        placeholder="Ex: PETROLINA"
+                        noMatchMessage="Município não encontrado na base oficial do IBGE — não será possível salvar."
+                        spellCheck={true}
+                      />
                     </div>
                     <div className="space-y-1">
-                      <label className="text-xs font-bold text-slate-700 block">UF</label>
-                      <input type="text" value={editUf} onChange={(e) => setEditUf(e.target.value.toUpperCase())} maxLength={2}
-                        className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-brand-600 focus:outline-none" />
+                      <label className="text-xs font-bold text-slate-700 block">UF *</label>
+                      <select value={editUf} onChange={(e) => setEditUf(e.target.value.toUpperCase())}
+                        className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm bg-white focus:ring-2 focus:ring-brand-600 focus:outline-none">
+                        {BRAZILIAN_STATES.map(uf => (
+                          <option key={uf} value={uf}>{uf}</option>
+                        ))}
+                      </select>
                     </div>
                     <div className="space-y-1">
                       <label className="text-xs font-bold text-slate-700 block">Status</label>
@@ -1193,12 +1241,19 @@ export default function DemandsView({
                     </div>
                     <div className="space-y-1">
                       <label className="text-xs font-bold text-slate-700 block">Órgão</label>
-                      <input type="text" value={editOrgan} onChange={(e) => setEditOrgan(e.target.value.toUpperCase())}
-                        className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-brand-600 focus:outline-none" />
+                      <SearchSelect
+                        value={editOrgan}
+                        onChange={(v) => setEditOrgan(v.toUpperCase())}
+                        options={organs.map(o => ({ value: o.name }))}
+                        allowCreate={canEdit && (user?.role === 'admin' || user?.role === 'administrador')}
+                        onCreate={createOrgan}
+                        placeholder="Ex: MEC, FNDE, MS"
+                        hint="Cadastro mestre — administradores podem criar novos órgãos direto no campo."
+                      />
                     </div>
                     <div className="space-y-1">
                       <label className="text-xs font-bold text-slate-700 block">Prefeitura</label>
-                      <input type="text" value={editPrefeitura} onChange={(e) => setEditPrefeitura(e.target.value.toUpperCase())}
+                      <input type="text" value={editPrefeitura} onChange={(e) => setEditPrefeitura(e.target.value.toUpperCase())} lang="pt-BR" spellCheck={true}
                         className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-brand-600 focus:outline-none" />
                     </div>
                     <div className="space-y-1">
@@ -1213,22 +1268,32 @@ export default function DemandsView({
                     </div>
                     <div className="space-y-1">
                       <label className="text-xs font-bold text-slate-700 block">Responsável</label>
-                      <input type="text" value={editResponsibleName} onChange={(e) => setEditResponsibleName(e.target.value.toUpperCase())}
-                        className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-brand-600 focus:outline-none" />
+                      <SearchSelect
+                        value={editResponsibleName}
+                        onChange={(v) => setEditResponsibleName(v.toUpperCase())}
+                        options={activeUsers.map(u => ({ value: u.name, meta: { email: u.email } }))}
+                        strict={activeUsers.length > 0}
+                        onSelect={(opt) => {
+                          if (opt?.meta?.email && !editResponsibleEmail.trim()) setEditResponsibleEmail(opt.meta.email);
+                        }}
+                        placeholder="Ex: MARIA DA SILVA"
+                        noMatchMessage="Selecione um usuário ativo da lista."
+                        hint="Preenchido a partir da lista de usuários ativos do sistema."
+                      />
                     </div>
                     <div className="space-y-1">
                       <label className="text-xs font-bold text-slate-700 block">E-mail Responsável</label>
-                      <input type="email" value={editResponsibleEmail} onChange={(e) => setEditResponsibleEmail(e.target.value)}
+                      <input type="email" value={editResponsibleEmail} onChange={(e) => setEditResponsibleEmail(e.target.value)} lang="pt-BR" spellCheck={false}
                         className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-brand-600 focus:outline-none" />
                     </div>
                     <div className="space-y-1 md:col-span-2">
                       <label className="text-xs font-bold text-slate-700 block">Descrição</label>
-                      <textarea rows={3} value={editDescription} onChange={(e) => setEditDescription(e.target.value.toUpperCase())}
+                      <textarea rows={3} value={editDescription} onChange={(e) => setEditDescription(e.target.value.toUpperCase())} lang="pt-BR" spellCheck={true}
                         className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-brand-600 focus:outline-none" />
                     </div>
                     <div className="space-y-1 md:col-span-2">
                       <label className="text-xs font-bold text-slate-700 block">Observações</label>
-                      <textarea rows={2} value={editNotes} onChange={(e) => setEditNotes(e.target.value.toUpperCase())}
+                      <textarea rows={2} value={editNotes} onChange={(e) => setEditNotes(e.target.value.toUpperCase())} lang="pt-BR" spellCheck={true}
                         className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-brand-600 focus:outline-none" />
                     </div>
                   </div>

@@ -20,9 +20,10 @@ import {
   RotateCcw
 } from 'lucide-react';
 import { Demand, DemandPriority, DemandStatus, Attachment } from '../../types';
-import { demandsApi, standardizationApi } from '../../services/api';
+import { demandsApi, standardizationApi, organsApi, usersApi, Org } from '../../services/api';
 import { formatCurrencyInput, parseCurrencyInput } from '../../lib/currency';
 import { STATUS_BADGE_CLS, statusLabel, BRAZILIAN_STATES } from '../../lib/demandMeta';
+import { SearchSelect } from '../ui/SearchSelect';
 import { useAuth } from '../../contexts/AuthContext';
 import { useToast } from '../../contexts/ToastContext';
 
@@ -31,13 +32,6 @@ interface NewDemandViewProps {
   onAddDemand: (newDemand: Demand) => void;
   onNavigateToTab: (tab: string) => void;
 }
-
-const ORGAN_OPTIONS = [
-  'MEC', 'FNDE', 'MEC/FNDE', 'MINISTÉRIO DA SAÚDE', 'MS', 'MAPA',
-  'MINISTÉRIO DA AGRICULTURA E PECUÁRIA', 'SECRETARIA MUNICIPAL DE EDUCAÇÃO',
-  'SECRETARIA ESTADUAL DE EDUCAÇÃO', 'CAIXA ECONÔMICA FEDERAL', 'BNDES',
-  'CONSELHO MUNICIPAL DE EDUCAÇÃO'
-];
 
 const PRIORITIES: { value: DemandPriority; label: string; active: string }[] = [
   { value: 'baixa', label: 'Baixa', active: 'bg-slate-500 text-white shadow-xs' },
@@ -153,8 +147,6 @@ const formatDateTime = (d: Date) =>
   ' ' +
   d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
 
-const stripAccents = (s: string) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase();
-
 export default function NewDemandView({ municipalities, onAddDemand, onNavigateToTab }: NewDemandViewProps) {
   const { user } = useAuth();
   const { toast } = useToast();
@@ -184,11 +176,23 @@ export default function NewDemandView({ municipalities, onAddDemand, onNavigateT
   const [hasDraft, setHasDraft] = useState(false);
   const [lastEdited, setLastEdited] = useState<Date | null>(null);
 
-  const filteredMunicipalities = municipalities.filter(m => m.uf === uf);
+  const [organs, setOrgans] = useState<Org[]>([]);
+  const [activeUsers, setActiveUsers] = useState<{ id: number; name: string; email: string }[]>([]);
 
-  const [municipalitySuggestions, setMunicipalitySuggestions] = useState<{ nome: string; uf: string }[]>([]);
-  const [munSuggestion, setMunSuggestion] = useState<string | null>(null);
-  const [munNotFound, setMunNotFound] = useState(false);
+  // Carrega o cadastro mestre (órgãos) e os usuários ativos para os seletores.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const [orgRes, usersRes] = await Promise.all([organsApi.list(), usersApi.active()]);
+        if (!cancelled) {
+          setOrgans(orgRes);
+          setActiveUsers(usersRes);
+        }
+      } catch { /* não crítico */ }
+    })();
+    return () => { cancelled = true; };
+  }, []);
 
   // Restore draft from localStorage on mount
   useEffect(() => {
@@ -229,34 +233,9 @@ export default function NewDemandView({ municipalities, onAddDemand, onNavigateT
     processLink, responsibleName, responsibleEmail, responsiblePhone, priority, notes, attachments
   ]);
 
-  // Busca de sugestões oficiais (IBGE) para o autocomplete do município, com debounce.
-  useEffect(() => {
-    const q = municipality.trim();
-    if (!q) {
-      setMunicipalitySuggestions(filteredMunicipalities.map(m => ({ nome: m.name, uf: m.uf })));
-      return;
-    }
-    let cancelled = false;
-    const t = setTimeout(async () => {
-      try {
-        const res = await standardizationApi.suggestMunicipalities(q, uf);
-        if (!cancelled) setMunicipalitySuggestions(res);
-      } catch {
-        if (!cancelled) setMunicipalitySuggestions([]);
-      }
-    }, 200);
-    return () => {
-      cancelled = true;
-      clearTimeout(t);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [municipality, uf]);
-
   const handleMunicipalityChange = (val: string) => {
     const upper = val.toUpperCase();
     setMunicipality(upper);
-    setMunSuggestion(null);
-    setMunNotFound(false);
     if (upper) {
       setPrefeitura(`Prefeitura Municipal de ${upper}`);
     } else {
@@ -272,39 +251,18 @@ export default function NewDemandView({ municipalities, onAddDemand, onNavigateT
     } else {
       setMunicipality('');
       setPrefeitura('');
-      setMunSuggestion(null);
-      setMunNotFound(false);
     }
   };
 
-  // Sugere a grafia oficial (IBGE) quando o município digitado é reconhecível.
-  const handleMunicipalityBlur = async () => {
-    handleBlur('municipality');
-    const val = municipality.trim();
-    if (!val) {
-      setMunSuggestion(null);
-      setMunNotFound(false);
-      return;
-    }
-    try {
-      const res = await standardizationApi.suggestMunicipalities(val, uf);
-      const key = stripAccents(val);
-      const exact = res.find(s => stripAccents(s.nome) === key);
-      if (exact) {
-        setMunNotFound(false);
-        setMunSuggestion(exact.nome !== municipality ? exact.nome : null);
-      } else {
-        setMunSuggestion(null);
-        setMunNotFound(res.length === 0);
-      }
-    } catch {
-      setMunSuggestion(null);
-      setMunNotFound(false);
-    }
-  };
-
-  const applyMunicipalitySuggestion = () => {
-    if (munSuggestion) handleMunicipalityChange(munSuggestion);
+  // Cria um novo órgão no cadastro mestre (admin) e o adiciona à lista local.
+  const createOrgan = async (name: string) => {
+    const created = await organsApi.create(name);
+    setOrgans(prev =>
+      prev.some(o => o.name.toUpperCase() === created.name.toUpperCase())
+        ? prev
+        : [...prev, created]
+    );
+    return { value: created.name };
   };
 
   // ---- Validation ----
@@ -710,48 +668,16 @@ export default function NewDemandView({ municipalities, onAddDemand, onNavigateT
                 </Field>
 
                 <Field label="Município" required error={errors.municipality}>
-                  <input
-                    id="municipality-input"
-                    type="text"
-                    list="predefined-municipalities"
-                    lang="pt-BR"
-                    spellCheck={true}
-                    autoComplete="off"
+                  <SearchSelect
                     value={municipality}
-                    onChange={(e) => handleMunicipalityChange(e.target.value)}
-                    onBlur={handleMunicipalityBlur}
+                    onChange={handleMunicipalityChange}
+                    fetcher={(q) => standardizationApi.suggestMunicipalities(q, uf)}
+                    strict
                     placeholder="Ex: Petrolina"
-                    className={inputCls(!!errors.municipality)}
+                    error={errors.municipality}
+                    noMatchMessage="Município não encontrado na base oficial do IBGE — não será possível salvar."
+                    spellCheck={true}
                   />
-                  <datalist id="predefined-municipalities">
-                    {[
-                      ...filteredMunicipalities.map(m => ({ label: m.name, uf: m.uf })),
-                      ...municipalitySuggestions.map(s => ({ label: s.nome, uf: s.uf })),
-                    ]
-                      .filter((m, i, arr) => arr.findIndex(x => x.label === m.label && x.uf === m.uf) === i)
-                      .map((m, idx) => (
-                        <option key={`${m.label}-${m.uf}-${idx}`} value={m.label} />
-                      ))}
-                  </datalist>
-                  {munSuggestion && (
-                    <p className="text-[10px] font-semibold text-amber-600 dark:text-amber-400 flex items-center gap-1.5 animate-fade-in">
-                      <AlertCircle size={11} className="shrink-0" />
-                      <span>Grafia oficial do IBGE: <strong>{munSuggestion}</strong></span>
-                      <button
-                        type="button"
-                        onClick={applyMunicipalitySuggestion}
-                        className="ml-auto px-2 py-0.5 rounded-md bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 text-[9px] font-bold uppercase tracking-wider hover:bg-amber-200 dark:hover:bg-amber-900/60 transition-colors cursor-pointer"
-                      >
-                        Usar
-                      </button>
-                    </p>
-                  )}
-                  {munNotFound && (
-                    <p className="text-[10px] font-semibold text-red-500 flex items-center gap-1.5 animate-fade-in">
-                      <AlertCircle size={11} className="shrink-0" />
-                      <span>Município não encontrado na base oficial do IBGE — não será possível salvar.</span>
-                    </p>
-                  )}
                 </Field>
 
                 <Field label="Prefeitura Solicitante" hint="Preenchida automaticamente pelo município.">
@@ -787,30 +713,27 @@ export default function NewDemandView({ municipalities, onAddDemand, onNavigateT
             >
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
                 <Field label="Objeto / Projeto" required error={errors.objeto} className="sm:col-span-2">
-                  <input
-                    id="objeto-input"
-                    type="text"
+                  <SearchSelect
                     value={objeto}
-                    onChange={makeTextHandler(setObjeto, 'objeto', true)}
-                    onBlur={() => handleBlur('objeto')}
+                    onChange={(v) => { setObjeto(v.toUpperCase()); revalidate('objeto', v); }}
+                    fetcher={(q) => standardizationApi.suggestObjects(q)}
+                    allowFreeText
                     placeholder="Ex: Construção de Creche Proinfância"
-                    className={inputCls(!!errors.objeto)}
+                    error={errors.objeto}
+                    spellCheck={true}
                   />
                 </Field>
 
                 <Field label="Órgão Destinatário">
-                  <input
-                    id="organ-input"
-                    type="text"
-                    list="organ-options"
+                  <SearchSelect
                     value={organ}
-                    onChange={makeTextHandler(setOrgan, 'organ', true)}
+                    onChange={(v) => setOrgan(v.toUpperCase())}
+                    options={organs.map(o => ({ value: o.name }))}
+                    allowCreate={user?.role === 'admin' || user?.role === 'administrador'}
+                    onCreate={createOrgan}
                     placeholder="Ex: MEC, FNDE, MS"
-                    className={inputCls(false)}
+                    hint="Cadastro mestre — administradores podem criar novos órgãos direto no campo."
                   />
-                  <datalist id="organ-options">
-                    {ORGAN_OPTIONS.map(o => <option key={o} value={o} />)}
-                  </datalist>
                 </Field>
 
                 <Field label="Status Inicial" required>
@@ -867,13 +790,17 @@ export default function NewDemandView({ municipalities, onAddDemand, onNavigateT
             >
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
                 <Field label="Gestor Responsável">
-                  <input
-                    id="resp-name-input"
-                    type="text"
+                  <SearchSelect
                     value={responsibleName}
-                    onChange={makeTextHandler(setResponsibleName, 'responsibleName', true)}
+                    onChange={(v) => setResponsibleName(v.toUpperCase())}
+                    options={activeUsers.map(u => ({ value: u.name, meta: { email: u.email } }))}
+                    strict={activeUsers.length > 0}
+                    onSelect={(opt) => {
+                      if (opt?.meta?.email && !responsibleEmail.trim()) setResponsibleEmail(opt.meta.email);
+                    }}
                     placeholder="Ex: MARIA DA SILVA"
-                    className={inputCls(false)}
+                    noMatchMessage="Selecione um usuário ativo da lista."
+                    hint="Preenchido a partir da lista de usuários ativos do sistema."
                   />
                 </Field>
 

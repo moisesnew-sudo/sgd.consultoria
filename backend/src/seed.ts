@@ -212,6 +212,33 @@ export async function runSeed() {
     logger.info('✅ Configurações padrão criadas');
   }
 
+  // Seed do cadastro mestre de órgãos (CAIXA ALTA, sem duplicidades).
+  const BASE_ORGANS = [
+    'MEC', 'FNDE', 'MEC/FNDE', 'MINISTÉRIO DA SAÚDE', 'MS', 'MAPA',
+    'MINISTÉRIO DA AGRICULTURA E PECUÁRIA', 'SECRETARIA MUNICIPAL DE EDUCAÇÃO',
+    'SECRETARIA ESTADUAL DE EDUCAÇÃO', 'CAIXA ECONÔMICA FEDERAL', 'BNDES',
+    'CONSELHO MUNICIPAL DE EDUCAÇÃO'
+  ];
+  const existingOrgans = await all<{ organ: string }>(
+    `SELECT DISTINCT organ FROM demands WHERE organ IS NOT NULL AND TRIM(organ) <> ''`
+  );
+  const organNames = [
+    ...BASE_ORGANS,
+    ...existingOrgans.map(o => o.organ.toUpperCase().trim()),
+  ].filter((n, i, arr) => n && arr.findIndex(x => x === n) === i);
+
+  let organCount = 0;
+  for (const name of organNames) {
+    const exists = await get('SELECT id FROM organs WHERE UPPER(name) = $1', [name]);
+    if (!exists) {
+      await run('INSERT INTO organs (name) VALUES ($1)', [name]);
+      organCount++;
+    }
+  }
+  if (organCount > 0) {
+    logger.info(`✅ ${organCount} órgãos do cadastro mestre criados`);
+  }
+
   logger.info('🎉 Seed concluído com sucesso!');
   if (!process.env.SEED_ADMIN_PASSWORD && !process.env.SEED_DEFAULT_PASSWORD) {
     logger.info('📋 Usuários criados com senhas padrão. Defina SEED_*_PASSWORD nas env vars para personalizar.');
