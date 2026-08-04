@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { MapPin, Plus, Search, Edit2, Trash2, X, Save, Loader2 } from 'lucide-react';
-import { municipalitiesApi } from '../../services/api';
+import { municipalitiesApi, standardizationApi } from '../../services/api';
 import { MunicipalityData } from '../../types';
 import { BRAZILIAN_STATES } from '../../lib/demandMeta';
 import { useToast } from '../../contexts/ToastContext';
@@ -41,6 +41,34 @@ export default function MunicipalitiesView({ municipalities, setMunicipalities }
   const [formUf, setFormUf] = useState('CE');
   const [isSaving, setIsSaving] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<MunicipalityData | null>(null);
+  const [ibgeSuggestions, setIbgeSuggestions] = useState<{ nome: string; uf: string }[]>([]);
+  const [ibgeHint, setIbgeHint] = useState('');
+
+  useEffect(() => {
+    const q = formName.trim();
+    if (!q) {
+      setIbgeSuggestions([]);
+      setIbgeHint('');
+      return;
+    }
+    let cancelled = false;
+    const t = setTimeout(async () => {
+      try {
+        const res = await standardizationApi.suggestMunicipalities(q, formUf);
+        if (!cancelled) {
+          setIbgeSuggestions(res);
+          setIbgeHint(res.length === 0 ? 'Município não encontrado na base oficial do IBGE.' : '');
+        }
+      } catch {
+        if (!cancelled) setIbgeSuggestions([]);
+      }
+    }, 250);
+    return () => {
+      cancelled = true;
+      clearTimeout(t);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [formName, formUf]);
 
   const filteredMunicipalities = municipalities.filter(m => {
     const matchesSearch = m.name.toLowerCase().includes(searchTerm.toLowerCase());
@@ -219,7 +247,14 @@ export default function MunicipalitiesView({ municipalities, setMunicipalities }
         }
       >
         <div className="space-y-4">
-          <Input label="Nome do Município *" required value={formName} onChange={(e) => setFormName(e.target.value)} placeholder="Ex: Petrolina" />
+          <div>
+            <Input label="Nome do Município *" required list="ibge-municipality-options" spellCheck={false} autoComplete="off" value={formName} onChange={(e) => setFormName(e.target.value)} placeholder="Ex: Petrolina" hint={ibgeHint} />
+            <datalist id="ibge-municipality-options">
+              {ibgeSuggestions.map((s, i) => (
+                <option key={`${s.nome}-${s.uf}-${i}`} value={s.nome} />
+              ))}
+            </datalist>
+          </div>
           <Select label="UF *" value={formUf} onChange={(e) => setFormUf(e.target.value)}>
             {BRAZILIAN_STATES.map(uf => (
               <option key={uf} value={uf}>{uf}</option>

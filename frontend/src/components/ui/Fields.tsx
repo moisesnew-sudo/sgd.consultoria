@@ -54,6 +54,8 @@ export function Input({ label, error, hint, icon, iconRight, className = '', id,
         <input
           id={id}
           required={required}
+          lang="pt-BR"
+          spellCheck={true}
           {...rest}
           className={`${FIELD_BASE} ${icon ? 'pl-10' : ''} ${iconRight || rest.onClear ? 'pr-10' : ''} ${error ? FIELD_ERROR : 'border-slate-200 dark:border-slate-700'} ${className}`}
         />
@@ -100,6 +102,8 @@ export function Textarea({ label, error, hint, className = '', id, required, ...
       <textarea
         id={id}
         required={required}
+        lang="pt-BR"
+        spellCheck={true}
         {...rest}
         className={`w-full min-h-[96px] px-3.5 py-2.5 rounded-xl border text-sm bg-white dark:bg-slate-900/60 text-slate-800 dark:text-slate-100 placeholder:text-slate-400 transition-colors focus:outline-none focus:ring-2 focus:ring-brand-600 focus:border-transparent ${
           error ? FIELD_ERROR : 'border-slate-200 dark:border-slate-700'

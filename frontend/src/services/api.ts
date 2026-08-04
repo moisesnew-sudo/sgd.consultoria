@@ -471,6 +471,22 @@ export const municipalitiesApi = {
   getStatsByRegion: () => request<{ region: string; count: number; total_value: number; avg_hdi: number }[]>('/municipalities/stats/by-region'),
 };
 
+// Standardization API (base oficial IBGE)
+export const standardizationApi = {
+  suggestMunicipalities: async (q: string, uf?: string) => {
+    const params = new URLSearchParams();
+    if (q) params.append('q', q);
+    if (uf) params.append('uf', uf);
+    const res = await request<{ data: { nome: string; uf: string }[]; count: number }>(
+      `/standardization/municipalities${params.toString() ? '?' + params.toString() : ''}`
+    );
+    return res.data;
+  },
+
+  scan: () => request<unknown>('/standardization/scan', { method: 'POST' }),
+  apply: () => request<unknown>('/standardization/apply', { method: 'POST' }),
+};
+
 // Settings API
 export const settingsApi = {
   get: () => request<SystemSettings>('/settings'),

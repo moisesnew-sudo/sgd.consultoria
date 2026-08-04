@@ -8,6 +8,7 @@ import { logAudit, extractMeta } from '../lib/audit.js';
 import { logger } from '../lib/logger.js';
 import { getCached, setCache, clearCache } from '../lib/cache.js';
 import { addTimelineEvent, buildUpdateQuery } from '../lib/helpers.js';
+import { canonicalMunicipality } from '../lib/text.js';
 
 const router = Router();
 
@@ -362,6 +363,15 @@ router.post('/', authenticateToken, requirePermission('demands.create'), async (
       return res.status(403).json({ error: 'Consulta não pode cadastrar demandas' });
     }
     const data = normalizeDemandText(demandSchema.parse(req.body));
+    const canonical = canonicalMunicipality(data.municipality, data.uf);
+    if (!canonical) {
+      return res.status(400).json({
+        error: 'Município não existe na base oficial do IBGE',
+        details: { municipality: data.municipality, uf: data.uf }
+      });
+    }
+    data.municipality = canonical.nome;
+    data.uf = canonical.uf;
     const currentYear = new Date().getFullYear();
     // ✅ CORREÇÃO: UUID seguro em vez de COUNT(*)+1
     const id = generateDemandId(data.organ || 'SGD', currentYear);
@@ -418,6 +428,17 @@ router.put('/:id', authenticateToken, requirePermission('demands.edit'), async (
     if (!existing) return res.status(404).json({ error: 'Demanda não encontrada' });
     await saveDemandVersion(req.params.id as string, existing, req.user!.id, req.user!.name, ip_address);
     const data = normalizeDemandText(demandSchema.partial().parse(req.body));
+    if (data.municipality) {
+      const canonical = canonicalMunicipality(data.municipality, data.uf || existing.uf);
+      if (!canonical) {
+        return res.status(400).json({
+          error: 'Município não existe na base oficial do IBGE',
+          details: { municipality: data.municipality, uf: data.uf || existing.uf }
+        });
+      }
+      data.municipality = canonical.nome;
+      data.uf = canonical.uf;
+    }
     const result = buildUpdateQuery('demands', data, 'id', req.params.id as string);
     if (result) {
       await run(result.sql, result.values);

@@ -20,7 +20,7 @@ import {
   RotateCcw
 } from 'lucide-react';
 import { Demand, DemandPriority, DemandStatus, Attachment } from '../../types';
-import { demandsApi } from '../../services/api';
+import { demandsApi, standardizationApi } from '../../services/api';
 import { formatCurrencyInput, parseCurrencyInput } from '../../lib/currency';
 import { STATUS_BADGE_CLS, statusLabel, BRAZILIAN_STATES } from '../../lib/demandMeta';
 import { useAuth } from '../../contexts/AuthContext';
@@ -153,6 +153,8 @@ const formatDateTime = (d: Date) =>
   ' ' +
   d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
 
+const stripAccents = (s: string) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase();
+
 export default function NewDemandView({ municipalities, onAddDemand, onNavigateToTab }: NewDemandViewProps) {
   const { user } = useAuth();
   const { toast } = useToast();
@@ -183,6 +185,10 @@ export default function NewDemandView({ municipalities, onAddDemand, onNavigateT
   const [lastEdited, setLastEdited] = useState<Date | null>(null);
 
   const filteredMunicipalities = municipalities.filter(m => m.uf === uf);
+
+  const [municipalitySuggestions, setMunicipalitySuggestions] = useState<{ nome: string; uf: string }[]>([]);
+  const [munSuggestion, setMunSuggestion] = useState<string | null>(null);
+  const [munNotFound, setMunNotFound] = useState(false);
 
   // Restore draft from localStorage on mount
   useEffect(() => {
@@ -223,9 +229,34 @@ export default function NewDemandView({ municipalities, onAddDemand, onNavigateT
     processLink, responsibleName, responsibleEmail, responsiblePhone, priority, notes, attachments
   ]);
 
+  // Busca de sugestões oficiais (IBGE) para o autocomplete do município, com debounce.
+  useEffect(() => {
+    const q = municipality.trim();
+    if (!q) {
+      setMunicipalitySuggestions(filteredMunicipalities.map(m => ({ nome: m.name, uf: m.uf })));
+      return;
+    }
+    let cancelled = false;
+    const t = setTimeout(async () => {
+      try {
+        const res = await standardizationApi.suggestMunicipalities(q, uf);
+        if (!cancelled) setMunicipalitySuggestions(res);
+      } catch {
+        if (!cancelled) setMunicipalitySuggestions([]);
+      }
+    }, 200);
+    return () => {
+      cancelled = true;
+      clearTimeout(t);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [municipality, uf]);
+
   const handleMunicipalityChange = (val: string) => {
     const upper = val.toUpperCase();
     setMunicipality(upper);
+    setMunSuggestion(null);
+    setMunNotFound(false);
     if (upper) {
       setPrefeitura(`Prefeitura Municipal de ${upper}`);
     } else {
@@ -241,7 +272,39 @@ export default function NewDemandView({ municipalities, onAddDemand, onNavigateT
     } else {
       setMunicipality('');
       setPrefeitura('');
+      setMunSuggestion(null);
+      setMunNotFound(false);
     }
+  };
+
+  // Sugere a grafia oficial (IBGE) quando o município digitado é reconhecível.
+  const handleMunicipalityBlur = async () => {
+    handleBlur('municipality');
+    const val = municipality.trim();
+    if (!val) {
+      setMunSuggestion(null);
+      setMunNotFound(false);
+      return;
+    }
+    try {
+      const res = await standardizationApi.suggestMunicipalities(val, uf);
+      const key = stripAccents(val);
+      const exact = res.find(s => stripAccents(s.nome) === key);
+      if (exact) {
+        setMunNotFound(false);
+        setMunSuggestion(exact.nome !== municipality ? exact.nome : null);
+      } else {
+        setMunSuggestion(null);
+        setMunNotFound(res.length === 0);
+      }
+    } catch {
+      setMunSuggestion(null);
+      setMunNotFound(false);
+    }
+  };
+
+  const applyMunicipalitySuggestion = () => {
+    if (munSuggestion) handleMunicipalityChange(munSuggestion);
   };
 
   // ---- Validation ----
@@ -651,17 +714,44 @@ export default function NewDemandView({ municipalities, onAddDemand, onNavigateT
                     id="municipality-input"
                     type="text"
                     list="predefined-municipalities"
+                    lang="pt-BR"
+                    spellCheck={true}
+                    autoComplete="off"
                     value={municipality}
                     onChange={(e) => handleMunicipalityChange(e.target.value)}
-                    onBlur={() => handleBlur('municipality')}
+                    onBlur={handleMunicipalityBlur}
                     placeholder="Ex: Petrolina"
                     className={inputCls(!!errors.municipality)}
                   />
                   <datalist id="predefined-municipalities">
-                    {filteredMunicipalities.map((m, idx) => (
-                      <option key={idx} value={m.name} />
-                    ))}
+                    {[
+                      ...filteredMunicipalities.map(m => ({ label: m.name, uf: m.uf })),
+                      ...municipalitySuggestions.map(s => ({ label: s.nome, uf: s.uf })),
+                    ]
+                      .filter((m, i, arr) => arr.findIndex(x => x.label === m.label && x.uf === m.uf) === i)
+                      .map((m, idx) => (
+                        <option key={`${m.label}-${m.uf}-${idx}`} value={m.label} />
+                      ))}
                   </datalist>
+                  {munSuggestion && (
+                    <p className="text-[10px] font-semibold text-amber-600 dark:text-amber-400 flex items-center gap-1.5 animate-fade-in">
+                      <AlertCircle size={11} className="shrink-0" />
+                      <span>Grafia oficial do IBGE: <strong>{munSuggestion}</strong></span>
+                      <button
+                        type="button"
+                        onClick={applyMunicipalitySuggestion}
+                        className="ml-auto px-2 py-0.5 rounded-md bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 text-[9px] font-bold uppercase tracking-wider hover:bg-amber-200 dark:hover:bg-amber-900/60 transition-colors cursor-pointer"
+                      >
+                        Usar
+                      </button>
+                    </p>
+                  )}
+                  {munNotFound && (
+                    <p className="text-[10px] font-semibold text-red-500 flex items-center gap-1.5 animate-fade-in">
+                      <AlertCircle size={11} className="shrink-0" />
+                      <span>Município não encontrado na base oficial do IBGE — não será possível salvar.</span>
+                    </p>
+                  )}
                 </Field>
 
                 <Field label="Prefeitura Solicitante" hint="Preenchida automaticamente pelo município.">

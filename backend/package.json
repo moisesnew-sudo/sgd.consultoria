@@ -7,6 +7,7 @@
     "build": "tsc",
     "start": "tsx src/server.ts",
     "db:seed": "tsx src/seed.ts",
+    "standardize": "tsx src/scripts/standardize-municipalities.ts",
     "test": "vitest run",
     "test:watch": "vitest"
   },

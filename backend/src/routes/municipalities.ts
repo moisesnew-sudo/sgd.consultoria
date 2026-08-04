@@ -4,6 +4,7 @@ import { get, all, run } from '../database.js';
 import { REGIONS } from '../types.js';
 import { authenticateToken, requireRole } from '../middleware/auth.js';
 import { logger } from '../lib/logger.js';
+import { normalizeText, findOfficialMunicipality, regionForUf } from '../lib/text.js';
 
 const router = Router();
 
@@ -61,8 +62,16 @@ router.get('/:id', authenticateToken, async (req: Request, res: Response) => {
 router.post('/', authenticateToken, requireRole('admin'), async (req: Request, res: Response) => {
   try {
     const data = municipalitySchema.parse(req.body);
-    data.name = data.name.trim().toUpperCase();
-    data.uf = data.uf.trim().toUpperCase();
+    const official = findOfficialMunicipality(data.name, data.uf);
+    if (!official) {
+      return res.status(400).json({
+        error: 'Município não existe na base oficial do IBGE',
+        details: { name: normalizeText(data.name), uf: data.uf.trim().toUpperCase() }
+      });
+    }
+    data.name = official.nome;
+    data.uf = official.uf;
+    data.region = data.region ?? regionForUf(data.uf);
     const existing = await get('SELECT id FROM municipalities WHERE name = $1 AND uf = $2', [data.name, data.uf]);
 
     if (existing) return res.status(409).json({ error: 'Município já cadastrado' });
@@ -70,7 +79,7 @@ router.post('/', authenticateToken, requireRole('admin'), async (req: Request, r
     const result = await run(
       `INSERT INTO municipalities (name, uf, schools_count, population, hdi, region)
        VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
-      [data.name, data.uf, data.schools_count || 0, data.population || 0, data.hdi || 0, data.region || 'Sudeste']
+      [data.name, data.uf, data.schools_count || 0, data.population || 0, data.hdi || 0, data.region]
     );
 
     res.status(201).json(result.rows[0]);
@@ -87,8 +96,20 @@ router.put('/:id', authenticateToken, requireRole('admin'), async (req: Request,
     if (!existing) return res.status(404).json({ error: 'Município não encontrado' });
 
     const data = municipalitySchema.partial().parse(req.body);
-    if (data.name) data.name = data.name.trim().toUpperCase();
-    if (data.uf) data.uf = data.uf.trim().toUpperCase();
+    const finalName = data.name ? normalizeText(data.name).toUpperCase() : existing.name;
+    const finalUf = data.uf ? normalizeText(data.uf).toUpperCase() : existing.uf;
+    if (data.name || data.uf) {
+      const official = findOfficialMunicipality(finalName, finalUf);
+      if (!official) {
+        return res.status(400).json({
+          error: 'Município não existe na base oficial do IBGE',
+          details: { name: finalName, uf: finalUf }
+        });
+      }
+      data.name = official.nome;
+      data.uf = official.uf;
+      if (!data.region) data.region = regionForUf(data.uf);
+    }
     const result = await run(
       `UPDATE municipalities SET name = COALESCE($1, name), uf = COALESCE($2, uf),
        schools_count = COALESCE($3, schools_count), population = COALESCE($4, population),
