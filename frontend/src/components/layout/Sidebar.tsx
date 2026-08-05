@@ -71,7 +71,7 @@ export default function Sidebar({ activeTab, setActiveTab, isOpen, setIsOpen, pe
           { id: 'audit-dashboard', label: 'Auditoria', icon: Activity },
           { id: 'audit', label: 'Logs', icon: ScrollText },
         ] : []),
-        ...(isAuthenticated && (user?.role === 'admin' || user?.role === 'administrador') ? [
+        ...(isAuthenticated && (user?.role === 'admin') ? [
           { id: 'sessions', label: 'Sessões', icon: LogIn },
           { id: 'monitoring', label: 'Monitoramento', icon: Shield },
           { id: 'lgpd', label: 'LGPD', icon: FileSearch },
@@ -112,7 +112,7 @@ export default function Sidebar({ activeTab, setActiveTab, isOpen, setIsOpen, pe
               <div className="flex-1 min-w-0">
                 <p className="text-xs font-semibold text-slate-100 truncate">{user.name}</p>
                 <span className={`inline-block px-1.5 py-0.5 text-[7px] font-bold rounded mt-0.5 uppercase tracking-wider ${
-                  user.role === 'admin' || user.role === 'administrador' ? 'bg-gov-700/30 text-gov-300' :
+                  user.role === 'admin' ? 'bg-gov-700/30 text-gov-300' :
                   user.role === 'gestor' || user.role === 'diretor' ? 'bg-blue-500/20 text-blue-300' :
                   'bg-amber-500/20 text-amber-300'
                 }`}>

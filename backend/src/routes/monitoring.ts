@@ -86,7 +86,7 @@ router.post('/snapshot', authenticateToken, requireRole('admin'), async (req: Re
     }, 0) / cpus.length;
     const serverCpu = Math.round(cpuUsage * 10) / 10;
     const serverMemory = ((totalMem - freeMem) / totalMem) * 100;
-    const dbConnectionCount = (pool as any).totalCount || 0;
+    const dbConnectionCount = pool.totalCount ?? 0;
     const activeUsers = await get<{ count: string }>(
       "SELECT COUNT(*) as count FROM active_sessions WHERE active = TRUE AND last_activity > NOW() - INTERVAL '30 minutes'"
     );

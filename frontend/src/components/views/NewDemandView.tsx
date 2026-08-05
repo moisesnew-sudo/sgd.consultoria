@@ -729,9 +729,11 @@ export default function NewDemandView({ municipalities, onAddDemand, onNavigateT
                     value={organ}
                     onChange={(v) => setOrgan(v.toUpperCase())}
                     options={organs.map(o => ({ value: o.name }))}
-                    allowCreate={user?.role === 'admin' || user?.role === 'administrador'}
+                    strict
+                    allowCreate={user?.role === 'admin'}
                     onCreate={createOrgan}
                     placeholder="Ex: MEC, FNDE, MS"
+                    noMatchMessage="Órgão não encontrado no cadastro mestre."
                     hint="Cadastro mestre — administradores podem criar novos órgãos direto no campo."
                   />
                 </Field>

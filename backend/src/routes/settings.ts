@@ -93,7 +93,7 @@ router.get('/export', authenticateToken, requireRole('admin'), async (req: Reque
       timestamp: new Date().toISOString(),
       data: { demands, municipalities, settings, users, timeline, attachments, comments, audit }
     };
-    await logExport(req, req.user!, 'pdf', demands.length, { type: 'full_backup' });
+    await logExport(req, req.user!, 'csv', demands.length, { type: 'full_backup' });
     res.setHeader('Content-Type', 'application/json');
     res.setHeader('Content-Disposition', `attachment; filename=SGD_Backup_${new Date().toISOString().split('T')[0]}.json`);
     res.json(exportData);
@@ -144,7 +144,9 @@ router.post('/import', authenticateToken, requireRole('admin'), async (req: Requ
       for (const table of SAFE_IMPORT_TABLES) {
         if (data[table] && Array.isArray(data[table])) {
           for (const row of data[table]) {
-            const cols = Object.keys(row).filter(k => sanitizeColumnName(k) || true);
+            const cols = Object.keys(row).filter(k => {
+              try { sanitizeColumnName(k); return true; } catch { return false; }
+            });
             const vals = cols.map(c => row[c]);
             const placeholders = cols.map((_, i) => `$${i + 1}`).join(', ');
             try {

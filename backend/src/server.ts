@@ -21,6 +21,7 @@ const __dirname = path.dirname(__filename);
 // ============================================================
 function validateEnv() {
   const errors: string[] = [];
+  const warnings: string[] = [];
 
   if (!process.env.JWT_SECRET) {
     errors.push('JWT_SECRET não definido');
@@ -28,6 +29,10 @@ function validateEnv() {
     errors.push('JWT_SECRET deve ter pelo menos 32 caracteres');
   } else if (process.env.JWT_SECRET === 'undefined' || process.env.JWT_SECRET === 'secret' || process.env.JWT_SECRET === 'default') {
     errors.push('JWT_SECRET não pode ser um valor padrão/fraco');
+  }
+
+  if (!process.env.JWT_REFRESH_SECRET) {
+    warnings.push('JWT_REFRESH_SECRET não definido — usando fallback derived de JWT_SECRET. Recomendado: chave exclusiva em produção.');
   }
 
   if (!process.env.DATABASE_URL) {
@@ -39,6 +44,10 @@ function validateEnv() {
     if (corsOrigin.includes('*') || corsOrigin.trim() === '') {
       errors.push('CORS_ORIGIN não pode ser "*" ou vazio em produção. Defina domínios específicos.');
     }
+  }
+
+  if (warnings.length > 0) {
+    warnings.forEach(w => logger.warn(`⚠️  ${w}`));
   }
 
   if (errors.length > 0) {
@@ -115,7 +124,7 @@ if (process.env.NODE_ENV === 'production' && allowedOrigins.length === 0) {
 
 app.use(cors({
   origin: (origin, callback) => {
-    if (!origin || allowedOrigins.includes(origin) || process.env.NODE_ENV !== 'production') {
+    if (!origin || allowedOrigins.includes(origin)) {
       callback(null, true);
     } else {
       callback(new Error('Origem não permitida pelo CORS'));

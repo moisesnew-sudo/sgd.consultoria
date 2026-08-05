@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { MapPin, Plus, Search, Edit2, Trash2, X, Save, Loader2 } from 'lucide-react';
 import { municipalitiesApi, standardizationApi } from '../../services/api';
 import { MunicipalityData } from '../../types';
@@ -9,7 +9,8 @@ import { PageHeader } from '../ui/PageHeader';
 import { EmptyState } from '../ui/EmptyState';
 import { Modal } from '../ui/Modal';
 import { Button } from '../ui/Button';
-import { Input, Select } from '../ui/Fields';
+import { Select } from '../ui/Fields';
+import { SearchSelect } from '../ui/SearchSelect';
 
 interface MunicipalitiesViewProps {
   municipalities: MunicipalityData[];
@@ -41,34 +42,6 @@ export default function MunicipalitiesView({ municipalities, setMunicipalities }
   const [formUf, setFormUf] = useState('CE');
   const [isSaving, setIsSaving] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<MunicipalityData | null>(null);
-  const [ibgeSuggestions, setIbgeSuggestions] = useState<{ value: string; label: string; secondary: string }[]>([]);
-  const [ibgeHint, setIbgeHint] = useState('');
-
-  useEffect(() => {
-    const q = formName.trim();
-    if (!q) {
-      setIbgeSuggestions([]);
-      setIbgeHint('');
-      return;
-    }
-    let cancelled = false;
-    const t = setTimeout(async () => {
-      try {
-        const res = await standardizationApi.suggestMunicipalities(q, formUf);
-        if (!cancelled) {
-          setIbgeSuggestions(res);
-          setIbgeHint(res.length === 0 ? 'Município não encontrado na base oficial do IBGE.' : '');
-        }
-      } catch {
-        if (!cancelled) setIbgeSuggestions([]);
-      }
-    }, 250);
-    return () => {
-      cancelled = true;
-      clearTimeout(t);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [formName, formUf]);
 
   const filteredMunicipalities = municipalities.filter(m => {
     const matchesSearch = m.name.toLowerCase().includes(searchTerm.toLowerCase());
@@ -247,14 +220,17 @@ export default function MunicipalitiesView({ municipalities, setMunicipalities }
         }
       >
         <div className="space-y-4">
-          <div>
-            <Input label="Nome do Município *" required list="ibge-municipality-options" spellCheck={false} autoComplete="off" value={formName} onChange={(e) => setFormName(e.target.value)} placeholder="Ex: Petrolina" hint={ibgeHint} />
-            <datalist id="ibge-municipality-options">
-              {ibgeSuggestions.map((s, i) => (
-                <option key={`${s.value}-${s.secondary}-${i}`} value={s.value} />
-              ))}
-            </datalist>
-          </div>
+          <SearchSelect
+            label="Nome do Município"
+            required
+            value={formName}
+            onChange={(v) => setFormName(v)}
+            fetcher={(q) => standardizationApi.suggestMunicipalities(q, formUf)}
+            strict
+            placeholder="Ex: Petrolina"
+            noMatchMessage="Município não encontrado na base oficial do IBGE — não será possível salvar."
+            spellCheck={false}
+          />
           <Select label="UF *" value={formUf} onChange={(e) => setFormUf(e.target.value)}>
             {BRAZILIAN_STATES.map(uf => (
               <option key={uf} value={uf}>{uf}</option>

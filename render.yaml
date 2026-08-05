@@ -18,6 +18,8 @@ services:
           property: connectionString
       - key: JWT_SECRET
         sync: false
+      - key: COOKIE_DOMAIN
+        value: gruposgd.com.br
       - key: CORS_ORIGIN
         value: https://gruposgd.com.br,https://www.gruposgd.com.br,http://localhost:3000
       - key: PUBLIC_API_URL

@@ -43,6 +43,12 @@ export default function SettingsView({ onBackToLogin }: SettingsViewProps) {
     loadSettings();
   }, []);
 
+  useEffect(() => {
+    if (!message) return;
+    const timer = setTimeout(() => setMessage(''), 3000);
+    return () => clearTimeout(timer);
+  }, [message]);
+
   const loadSettings = async () => {
     try {
       const data = await settingsApi.get();
@@ -65,7 +71,6 @@ export default function SettingsView({ onBackToLogin }: SettingsViewProps) {
     try {
       await settingsApi.update(settings);
       setMessage('Configurações salvas com sucesso!');
-      setTimeout(() => setMessage(''), 3000);
     } catch (err: any) {
       setMessage('Erro ao salvar: ' + (err.message || 'Tente novamente'));
     } finally {
@@ -95,7 +100,6 @@ export default function SettingsView({ onBackToLogin }: SettingsViewProps) {
       setCurrentPassword('');
       setNewPassword('');
       setConfirmPassword('');
-      setTimeout(() => setMessage(''), 3000);
     } catch (err: any) {
       setMessage('Erro ao alterar senha: ' + (err.message || 'Verifique a senha atual'));
     } finally {
@@ -146,6 +150,8 @@ export default function SettingsView({ onBackToLogin }: SettingsViewProps) {
           <label className="text-xs font-bold text-slate-700 block">Nome da Organização</label>
           <input
             type="text"
+            lang="pt-BR"
+            spellCheck={true}
             value={settings.organization_name}
             onChange={(e) => setSettings({ ...settings, organization_name: e.target.value })}
             className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-brand-600 focus:border-transparent"

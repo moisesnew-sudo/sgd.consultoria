@@ -103,7 +103,7 @@ router.put('/user/:id', authenticateToken, async (req: Request, res: Response) =
         target_user_id: userId,
         target_user_name: targetUser.name,
         target_user_email: targetUser.email,
-        permissions_count: permissions.filter((p: any) => p.granted).length,
+        permissions_count: permissions.filter((p: { granted?: boolean }) => p.granted).length,
       },
     });
 

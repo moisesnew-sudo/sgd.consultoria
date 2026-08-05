@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import {
   BarChart3, Download, TrendingUp, AlertTriangle, CheckCircle2, Clock, FileText, Sparkles,
-  Search, X, SlidersHorizontal, Check, FilterX, FileJson
+  Search, X, SlidersHorizontal, FilterX, FileJson
 } from 'lucide-react';
 import { Demand, DemandStatus, DemandPriority } from '../../types';
 import { formatCurrency } from '../../services/api';
@@ -236,6 +236,8 @@ export default function ReportsView({ demands }: ReportsViewProps) {
           <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
           <input
             type="text"
+            lang="pt-BR"
+            spellCheck={true}
             value={filters.search}
             onChange={setFilter('search')}
             placeholder="Pesquisa: ID, proposta, objeto, município, órgão, responsável..."

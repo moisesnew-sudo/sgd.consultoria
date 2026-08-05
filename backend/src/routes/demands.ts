@@ -59,15 +59,29 @@ function normalizeDemandText(data: Record<string, any>): Record<string, any> {
   return out;
 }
 
+/* Órgão: exige o cadastro mestre — não admite textos livres diferentes.
+   Admins podem registrar o órgão automaticamente no cadastro mestre. */
+async function ensureOrgan(organ: string | undefined, role: string): Promise<{ ok: true } | { ok: false; error: string }> {
+  if (!organ || !organ.trim()) return { ok: true };
+  const name = organ.trim().toUpperCase();
+  const existing = await get('SELECT id FROM organs WHERE UPPER(name) = $1', [name]);
+  if (existing) return { ok: true };
+  if (role === 'admin' || role === 'administrador') {
+    await run('INSERT INTO organs (name) VALUES ($1)', [name]);
+    return { ok: true };
+  }
+  return {
+    ok: false,
+    error: 'Órgão não encontrado no cadastro mestre. Solicite a um administrador criar o órgão antes de cadastrar.',
+  };
+}
+
 async function saveDemandVersion(demandId: string, snapshot: any, changedBy: number, changedByName: string, ipAddress?: string) {
-  const version = await get<{ v: number }>(
-    'SELECT COALESCE(MAX(version), 0) + 1 as v FROM demand_versions WHERE demand_id = $1',
-    [demandId]
-  );
   await run(
     `INSERT INTO demand_versions (demand_id, version, snapshot, changed_by, changed_by_name, ip_address)
-     VALUES ($1, $2, $3, $4, $5, $6)`,
-    [demandId, version?.v || 1, JSON.stringify(snapshot), changedBy, changedByName, ipAddress || null]
+     SELECT $1, COALESCE(MAX(version), 0) + 1, $2, $3, $4, $5
+     FROM demand_versions WHERE demand_id = $1`,
+    [demandId, JSON.stringify(snapshot), changedBy, changedByName, ipAddress || null]
   );
 }
 
@@ -209,25 +223,27 @@ router.get('/calendar/events', authenticateToken, requirePermission('demands.vie
 
 router.get('/stats/dashboard', authenticateToken, async (req: Request, res: Response) => {
   try {
-    const total = await get<{ count: string }>('SELECT COUNT(*) as count FROM demands WHERE deleted_at IS NULL');
     const cacheKey = 'dashboard-stats';
     const cached = getCached<any>(cacheKey);
     if (cached) return res.json(cached);
 
-    const byStatus = await all<{ status: string; count: string }>(
-      'SELECT status, COUNT(*) as count FROM demands WHERE deleted_at IS NULL GROUP BY status ORDER BY count DESC'
-    );
-    const byPriority = await all<{ priority: string; count: string }>(
-      'SELECT priority, COUNT(*) as count FROM demands WHERE deleted_at IS NULL GROUP BY priority ORDER BY count DESC'
-    );
-    const byUf = await all<{ uf: string; count: string }>(
-      'SELECT uf, COUNT(*) as count FROM demands WHERE deleted_at IS NULL GROUP BY uf ORDER BY count DESC'
-    );
-    const totalValue = await get<{ total: string | null }>('SELECT SUM(requested_value) as total FROM demands WHERE deleted_at IS NULL');
-    const today = new Date().toISOString().split('T')[0];
-    const todayCount = await get<{ count: string }>(
-      'SELECT COUNT(*) as count FROM demands WHERE deleted_at IS NULL AND DATE(created_at) = $1', [today]
-    );
+    const [total, byStatus, byPriority, byUf, totalValue, today] = await Promise.all([
+      get<{ count: string }>('SELECT COUNT(*) as count FROM demands WHERE deleted_at IS NULL'),
+      all<{ status: string; count: string }>(
+        'SELECT status, COUNT(*) as count FROM demands WHERE deleted_at IS NULL GROUP BY status ORDER BY count DESC'
+      ),
+      all<{ priority: string; count: string }>(
+        'SELECT priority, COUNT(*) as count FROM demands WHERE deleted_at IS NULL GROUP BY priority ORDER BY count DESC'
+      ),
+      all<{ uf: string; count: string }>(
+        'SELECT uf, COUNT(*) as count FROM demands WHERE deleted_at IS NULL GROUP BY uf ORDER BY count DESC'
+      ),
+      get<{ total: string | null }>('SELECT SUM(requested_value) as total FROM demands WHERE deleted_at IS NULL'),
+      get<{ count: string }>(
+        'SELECT COUNT(*) as count FROM demands WHERE deleted_at IS NULL AND DATE(created_at) = CURRENT_DATE'
+      ),
+    ]);
+
     const overdue = await getAllOverdue();
     const result = {
       total: parseInt(total?.count || '0'),
@@ -235,7 +251,7 @@ router.get('/stats/dashboard', authenticateToken, async (req: Request, res: Resp
       byPriority: byPriority.reduce((acc, item) => ({ ...acc, [item.priority]: parseInt(item.count) }), {}),
       byUf: byUf.map(u => ({ uf: u.uf, count: parseInt(u.count) })),
       totalValue: parseFloat(totalValue?.total || '0'),
-      todayCount: parseInt(todayCount?.count || '0'),
+      todayCount: parseInt(today?.count || '0'),
       overdue
     };
     setCache(cacheKey, result, 30_000);
@@ -372,6 +388,10 @@ router.post('/', authenticateToken, requirePermission('demands.create'), async (
     }
     data.municipality = canonical.nome;
     data.uf = canonical.uf;
+    const organCheck = await ensureOrgan(data.organ, req.user!.role);
+    if (!organCheck.ok) {
+      return res.status(400).json({ error: organCheck.error });
+    }
     const currentYear = new Date().getFullYear();
     // ✅ CORREÇÃO: UUID seguro em vez de COUNT(*)+1
     const id = generateDemandId(data.organ || 'SGD', currentYear);
@@ -438,6 +458,12 @@ router.put('/:id', authenticateToken, requirePermission('demands.edit'), async (
       }
       data.municipality = canonical.nome;
       data.uf = canonical.uf;
+    }
+    if (data.organ && data.organ !== existing.organ && (existing.organ || '').toUpperCase() !== data.organ.toUpperCase()) {
+      const organCheck = await ensureOrgan(data.organ, req.user!.role);
+      if (!organCheck.ok) {
+        return res.status(400).json({ error: organCheck.error });
+      }
     }
     const result = buildUpdateQuery('demands', data, 'id', req.params.id as string);
     if (result) {

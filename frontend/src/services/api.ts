@@ -62,12 +62,20 @@ async function refreshAccessToken(): Promise<void> {
 
 async function request<T>(endpoint: string, options?: RequestInit): Promise<T> {
   const method = options?.method || 'GET';
-  const headers = buildHeaders(method);
+
+  const buildReqHeaders = (): Record<string, string> => {
+    const h: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (method && ['POST', 'PUT', 'DELETE', 'PATCH'].includes(method.toUpperCase())) {
+      const csrf = getCsrfToken();
+      if (csrf) h['X-CSRF-Token'] = csrf;
+    }
+    return h;
+  };
 
   let response = await fetch(`${API_BASE}/api${endpoint}`, {
     ...options,
     credentials: 'include',
-    headers: { ...headers, ...(options?.headers as Record<string, string> || {}) },
+    headers: { ...buildReqHeaders(), ...(options?.headers as Record<string, string> || {}) },
   });
 
   if (response.status === 401 && !endpoint.includes('/auth/')) {
@@ -82,7 +90,7 @@ async function request<T>(endpoint: string, options?: RequestInit): Promise<T> {
         response = await fetch(`${API_BASE}/api${endpoint}`, {
           ...options,
           credentials: 'include',
-          headers: { ...headers, ...(options?.headers as Record<string, string> || {}) },
+          headers: { ...buildReqHeaders(), ...(options?.headers as Record<string, string> || {}) },
         });
       } catch (err) {
         isRefreshing = false;
@@ -97,7 +105,7 @@ async function request<T>(endpoint: string, options?: RequestInit): Promise<T> {
       response = await fetch(`${API_BASE}/api${endpoint}`, {
         ...options,
         credentials: 'include',
-        headers: { ...headers, ...(options?.headers as Record<string, string> || {}) },
+        headers: { ...buildReqHeaders(), ...(options?.headers as Record<string, string> || {}) },
       });
     }
   }
@@ -212,14 +220,17 @@ function normalizeDemand(d: any): Demand {
 
 // Demands API
 async function uploadRequest<T>(endpoint: string, formData: FormData): Promise<T> {
-  const csrf = getCsrfToken();
-  const headers: Record<string, string> = {};
-  if (csrf) headers['X-CSRF-Token'] = csrf;
+  const buildUploadHeaders = (): Record<string, string> => {
+    const h: Record<string, string> = {};
+    const csrf = getCsrfToken();
+    if (csrf) h['X-CSRF-Token'] = csrf;
+    return h;
+  };
 
   let response = await fetch(`${API_BASE}/api${endpoint}`, {
     method: 'POST',
     credentials: 'include',
-    headers,
+    headers: buildUploadHeaders(),
     body: formData,
   });
 
@@ -229,11 +240,10 @@ async function uploadRequest<T>(endpoint: string, formData: FormData): Promise<T
       try {
         await refreshAccessToken();
         isRefreshing = false;
-        if (csrf) headers['X-CSRF-Token'] = csrf;
         response = await fetch(`${API_BASE}/api${endpoint}`, {
           method: 'POST',
           credentials: 'include',
-          headers,
+          headers: buildUploadHeaders(),
           body: formData,
         });
         refreshQueue.forEach(({ resolve }) => resolve());
@@ -249,11 +259,10 @@ async function uploadRequest<T>(endpoint: string, formData: FormData): Promise<T
       await new Promise<void>((resolve, reject) => {
         refreshQueue.push({ resolve, reject });
       });
-      if (csrf) headers['X-CSRF-Token'] = csrf;
       response = await fetch(`${API_BASE}/api${endpoint}`, {
         method: 'POST',
         credentials: 'include',
-        headers,
+        headers: buildUploadHeaders(),
         body: formData,
       });
     }

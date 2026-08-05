@@ -147,7 +147,7 @@ router.post('/login', async (req: Request, res: Response) => {
 
     const csrfToken = setCsrfCookie(res);
     setTokenCookies(res, accessToken, refreshToken);
-    res.json({ token: accessToken, refreshToken, csrfToken, user: userResponse, session: { browser, os, ip: ip_address } });
+    res.json({ csrfToken, user: userResponse, session: { browser, os, ip: ip_address } });
   } catch (error) {
     if (error instanceof z.ZodError) {
       return res.status(400).json({ error: 'Dados inválidos', details: error.errors });
@@ -197,7 +197,7 @@ router.post('/refresh', authenticateRefreshToken, async (req: Request, res: Resp
 
     setTokenCookies(res, newAccessToken, newRefreshToken);
     const csrfToken = setCsrfCookie(res);
-    res.json({ token: newAccessToken, refreshToken: newRefreshToken, csrfToken });
+    res.json({ csrfToken });
   } catch (error) {
     logger.error('Refresh error', { error: error instanceof Error ? error.message : error });
     res.status(500).json({ error: 'Erro ao renovar token' });
@@ -237,7 +237,7 @@ router.post('/logout', authenticateToken, async (req: Request, res: Response) =>
 
 router.post('/register', authenticateToken, requirePermission('users.create'), async (req: Request, res: Response) => {
   try {
-    if (req.user?.role !== 'admin' && req.user?.role !== 'administrador') {
+    if (req.user?.role !== 'admin') {
       return res.status(403).json({ error: 'Apenas administradores podem criar usuários' });
     }
     const { ip_address, user_agent } = extractMeta(req);
@@ -352,7 +352,7 @@ router.put('/change-password', authenticateToken, async (req: Request, res: Resp
 
 router.get('/users', authenticateToken, requirePermission('users.view'), async (req: Request, res: Response) => {
   try {
-    if (req.user?.role !== 'admin' && req.user?.role !== 'administrador' && req.user?.role !== 'gestor' && req.user?.role !== 'diretor') {
+    if (req.user?.role !== 'admin' && req.user?.role !== 'gestor' && req.user?.role !== 'diretor') {
       return res.status(403).json({ error: 'Permissão insuficiente' });
     }
     const users = await all(
@@ -380,12 +380,12 @@ router.get('/users/active', authenticateToken, async (_req: Request, res: Respon
 
 router.post('/users', authenticateToken, requirePermission('users.create'), async (req: Request, res: Response) => {
   try {
-    if (req.user?.role !== 'admin' && req.user?.role !== 'administrador' && req.user?.role !== 'gestor') {
+    if (req.user?.role !== 'admin' && req.user?.role !== 'gestor') {
       return res.status(403).json({ error: 'Apenas administradores e gestores podem criar usuários' });
     }
     const { ip_address, user_agent } = extractMeta(req);
     const { email, password, name, role } = registerSchema.parse(req.body);
-    if (req.user?.role === 'gestor' && (role === 'admin' || role === 'administrador')) {
+    if (req.user?.role === 'gestor' && role === 'admin') {
       return res.status(403).json({ error: 'Gestores não podem criar usuários administradores' });
     }
     const existingUser = await get('SELECT id FROM users WHERE email = $1', [email]);
@@ -433,7 +433,7 @@ const updateUserSchema = z.object({
 
 router.put('/users/:id', authenticateToken, requirePermission('users.edit'), async (req: Request, res: Response) => {
   try {
-    if (req.user?.role !== 'admin' && req.user?.role !== 'administrador') {
+    if (req.user?.role !== 'admin') {
       return res.status(403).json({ error: 'Apenas administradores podem editar usuários' });
     }
     const { ip_address, user_agent } = extractMeta(req);
@@ -446,9 +446,9 @@ router.put('/users/:id', authenticateToken, requirePermission('users.edit'), asy
     if (!existing) {
       return res.status(404).json({ error: 'Usuário não encontrado' });
     }
-    if ((existing.role === 'admin' || existing.role === 'administrador') && data.role && data.role !== 'admin' && data.role !== 'administrador') {
+    if (existing.role === 'admin' && data.role && data.role !== 'admin') {
       const adminCount = await get<{ count: string }>(
-        "SELECT COUNT(*) as count FROM users WHERE (role = 'admin' OR role = 'administrador') AND active = TRUE AND deleted_at IS NULL"
+        "SELECT COUNT(*) as count FROM users WHERE role = 'admin' AND active = TRUE AND deleted_at IS NULL"
       );
       if (parseInt(adminCount?.count || '0') <= 1) {
         return res.status(400).json({ error: 'Deve haver ao menos um administrador ativo' });
@@ -491,7 +491,7 @@ router.put('/users/:id', authenticateToken, requirePermission('users.edit'), asy
 
 router.delete('/users/:id', authenticateToken, requirePermission('users.delete'), async (req: Request, res: Response) => {
   try {
-    if (req.user?.role !== 'admin' && req.user?.role !== 'administrador' && req.user?.role !== 'gestor') {
+    if (req.user?.role !== 'admin' && req.user?.role !== 'gestor') {
       return res.status(403).json({ error: 'Apenas administradores e gestores podem excluir usuários' });
     }
     const { ip_address, user_agent } = extractMeta(req);
@@ -501,7 +501,7 @@ router.delete('/users/:id', authenticateToken, requirePermission('users.delete')
     }
     const existing = await get('SELECT id, role FROM users WHERE id = $1 AND deleted_at IS NULL', [id]);
     if (!existing) return res.status(404).json({ error: 'Usuário não encontrado' });
-    if (req.user?.role === 'gestor' && (existing.role === 'admin' || existing.role === 'administrador')) {
+    if (req.user?.role === 'gestor' && existing.role === 'admin') {
       return res.status(403).json({ error: 'Gestores não podem excluir usuários administradores' });
     }
     await run('UPDATE users SET deleted_at = NOW(), active = FALSE WHERE id = $1', [id]);
@@ -519,7 +519,7 @@ router.delete('/users/:id', authenticateToken, requirePermission('users.delete')
 
 router.put('/users/:id/password', authenticateToken, requirePermission('users.edit'), async (req: Request, res: Response) => {
   try {
-    if (req.user?.role !== 'admin' && req.user?.role !== 'administrador') {
+    if (req.user?.role !== 'admin') {
       return res.status(403).json({ error: 'Apenas administradores podem alterar senhas' });
     }
     const { ip_address, user_agent } = extractMeta(req);
@@ -527,7 +527,7 @@ router.put('/users/:id/password', authenticateToken, requirePermission('users.ed
     if (id === req.user!.id) {
       return res.status(400).json({ error: 'Use a troca de senha do próprio perfil' });
     }
-    const { newPassword } = z.object({ newPassword: z.string().min(6).max(100) }).parse(req.body);
+    const { newPassword } = z.object({ newPassword: passwordSchema }).parse(req.body);
     const existing = await get('SELECT id FROM users WHERE id = $1 AND deleted_at IS NULL', [id]);
     if (!existing) return res.status(404).json({ error: 'Usuário não encontrado' });
     const passwordHash = await bcrypt.hash(newPassword, 10);
@@ -540,7 +540,7 @@ router.put('/users/:id/password', authenticateToken, requirePermission('users.ed
     });
     res.json({ message: 'Senha alterada com sucesso' });
   } catch (error) {
-    if (error instanceof z.ZodError) return res.status(400).json({ error: 'Senha deve ter no mínimo 6 caracteres' });
+    if (error instanceof z.ZodError) return res.status(400).json({ error: 'Senha deve ter pelo menos 8 caracteres, com maiúscula, minúscula, número e caractere especial' });
     logger.error('Reset password error', { error: error instanceof Error ? error.message : error });
     res.status(500).json({ error: 'Erro ao alterar senha' });
   }

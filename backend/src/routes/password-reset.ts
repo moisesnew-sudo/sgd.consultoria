@@ -67,7 +67,7 @@ router.post('/request', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Email inválido' });
     }
     logger.error('Password reset request error:', error);
-    res.json({ message: 'Se o email estiver cadastrado, você receberá um link para redefinir sua senha.' });
+    res.status(500).json({ error: 'Erro interno do servidor' });
   }
 });
 

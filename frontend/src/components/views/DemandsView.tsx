@@ -26,12 +26,11 @@ import {
   Pencil,
   SlidersHorizontal,
   FilePlus2,
-  Check,
   FilterX,
   DollarSign,
   Building2
 } from 'lucide-react';
-import { Demand, DemandStatus, DemandPriority, TimelineEvent, PaginatedResponse } from '../../types';
+import { Demand, DemandStatus, DemandPriority } from '../../types';
 import { demandsApi, standardizationApi, organsApi, usersApi, Org, formatCurrency, formatDate } from '../../services/api';
 import { formatCurrencyInput, parseCurrencyInput } from '../../lib/currency';
 import { BRAZILIAN_STATES } from '../../lib/demandMeta';
@@ -308,10 +307,10 @@ export default function DemandsView({
   };
 
   // List of unique UFs and responsibles
-  const uniqueUfs = Array.from(new Set(demands.map(d => d.uf))).sort();
-  const uniqueResponsibles = Array.from(
+  const uniqueUfs = useMemo(() => Array.from(new Set(demands.map(d => d.uf))).sort(), [demands]);
+  const uniqueResponsibles = useMemo(() => Array.from(
     new Set(demands.map(d => d.responsible_name).filter(Boolean))
-  ).sort();
+  ).sort(), [demands]);
 
   const runSmartSearch = () => {
     const q = nlQuery.trim();
@@ -407,7 +406,7 @@ export default function DemandsView({
   // Filter demands
   const parsedQuery = useMemo(() => parseFieldQuery(search), [search]);
   const suggestions = useMemo(() => buildSuggestions(demands, search), [demands, search]);
-  const filteredDemands = demands.filter(d => {
+  const filteredDemands = useMemo(() => demands.filter(d => {
     const matchesSearch = !search.trim() || matchesQuery(d, parsedQuery);
 
     const matchesStatus = statusFilter === 'all' || d.status === statusFilter;
@@ -428,10 +427,10 @@ export default function DemandsView({
     return matchesSearch && matchesStatus && matchesPriority && matchesCategory &&
       matchesUf && matchesResponsible && matchesAno && matchesDateFrom && matchesDateTo &&
       matchesValueMin && matchesValueMax;
-  });
+  }), [demands, search, parsedQuery, statusFilter, priorityFilter, categoryFilter, ufFilter, responsibleFilter, anoFilter, dateFrom, dateTo, valueMin, valueMax]);
 
   // Sort demands
-  const sortedDemands = [...filteredDemands].sort((a, b) => {
+  const sortedDemands = useMemo(() => [...filteredDemands].sort((a, b) => {
     if (sortBy === 'newest') {
       return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
     }
@@ -445,7 +444,7 @@ export default function DemandsView({
       return a.requested_value - b.requested_value;
     }
     return 0;
-  });
+  }), [filteredDemands, sortBy]);
 
   // Kanban Columns
   const KANBAN_COLUMNS: { id: DemandStatus; title: string; color: string }[] = [
@@ -1245,9 +1244,11 @@ export default function DemandsView({
                         value={editOrgan}
                         onChange={(v) => setEditOrgan(v.toUpperCase())}
                         options={organs.map(o => ({ value: o.name }))}
-                        allowCreate={canEdit && (user?.role === 'admin' || user?.role === 'administrador')}
+                        strict
+                        allowCreate={canEdit && (user?.role === 'admin')}
                         onCreate={createOrgan}
                         placeholder="Ex: MEC, FNDE, MS"
+                        noMatchMessage="Órgão não encontrado no cadastro mestre."
                         hint="Cadastro mestre — administradores podem criar novos órgãos direto no campo."
                       />
                     </div>

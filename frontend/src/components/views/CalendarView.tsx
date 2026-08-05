@@ -2,16 +2,17 @@ import React, { useState, useEffect, useMemo } from 'react';
 import {
   Calendar as CalendarIcon, ChevronLeft, ChevronRight, FolderKanban,   Clock, RefreshCw,
   Plus, Search, SlidersHorizontal, X, Check, AlertTriangle, CalendarDays, CheckCircle2,
-  PanelRight, Pencil, Trash2, Flag, Paperclip, User, MapPin, ListFilter, FilterX,
-  RotateCcw, GripVertical, Bell, ShieldAlert, Hourglass, PlusCircle, Undo2, FileText
+  PanelRight, Pencil, Trash2, Flag, Paperclip, User, MapPin, ListFilter,
+  GripVertical, Bell, ShieldAlert, Hourglass, PlusCircle, Undo2, FileText
 } from 'lucide-react';
-import { demandsApi, formatDateShort } from '../../services/api';
+import { demandsApi, standardizationApi, formatDateShort } from '../../services/api';
 import { useAuth } from '../../contexts/AuthContext';
 import { useToast } from '../../contexts/ToastContext';
 import { Demand, DemandStatus, DemandPriority } from '../../types';
 import { Skeleton } from '../ui/Skeleton';
 import { STATUS_LABELS, PRIORITY_LABELS, BRAZILIAN_STATES } from '../../lib/demandMeta';
 import { StatusBadge, PageHeader, SummaryCard, Modal, FiltersDrawer, Select, Input } from '../ui';
+import { SearchSelect } from '../ui/SearchSelect';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -390,6 +391,8 @@ function EventFormModal({
         <Field label="Título" required error={errors.title} className="sm:col-span-2">
           <input
             type="text"
+            lang="pt-BR"
+            spellCheck={true}
             value={form.title}
             onChange={e => set('title', e.target.value.toUpperCase())}
             placeholder="Ex: Reunião com FNDE"
@@ -399,6 +402,8 @@ function EventFormModal({
         <Field label="Descrição" className="sm:col-span-2">
           <textarea
             rows={3}
+            lang="pt-BR"
+            spellCheck={true}
             value={form.description}
             onChange={e => set('description', e.target.value.toUpperCase())}
             placeholder="Detalhes do evento..."
@@ -411,6 +416,8 @@ function EventFormModal({
         <Field label="Responsável">
           <input
             type="text"
+            lang="pt-BR"
+            spellCheck={true}
             value={form.responsible}
             onChange={e => set('responsible', e.target.value.toUpperCase())}
             placeholder="Nome do responsável"
@@ -436,12 +443,13 @@ function EventFormModal({
           </select>
         </Field>
         <Field label="Município">
-          <input
-            type="text"
+          <SearchSelect
             value={form.municipality}
-            onChange={e => set('municipality', e.target.value.toUpperCase())}
+            onChange={(v) => set('municipality', v.toUpperCase())}
+            fetcher={(q) => standardizationApi.suggestMunicipalities(q)}
+            strict
             placeholder="Município do evento"
-            className={inputCls(false)}
+            noMatchMessage="Município não encontrado na base oficial do IBGE."
           />
         </Field>
         <Field label="Status">
@@ -532,7 +540,11 @@ export default function CalendarView({ onOpenDemand }: { onOpenDemand?: (demandI
   useEffect(() => { load(); }, []);
 
   useEffect(() => {
-    demandsApi.getAll({ limit: 200, page: 1 }).then(r => setDemands(r.data)).catch(() => {});
+    let cancelled = false;
+    demandsApi.getAll({ limit: 200, page: 1 }).then(r => {
+      if (!cancelled) setDemands(r.data);
+    }).catch(() => {});
+    return () => { cancelled = true; };
   }, []);
 
   // Persist user events
@@ -1167,9 +1179,11 @@ export default function CalendarView({ onOpenDemand }: { onOpenDemand?: (demandI
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
               <input
-                type="text"
-                value={search}
-                onChange={e => setSearch(e.target.value)}
+                    type="text"
+                    lang="pt-BR"
+                    spellCheck={true}
+                    value={search}
+                    onChange={e => setSearch(e.target.value)}
                 placeholder="Pesquisa instantânea..."
                 className="w-full pl-8 pr-7 py-2 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-900/60 text-xs text-slate-800 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-600"
               />
@@ -1575,7 +1589,7 @@ export default function CalendarView({ onOpenDemand }: { onOpenDemand?: (demandI
                     <p className="text-[10px] text-slate-400 italic">Evento gerado automaticamente pelo sistema.</p>
                   )}
                   {detailTimeline.length > 0 && detailTimeline.map((t, i) => (
-                    <div key={i} className="flex items-start gap-2 text-[10px]">
+                    <div key={t.id || `timeline-${i}`} className="flex items-start gap-2 text-[10px]">
                       <span className="mt-1 w-1.5 h-1.5 rounded-full bg-brand-400 shrink-0" />
                       <div className="min-w-0">
                         <p className="font-bold text-slate-700 dark:text-slate-200">{t.title}</p>

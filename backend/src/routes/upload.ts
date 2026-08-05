@@ -27,14 +27,14 @@ const ALLOWED_MIMES = new Set([
   'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
   'application/vnd.ms-powerpoint',
   'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-  'image/png', 'image/jpeg', 'image/gif', 'image/svg+xml',
+  'image/png', 'image/jpeg', 'image/gif',
   'text/plain', 'text/csv',
   'application/zip', 'application/x-rar-compressed',
 ]);
 
 const ALLOWED_EXTENSIONS = new Set([
   '.pdf', '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx',
-  '.png', '.jpg', '.jpeg', '.gif', '.svg',
+  '.png', '.jpg', '.jpeg', '.gif',
   '.txt', '.csv',
   '.zip', '.rar',
 ]);
@@ -169,7 +169,9 @@ router.get('/attachments/:id', authenticateToken, requirePermission('demands.vie
 
     const mime = attachment.mime_type || 'application/octet-stream';
     res.setHeader('Content-Type', mime);
-    res.setHeader('Content-Disposition', `inline; filename="${attachment.name}"`);
+    const safeFilename = (attachment.name || 'file').replace(/[^a-zA-Z0-9._-]/g, '_');
+    const isInlineImage = mime.startsWith('image/') && mime !== 'image/svg+xml';
+    res.setHeader('Content-Disposition', isInlineImage ? `inline; filename="${safeFilename}"` : `attachment; filename="${safeFilename}"`);
     res.setHeader('Content-Length', attachment.file_size || 0);
     res.sendFile(safePath);
   } catch (error) {

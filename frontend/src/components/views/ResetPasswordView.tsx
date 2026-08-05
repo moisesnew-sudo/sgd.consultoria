@@ -36,7 +36,6 @@ export default function ResetPasswordView({ onBack }: { onBack: () => void }) {
     try {
       const res = await passwordResetApi.reset(token, password);
       setMessage(res.message);
-      setTimeout(() => onBack(), 3000);
     } catch (e: any) {
       setError(e.message || 'Erro ao redefinir senha');
     } finally { setLoading(false); }

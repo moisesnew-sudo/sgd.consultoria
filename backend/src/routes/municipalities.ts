@@ -132,11 +132,11 @@ router.delete('/:id', authenticateToken, requireRole('admin'), async (req: Reque
     if (!municipality) return res.status(404).json({ error: 'Município não encontrado' });
 
     const demandsCount = await get<{ count: string }>(
-      'SELECT COUNT(*) as count FROM demands WHERE municipality = (SELECT name FROM municipalities WHERE id = $1) AND deleted_at IS NULL',
-      [req.params.id]
+      'SELECT COUNT(*) as count FROM demands WHERE municipality = $1 AND uf = $2 AND deleted_at IS NULL',
+      [municipality.name, municipality.uf]
     );
 
-    if (demandsCount && parseInt(demandsCount.count) > 0) {
+    if (demandsCount && Number(demandsCount?.count || '0') > 0) {
       return res.status(400).json({ error: 'Não é possível remover município com demandas vinculadas' });
     }
 

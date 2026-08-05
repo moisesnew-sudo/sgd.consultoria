@@ -31,10 +31,15 @@ export default function IntegrationView() {
 
   useEffect(() => { load(); }, []);
 
+  useEffect(() => {
+    if (!copied) return;
+    const timer = setTimeout(() => setCopied(null), 1500);
+    return () => clearTimeout(timer);
+  }, [copied]);
+
   const copy = (text: string, key: string) => {
     navigator.clipboard?.writeText(text);
     setCopied(key);
-    setTimeout(() => setCopied(null), 1500);
   };
 
   const curlExample = info

@@ -1,5 +1,4 @@
 import { Router, Request, Response } from 'express';
-import crypto from 'crypto';
 import { get, all, run } from '../database.js';
 import { authenticateToken, requireRole } from '../middleware/auth.js';
 import { logAudit, extractMeta } from '../lib/audit.js';

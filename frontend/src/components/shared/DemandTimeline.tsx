@@ -3,7 +3,7 @@ import {
   FilePlus2, Pencil, GitPullRequest, CheckCircle2, MessageSquare,
   Paperclip, Download, Trash2, RotateCcw, FileText, ArrowRight,
 } from 'lucide-react';
-import type { TimelineEvent, TimelineEventType } from '../../types';
+import type { TimelineEvent, TimelineEventType, DemandStatus } from '../../types';
 import { StatusBadge } from '../ui';
 import { statusLabel } from '../../lib/demandMeta';
 
@@ -144,11 +144,11 @@ export function DemandTimeline({ events }: DemandTimelineProps) {
                     <div className="mt-2 flex items-center gap-1.5 flex-wrap">
                       {fromStatus && (
                         <>
-                          <span className="text-[10px] text-slate-400">{statusLabel(fromStatus as any)}</span>
+                          <span className="text-[10px] text-slate-400">{statusLabel(fromStatus as DemandStatus)}</span>
                           <ArrowRight size={11} className="text-slate-400" />
                         </>
                       )}
-                      <StatusBadge status={toStatus as any} className="py-0.5" />
+                      {toStatus && <StatusBadge status={toStatus as DemandStatus} className="py-0.5" />}
                     </div>
                   )}
 

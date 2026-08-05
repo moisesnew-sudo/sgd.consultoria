@@ -23,7 +23,9 @@ router.get('/', authenticateToken, requirePermission('audit.view'), async (req: 
       params.push(t, t, t, t);
     }
 
-    const countResult = await get<{ count: string }>(sql.replace('SELECT *', 'SELECT COUNT(*) as count'), params);
+    const countResult = await get<{ count: string }>(
+      sql.replace(/SELECT \* FROM/, 'SELECT COUNT(*) as count FROM'), params
+    );
     const total = parseInt(countResult?.count || '0');
     const p = Math.max(1, parseInt(page as string));
     const l = Math.min(parseInt(limit as string), 500);

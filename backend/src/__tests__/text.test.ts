@@ -65,6 +65,19 @@ describe('canonicalMunicipality', () => {
     const res = canonicalMunicipality('CÁCERES', 'SP');
     expect(res).toEqual({ nome: 'CÁCERES', uf: 'MT' });
   });
+
+  // Exemplos do relatório de auditoria (item 7 — Padronização automática).
+  it('"   GOIANIA   " -> "GOIÂNIA"', () => {
+    expect(canonicalMunicipality('   GOIANIA   ', 'GO')).toEqual({ nome: 'GOIÂNIA', uf: 'GO' });
+  });
+
+  it('"caceres" -> "CÁCERES"', () => {
+    expect(canonicalMunicipality('caceres', 'MT')).toEqual({ nome: 'CÁCERES', uf: 'MT' });
+  });
+
+  it('"Sao Paulo" -> "SÃO PAULO"', () => {
+    expect(canonicalMunicipality('Sao Paulo', 'SP')).toEqual({ nome: 'SÃO PAULO', uf: 'SP' });
+  });
 });
 
 describe('findOfficialMunicipality', () => {

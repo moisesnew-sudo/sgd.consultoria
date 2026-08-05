@@ -9,7 +9,7 @@ const ACCESS_TOKEN_EXPIRY = '15m';
 const REFRESH_TOKEN_EXPIRY_DAYS = 7;
 
 const JWT_SECRET = process.env.JWT_SECRET;
-const REFRESH_SECRET = JWT_SECRET ? `${JWT_SECRET}_refresh` : null;
+const REFRESH_SECRET = process.env.JWT_REFRESH_SECRET || (JWT_SECRET ? `${JWT_SECRET}_refresh` : null);
 
 if (!JWT_SECRET || JWT_SECRET.length < 32) {
   throw new Error('JWT_SECRET inválido ou não configurado. Deve ter pelo menos 32 caracteres.');

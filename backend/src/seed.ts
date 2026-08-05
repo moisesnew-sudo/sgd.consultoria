@@ -14,7 +14,7 @@ export async function runSeed() {
       'INSERT INTO users (email, password_hash, name, role) VALUES ($1, $2, $3, $4)',
       ['admin@sgd.gov.br', adminPassword, 'Administrador SGD', 'admin']
     );
-    logger.info('✅ Usuário admin criado: admin@sgd.gov.br / Admin2026!');
+    logger.info('✅ Usuário admin criado: admin@sgd.gov.br');
   }
 
   const viewerPassword = await bcrypt.hash(process.env.SEED_VIEWER_PASSWORD || defaultPwd(), 10);
@@ -25,7 +25,7 @@ export async function runSeed() {
       'INSERT INTO users (email, password_hash, name, role) VALUES ($1, $2, $3, $4)',
       ['consulta@sgd.gov.br', viewerPassword, 'Consultor Público', 'consulta']
     );
-    logger.info('✅ Usuário consulta criado: consulta@sgd.gov.br / Visitante2026!');
+    logger.info('✅ Usuário consulta criado: consulta@sgd.gov.br');
   }
 
   const gestorPassword = await bcrypt.hash(process.env.SEED_GESTOR_PASSWORD || defaultPwd(), 10);
@@ -36,7 +36,7 @@ export async function runSeed() {
       'INSERT INTO users (email, password_hash, name, role) VALUES ($1, $2, $3, $4)',
       ['gestor@sgd.gov.br', gestorPassword, 'Gestor SGD', 'gestor']
     );
-    logger.info('✅ Usuário gestor criado: gestor@sgd.gov.br / Gestor2026!');
+    logger.info('✅ Usuário gestor criado: gestor@sgd.gov.br');
   }
 
   const analistaPassword = await bcrypt.hash(process.env.SEED_ANALISTA_PASSWORD || defaultPwd(), 10);
@@ -47,7 +47,7 @@ export async function runSeed() {
       'INSERT INTO users (email, password_hash, name, role) VALUES ($1, $2, $3, $4)',
       ['analista@sgd.gov.br', analistaPassword, 'Analista SGD', 'analista']
     );
-    logger.info('✅ Usuário analista criado: analista@sgd.gov.br / Analista2026!');
+    logger.info('✅ Usuário analista criado: analista@sgd.gov.br');
   }
 
   const municipalities = [
@@ -245,6 +245,6 @@ export async function runSeed() {
   }
 }
 
-if (process.argv[1] && process.argv[1].includes('seed')) {
+if (process.argv[1] && process.argv[1].endsWith('seed.ts')) {
   runSeed().catch((err) => logger.error('Seed failed', { error: err instanceof Error ? err.message : err }));
 }

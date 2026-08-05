@@ -122,7 +122,7 @@ export function Header({ onToggleSidebar, isSidebarOpen, pendingCount }: HeaderP
                   <div className="px-3.5 py-2 border-b border-slate-100 dark:border-slate-700/50">
                     <p className="text-xs font-bold text-slate-700 dark:text-slate-200">{user.name}</p>
                     <span className={`inline-block mt-0.5 px-1.5 py-0.5 text-[8px] font-bold rounded uppercase tracking-wider ${
-                      user.role === 'admin' || user.role === 'administrador' ? 'bg-gov-100 dark:bg-gov-900/40 text-gov-800 dark:text-gov-300' :
+                      user.role === 'admin' ? 'bg-gov-100 dark:bg-gov-900/40 text-gov-800 dark:text-gov-300' :
                       user.role === 'gestor' || user.role === 'diretor' ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300' :
                       'bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300'
                     }`}>

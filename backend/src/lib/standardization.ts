@@ -188,19 +188,22 @@ export async function applyStandardizationScan(): Promise<StdReport> {
   }
   for (const g of groups.values()) {
     if (g.length < 2) continue;
-    const primary = g[0];
-    const official = officialById.get(primary.id)!;
-    for (const dup of g.slice(1)) {
+    const official = officialById.get(g[0].id)!;
+    // Mantém como referência o registro que já possui a grafia oficial (se existir),
+    // evitando violar o UNIQUE(name, uf) ao renomear.
+    const keeper = g.find(r => r.name === official.name && r.uf === official.uf) || g[0];
+    for (const r of g) {
+      if (r.id === keeper.id) continue;
       await run(
         `UPDATE demands SET municipality = $1, uf = $2 WHERE municipality = $3 AND uf = $4`,
-        [official.name, official.uf, dup.name, dup.uf]
+        [official.name, official.uf, r.name, r.uf]
       );
-      await run('UPDATE municipalities SET deleted_at = NOW() WHERE id = $1', [dup.id]);
+      await run('UPDATE municipalities SET deleted_at = NOW() WHERE id = $1', [r.id]);
     }
-    if (official.name !== primary.name || official.uf !== primary.uf) {
+    if (keeper.name !== official.name || keeper.uf !== official.uf) {
       await run(
         'UPDATE municipalities SET name = $1, uf = $2, updated_at = NOW() WHERE id = $3',
-        [official.name, official.uf, primary.id]
+        [official.name, official.uf, keeper.id]
       );
     }
   }

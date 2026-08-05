@@ -166,6 +166,9 @@ export function SearchSelect({
     } else if (allowFreeText) {
       setSuggestion(null);
       setStrictError(null);
+    } else if (allowCreate) {
+      setSuggestion(null);
+      setStrictError(null);
     } else {
       setSuggestion(null);
       setStrictError(noMatchMessage || 'Selecione um item válido da lista.');
