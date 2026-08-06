@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { MapPin, Plus, Search, Edit2, Trash2, X, Save, Loader2 } from 'lucide-react';
+import { MapPin, Plus, Search, Edit2, Trash2, Save } from 'lucide-react';
 import { municipalitiesApi, standardizationApi } from '../../services/api';
 import { MunicipalityData } from '../../types';
 import { BRAZILIAN_STATES } from '../../lib/demandMeta';
@@ -9,7 +9,7 @@ import { PageHeader } from '../ui/PageHeader';
 import { EmptyState } from '../ui/EmptyState';
 import { Modal } from '../ui/Modal';
 import { Button } from '../ui/Button';
-import { Select } from '../ui/Fields';
+import { Select, Input } from '../ui/Fields';
 import { SearchSelect } from '../ui/SearchSelect';
 
 interface MunicipalitiesViewProps {
@@ -137,50 +137,51 @@ export default function MunicipalitiesView({ municipalities, setMunicipalities }
 
       {/* Filters */}
       <div className="flex flex-col sm:flex-row gap-3">
-        <div className="relative flex-1">
-          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
-          <input
-            type="text"
+        <div className="flex-1">
+          <Input
             placeholder="Buscar município..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 text-sm text-slate-800 bg-white focus:outline-none focus:ring-2 focus:ring-brand-600 focus:border-transparent"
+            icon={<Search size={16} />}
+            aria-label="Buscar município"
           />
         </div>
-        <select
-          value={selectedUf}
-          onChange={(e) => setSelectedUf(e.target.value)}
-          className="px-4 py-2.5 rounded-xl border border-slate-200 text-sm text-slate-800 bg-white focus:outline-none focus:ring-2 focus:ring-brand-600 focus:border-transparent"
-        >
-          <option value="">Todas as UFs</option>
-          {BRAZILIAN_STATES.filter(uf => ufCounts[uf]).map(uf => (
-            <option key={uf} value={uf}>{uf} ({ufCounts[uf]})</option>
-          ))}
-        </select>
+        <div className="sm:w-56 shrink-0">
+          <Select
+            value={selectedUf}
+            onChange={(e) => setSelectedUf(e.target.value)}
+            aria-label="Filtrar por UF"
+          >
+            <option value="">Todas as UFs</option>
+            {BRAZILIAN_STATES.filter(uf => ufCounts[uf]).map(uf => (
+              <option key={uf} value={uf}>{uf} ({ufCounts[uf]})</option>
+            ))}
+          </Select>
+        </div>
       </div>
 
       {/* Municipalities Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         {filteredMunicipalities.map((m) => (
-              <div key={`${m.name}-${m.uf}`} className="bg-white border border-slate-100 rounded-2xl p-4 shadow-sm hover:shadow-md transition-shadow group">
+          <div key={`${m.name}-${m.uf}`} className="bg-white dark:bg-[#111a2e] border border-slate-100 dark:border-slate-700/50 rounded-2xl p-4 shadow-sm hover:shadow-md transition-shadow group">
             <div className="flex items-start justify-between">
               <div>
-                <h3 className="text-sm font-bold text-slate-800">{m.name}</h3>
-                <p className="text-xs text-slate-500 mt-0.5">
+                <h3 className="text-sm font-bold text-slate-800 dark:text-slate-200">{m.name}</h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
                   {m.uf} · {getRegionForUf(m.uf)}
                 </p>
               </div>
               <div className="flex gap-1">
                 <button
-                    onClick={() => handleEdit(m)}
-                    title={`Editar ${m.name}`}
-                    aria-label={`Editar ${m.name}`}
-                    className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-blue-600 transition-colors cursor-pointer"
-                  >
-                    <Edit2 size={14} />
-                  </button>
-                  <button
-                    onClick={() => handleDelete(m)}
+                  onClick={() => handleEdit(m)}
+                  title={`Editar ${m.name}`}
+                  aria-label={`Editar ${m.name}`}
+                  className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-blue-600 transition-colors cursor-pointer"
+                >
+                  <Edit2 size={14} />
+                </button>
+                <button
+                  onClick={() => handleDelete(m)}
                   title={`Remover ${m.name}`}
                   aria-label={`Remover ${m.name}`}
                   className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-red-500 transition-colors cursor-pointer"
@@ -194,10 +195,10 @@ export default function MunicipalitiesView({ municipalities, setMunicipalities }
       </div>
 
       {filteredMunicipalities.length === 0 && (
-        <div className="bg-white border border-slate-100 rounded-2xl">
+        <div className="bg-white dark:bg-[#111a2e] border border-slate-100 dark:border-slate-700/50 rounded-2xl">
           <EmptyState
             icon={<MapPin size={32} />}
-            title="Nenhum município encontrado"
+            title={municipalities.length === 0 ? 'Nenhum município cadastrado' : 'Nenhum município encontrado'}
             className="py-12"
           />
         </div>

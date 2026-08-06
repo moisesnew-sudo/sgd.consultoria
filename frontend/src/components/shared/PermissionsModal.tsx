@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ShieldCheck, Save } from 'lucide-react';
 import { PermissionCategory, UserPermission } from '../../types';
 import { permissionsApi } from '../../services/api';

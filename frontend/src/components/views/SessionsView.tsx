@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { LogOut, Monitor, Globe, Smartphone, Laptop, Clock, ShieldX, RefreshCw } from 'lucide-react';
+import { useState, useEffect, useCallback } from 'react';
+import { LogOut, Monitor, Globe, Smartphone, Laptop, Clock, ShieldX, RefreshCw, AlertCircle } from 'lucide-react';
 import { sessionsApi } from '../../services/api';
 import { useAuth } from '../../contexts/AuthContext';
 import { Skeleton } from '../ui/Skeleton';
@@ -10,11 +10,13 @@ export default function SessionsView() {
   const { user } = useAuth();
   const [sessions, setSessions] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
+    setError(null);
     try { setSessions(await sessionsApi.list()); }
-    catch { /* ignore */ }
+    catch (e: any) { setError(e?.message || 'Não foi possível carregar as sessões ativas.'); }
     finally { setLoading(false); }
   }, []);
 
@@ -24,7 +26,9 @@ export default function SessionsView() {
     try {
       await sessionsApi.terminate(id);
       setSessions(prev => prev.filter(s => s.id !== id));
-    } catch { /* ignore */ }
+    } catch (e: any) {
+      setError(e?.message || 'Não foi possível encerrar a sessão.');
+    }
   };
 
   const getOsIcon = (os: string) => {
@@ -52,11 +56,18 @@ export default function SessionsView() {
         subtitle="Gerencie as sessões ativas do sistema"
         icon={<ShieldX className="text-brand-600" />}
         actions={
-          <button onClick={load} className="p-2 rounded-lg border border-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800" title="Atualizar">
+          <button onClick={load} aria-label="Atualizar sessões" className="p-2 rounded-lg border border-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer" title="Atualizar">
             <RefreshCw size={16} />
           </button>
         }
       />
+
+      {error && (
+        <div className="p-3 bg-rose-50 dark:bg-rose-900/30 border border-rose-200 dark:border-rose-800/60 text-rose-600 dark:text-rose-300 rounded-xl text-xs font-semibold flex items-center gap-2" role="alert">
+          <AlertCircle size={16} /> {error}
+          <button onClick={load} className="ml-auto text-[11px] font-bold underline hover:text-rose-700 dark:hover:text-rose-200">Tentar novamente</button>
+        </div>
+      )}
 
       {loading ? (
         <div className="grid grid-cols-1 gap-3">
@@ -106,7 +117,8 @@ export default function SessionsView() {
                   {session.active && (
                     <button onClick={() => handleTerminate(session.id)}
                       className="shrink-0 p-2 rounded-lg border border-red-200 hover:bg-red-50 text-red-500 dark:border-red-800 dark:hover:bg-red-900/20 transition-colors"
-                      title="Encerrar sessão">
+                      title="Encerrar sessão"
+                      aria-label={`Encerrar sessão de ${session.name}`}>
                       <LogOut size={14} />
                     </button>
                   )}

@@ -2,8 +2,9 @@ import React, { useState } from 'react';
 import { Lock, User, Eye, EyeOff, ShieldCheck, ArrowRight, AlertCircle, Sun, Moon, MonitorSmartphone } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useTheme, ThemeMode } from '../../contexts/ThemeContext';
-import { LogoSymbol, LogoFull } from '../ui/Logo';
+import { LogoSymbol } from '../ui/Logo';
 import { Spinner } from '../ui/Spinner';
+import { Input } from '../ui/Fields';
 
 interface LoginViewProps {
   onNavigateToTab: (tab: string) => void;
@@ -130,7 +131,7 @@ export default function LoginView({ onNavigateToTab }: LoginViewProps) {
           </div>
 
           {error && (
-            <div className="p-3 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800/60 text-red-600 dark:text-red-400 rounded-xl text-xs font-semibold flex items-center gap-2">
+            <div className="p-3 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800/60 text-red-600 dark:text-red-400 rounded-xl text-xs font-semibold flex items-center gap-2" role="alert">
               <AlertCircle size={16} />
               {error}
             </div>
@@ -138,28 +139,23 @@ export default function LoginView({ onNavigateToTab }: LoginViewProps) {
 
           <form onSubmit={handleSubmit} className="space-y-4">
             {/* Email Field */}
-            <div className="space-y-1">
+            <div className="space-y-1.5">
               <label htmlFor="email" className="text-xs font-bold text-slate-700 dark:text-slate-200 block">
                 E-mail *
               </label>
-              <div className="relative">
-                <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400">
-                  <User size={16} />
-                </span>
-                <input
-                  id="email"
-                  type="email"
-                  required
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="seu@email.gov.br"
-                  className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-900/60 text-sm text-slate-800 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-gov-600 focus:border-transparent transition-all"
-                />
-              </div>
+              <Input
+                id="email"
+                type="email"
+                required
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="seu@email.gov.br"
+                icon={<User size={16} />}
+              />
             </div>
 
             {/* Password Field */}
-            <div className="space-y-1">
+            <div className="space-y-1.5">
               <div className="flex justify-between items-center">
                 <label htmlFor="password" className="text-xs font-bold text-slate-700 dark:text-slate-200 block">
                   Senha de Acesso *
@@ -169,29 +165,26 @@ export default function LoginView({ onNavigateToTab }: LoginViewProps) {
                   Esqueci minha senha
                 </button>
               </div>
-              <div className="relative">
-                <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400">
-                  <Lock size={16} />
-                </span>
-                <input
-                  id="password"
-                  type={showPassword ? 'text' : 'password'}
-                  autoComplete="current-password"
-                  required
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Sua senha de acesso"
-                  className="w-full pl-10 pr-10 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-900/60 text-sm text-slate-800 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-gov-600 focus:border-transparent transition-all"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 focus:outline-none"
-                  aria-label={showPassword ? "Ocultar senha" : "Exibir senha"}
-                >
-                  {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                </button>
-              </div>
+              <Input
+                id="password"
+                type={showPassword ? 'text' : 'password'}
+                autoComplete="current-password"
+                required
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="Sua senha de acesso"
+                icon={<Lock size={16} />}
+                iconRight={
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="text-slate-400 hover:text-slate-600 focus:outline-none cursor-pointer"
+                    aria-label={showPassword ? "Ocultar senha" : "Exibir senha"}
+                  >
+                    {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                  </button>
+                }
+              />
             </div>
 
             {/* Submission Button */}

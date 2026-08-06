@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Sparkles } from 'lucide-react';
 import { Demand } from '../../types';
 import { buildPdfReport, ReportFilters } from '../reports/pdfAutoReport';

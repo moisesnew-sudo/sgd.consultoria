@@ -1,7 +1,7 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   BarChart3, TrendingUp, DollarSign, Clock, CheckCircle2,
-  FilterX, RefreshCw, MapPin,
+  FilterX, RefreshCw, MapPin, AlertCircle,
 } from 'lucide-react';
 import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid,
@@ -10,6 +10,7 @@ import {
 import { demandsApi } from '../../services/api';
 import { ExecutiveStats } from '../../types';
 import { PageHeader, Card, Kpi, Spinner } from '../ui';
+import { Table, TableHead, TableBody, TableEmpty, Th, Tr, Td } from '../ui/Table';
 import { statusLabel } from '../../lib/demandMeta';
 
 export interface ExecutiveNavFilters {
@@ -62,6 +63,7 @@ function fmtNumber(v: number): string {
 export default function ExecutivePanelView({ onOpenDemands }: ExecutivePanelViewProps) {
   const [data, setData] = useState<ExecutiveStats | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [year, setYear] = useState('');
   const [uf, setUf] = useState('');
   const [status, setStatus] = useState('');
@@ -72,13 +74,15 @@ export default function ExecutivePanelView({ onOpenDemands }: ExecutivePanelView
 
   const fetchData = async () => {
     setLoading(true);
+    setError(null);
     try {
       const result = await demandsApi.getExecutiveStats({ year, uf, status, municipality, dateFrom, dateTo });
       setData(result);
       if (!municipality) {
         setMuniOptions(result.byMunicipality.map(m => ({ municipality: m.municipality, uf: m.uf })));
       }
-    } catch (e) {
+    } catch (e: any) {
+      setError(e?.message || 'Não foi possível carregar os dados do painel executivo.');
       console.error('Executive stats error', e);
     } finally {
       setLoading(false);
@@ -155,17 +159,24 @@ export default function ExecutivePanelView({ onOpenDemands }: ExecutivePanelView
           <option value="concluido">Concluído</option>
           <option value="rejeitado">Rejeitado</option>
         </select>
-        <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="text-xs border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1.5 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200" />
-        <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} className="text-xs border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1.5 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200" />
+        <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} aria-label="Data inicial" className="text-xs border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1.5 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200" />
+        <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} aria-label="Data final" className="text-xs border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1.5 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200" />
         <button onClick={applyFilters} className="ml-auto flex items-center gap-1.5 text-xs font-bold text-brand-600 dark:text-brand-400 hover:text-brand-700 px-3 py-1.5 rounded-lg bg-brand-50 dark:bg-brand-950/30 transition-colors">
           <RefreshCw size={12} /> Atualizar
         </button>
       </div>
 
+      {error && (
+        <div className="flex items-center gap-2 p-3 bg-rose-50 dark:bg-rose-900/30 border border-rose-200 dark:border-rose-800/60 text-rose-600 dark:text-rose-300 rounded-xl text-xs font-semibold" role="alert">
+          <AlertCircle size={16} /> {error}
+          <button onClick={fetchData} className="ml-auto text-[11px] font-bold underline hover:text-rose-700 dark:hover:text-rose-200">Tentar novamente</button>
+        </div>
+      )}
+
       {loading ? (
         <div className="flex justify-center py-20"><Spinner size={32} /></div>
       ) : !data ? (
-        <p className="text-center text-sm text-slate-400 py-20">Erro ao carregar dados.</p>
+        <p className="text-center text-sm text-slate-400 py-20">Nenhum dado disponível.</p>
       ) : (
         <>
           {/* KPIs */}
@@ -273,35 +284,32 @@ export default function ExecutivePanelView({ onOpenDemands }: ExecutivePanelView
               <MapPin size={12} /> {data.byMunicipality.length} municípios
             </span>
           }>
-            <div className="overflow-x-auto custom-scrollbar">
-              <table className="w-full text-left text-xs">
-                <thead>
-                  <tr className="border-b border-slate-100 dark:border-slate-700/50 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                    <th className="py-2 px-3">Município</th>
-                    <th className="py-2 px-3 text-center">UF</th>
-                    <th className="py-2 px-3 text-right">Demandas</th>
-                    <th className="py-2 px-3 text-right">Valor Total</th>
-                    <th className="py-2 px-3 text-right">Valor Médio</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-50 dark:divide-slate-800">
-                  {muniTableData.map((m, i) => (
-                    <tr
-                      key={`${m.municipality}-${m.uf}`}
-                      onClick={() => onOpenDemands?.({ municipality: `${m.municipality}/${m.uf}`, uf: m.uf })}
-                      title={`Ver demandas de ${m.municipality}/${m.uf}`}
-                      className={`cursor-pointer transition-colors hover:bg-brand-50/60 dark:hover:bg-brand-900/20 ${i % 2 === 0 ? 'bg-white dark:bg-transparent' : 'bg-slate-50/40 dark:bg-slate-800/10'}`}
-                    >
-                      <td className="py-2 px-3 font-semibold text-slate-800 dark:text-slate-200 group-hover:text-brand-700">{m.municipality}</td>
-                      <td className="py-2 px-3 text-center font-mono text-slate-500">{m.uf}</td>
-                      <td className="py-2 px-3 text-right font-bold text-slate-700 dark:text-slate-200">{m.count}</td>
-                      <td className="py-2 px-3 text-right font-mono text-slate-600 dark:text-slate-300">{fmtCurrency(m.totalValue)}</td>
-                      <td className="py-2 px-3 text-right font-mono text-slate-500">{fmtCurrency(m.totalValue / Math.max(m.count, 1))}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            <Table minWidth={640}>
+              <TableHead>
+                <Th>Município</Th>
+                <Th align="center">UF</Th>
+                <Th align="right">Demandas</Th>
+                <Th align="right">Valor Total</Th>
+                <Th align="right">Valor Médio</Th>
+              </TableHead>
+              <TableBody>
+                {muniTableData.length === 0 && <TableEmpty colSpan={5} message="Nenhum município nos filtros selecionados." />}
+                {muniTableData.map((m, i) => (
+                  <Tr
+                    key={`${m.municipality}-${m.uf}`}
+                    onClick={() => onOpenDemands?.({ municipality: `${m.municipality}/${m.uf}`, uf: m.uf })}
+                    title={`Ver demandas de ${m.municipality}/${m.uf}`}
+                    className={`cursor-pointer transition-colors hover:bg-brand-50/60 dark:hover:bg-brand-900/20 ${i % 2 === 0 ? 'bg-white dark:bg-transparent' : 'bg-slate-50/40 dark:bg-slate-800/10'}`}
+                  >
+                    <Td><span className="font-semibold text-slate-800 dark:text-slate-200">{m.municipality}</span></Td>
+                    <Td align="center"><span className="font-mono text-slate-500">{m.uf}</span></Td>
+                    <Td align="right"><span className="font-bold text-slate-700 dark:text-slate-200">{m.count}</span></Td>
+                    <Td align="right"><span className="font-mono text-slate-600 dark:text-slate-300">{fmtCurrency(m.totalValue)}</span></Td>
+                    <Td align="right"><span className="font-mono text-slate-500">{fmtCurrency(m.totalValue / Math.max(m.count, 1))}</span></Td>
+                  </Tr>
+                ))}
+              </TableBody>
+            </Table>
           </Card>
         </>
       )}

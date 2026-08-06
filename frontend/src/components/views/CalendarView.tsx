@@ -12,6 +12,7 @@ import { Demand, DemandStatus, DemandPriority } from '../../types';
 import { Skeleton } from '../ui/Skeleton';
 import { STATUS_LABELS, PRIORITY_LABELS, BRAZILIAN_STATES } from '../../lib/demandMeta';
 import { StatusBadge, PageHeader, SummaryCard, Modal, FiltersDrawer, Select, Input } from '../ui';
+import { FieldWrap } from '../ui/Fields';
 import { SearchSelect } from '../ui/SearchSelect';
 
 // ---------------------------------------------------------------------------
@@ -217,26 +218,6 @@ const loadUserEvents = (): CalEvent[] => {
 // Modal (genérico)
 // ---------------------------------------------------------------------------
 
-function Field({
-  label, required, error, children, className = ''
-}: {
-  label: string;
-  required?: boolean;
-  error?: string;
-  children: React.ReactNode;
-  className?: string;
-}) {
-  return (
-    <div className={`space-y-1.5 ${className}`}>
-      <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block">
-        {label} {required && <span className="text-red-500">*</span>}
-      </label>
-      {children}
-      {error && <p className="text-[10px] text-red-500 font-semibold flex items-center gap-1"><AlertTriangle size={11} /> {error}</p>}
-    </div>
-  );
-}
-
 const inputCls = (hasError = false) =>
   `w-full px-3.5 py-2.5 rounded-xl border text-sm text-slate-800 dark:text-slate-100 bg-white dark:bg-slate-900/60 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-600 focus:border-transparent transition-colors ${
     hasError ? 'border-red-400 bg-red-50/20 dark:bg-red-950/20' : 'border-slate-200 dark:border-slate-700'
@@ -360,14 +341,14 @@ function EventFormModal({
       }
     >
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <Field label="Tipo" required>
+        <FieldWrap label="Tipo" required>
           <select value={form.type} onChange={e => set('type', e.target.value as EventType)} className={selectCls}>
             {ALL_TYPES.map(t => (
               <option key={t} value={t}>{TYPE_META[t].label}</option>
             ))}
           </select>
-        </Field>
-        <Field label="Cor">
+        </FieldWrap>
+        <FieldWrap label="Cor">
           <div className="flex items-center gap-2 flex-wrap pt-1">
             {COLOR_SWATCHES.map(c => (
               <button
@@ -387,8 +368,8 @@ function EventFormModal({
               </button>
             )}
           </div>
-        </Field>
-        <Field label="Título" required error={errors.title} className="sm:col-span-2">
+        </FieldWrap>
+        <FieldWrap label="Título" required error={errors.title} className="sm:col-span-2">
           <input
             type="text"
             lang="pt-BR"
@@ -398,8 +379,8 @@ function EventFormModal({
             placeholder="Ex: Reunião com FNDE"
             className={inputCls(!!errors.title)}
           />
-        </Field>
-        <Field label="Descrição" className="sm:col-span-2">
+        </FieldWrap>
+        <FieldWrap label="Descrição" className="sm:col-span-2">
           <textarea
             rows={3}
             lang="pt-BR"
@@ -409,11 +390,11 @@ function EventFormModal({
             placeholder="Detalhes do evento..."
             className={`${inputCls(false)} resize-y min-h-[80px]`}
           />
-        </Field>
-        <Field label="Data" required error={errors.date}>
-          <input type="date" value={form.date} onChange={e => set('date', e.target.value)} className={inputCls(!!errors.date)} />
-        </Field>
-        <Field label="Responsável">
+        </FieldWrap>
+        <FieldWrap label="Data" required error={errors.date}>
+          <input type="date" value={form.date} onChange={e => set('date', e.target.value)} className={inputCls(!!errors.date)} aria-label="Data do evento" />
+        </FieldWrap>
+        <FieldWrap label="Responsável">
           <input
             type="text"
             lang="pt-BR"
@@ -423,14 +404,14 @@ function EventFormModal({
             placeholder="Nome do responsável"
             className={inputCls(false)}
           />
-        </Field>
-        <Field label="Hora Inicial">
+        </FieldWrap>
+        <FieldWrap label="Hora Inicial">
           <input type="time" value={form.timeStart} onChange={e => set('timeStart', e.target.value)} className={selectCls} />
-        </Field>
-        <Field label="Hora Final" error={errors.timeEnd}>
+        </FieldWrap>
+        <FieldWrap label="Hora Final" error={errors.timeEnd}>
           <input type="time" value={form.timeEnd} onChange={e => set('timeEnd', e.target.value)} className={selectCls} />
-        </Field>
-        <Field label="Relacionar com Demanda" className="sm:col-span-2">
+        </FieldWrap>
+        <FieldWrap label="Relacionar com Demanda" className="sm:col-span-2">
           <select
             value={form.demandId}
             onChange={e => handleDemandLink(e.target.value)}
@@ -441,8 +422,8 @@ function EventFormModal({
               <option key={d.id} value={d.id}>{d.proposal_number ? `[${d.proposal_number}] ` : ''}{d.title} — {d.municipality}/{d.uf}</option>
             ))}
           </select>
-        </Field>
-        <Field label="Município">
+        </FieldWrap>
+        <FieldWrap label="Município">
           <SearchSelect
             value={form.municipality}
             onChange={(v) => set('municipality', v.toUpperCase())}
@@ -451,17 +432,17 @@ function EventFormModal({
             placeholder="Município do evento"
             noMatchMessage="Município não encontrado na base oficial do IBGE."
           />
-        </Field>
-        <Field label="Status">
+        </FieldWrap>
+        <FieldWrap label="Status">
           <select value={form.status} onChange={e => set('status', e.target.value as DemandStatus)} className={selectCls}>
             {Object.entries(STATUS_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
           </select>
-        </Field>
-        <Field label="Prioridade">
+        </FieldWrap>
+        <FieldWrap label="Prioridade">
           <select value={form.priority} onChange={e => set('priority', e.target.value as DemandPriority)} className={selectCls}>
             {Object.entries(PRIORITY_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
           </select>
-        </Field>
+        </FieldWrap>
       </div>
     </Modal>
   );
@@ -1108,11 +1089,11 @@ export default function CalendarView({ onOpenDemand }: { onOpenDemand?: (demandI
           {/* Nav */}
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-1.5">
-              <button onClick={prev} className="p-2 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-600" title="Anterior">
+              <button onClick={prev} className="p-2 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-600 cursor-pointer" title="Mês anterior" aria-label="Mês anterior">
                 <ChevronLeft size={16} />
               </button>
               <span className="capitalize font-black text-slate-800 dark:text-white text-sm min-w-[130px] text-center">{monthName}</span>
-              <button onClick={next} className="p-2 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-600" title="Próximo">
+              <button onClick={next} className="p-2 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-600 cursor-pointer" title="Próximo mês" aria-label="Próximo mês">
                 <ChevronRight size={16} />
               </button>
             </div>

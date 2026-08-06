@@ -1,5 +1,5 @@
 import { Demand } from '../../types';
-import { computeMetrics, genAnalysis, genRecommendations, RM, fmt, fc, fd, SL, PL, SC, PC, UC } from './report-utils';
+import { computeMetrics, genAnalysis, genRecommendations, fmt, fc, fd, SL, PL, SC, PC, UC } from './report-utils';
 import { LOGO_DATA_URL } from './logoBase64';
 
 /* ============================================================

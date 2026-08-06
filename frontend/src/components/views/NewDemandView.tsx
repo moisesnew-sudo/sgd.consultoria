@@ -8,7 +8,6 @@ import {
   Printer,
   Plus,
   Loader2,
-  AlertCircle,
   User,
   Paperclip,
   MessageSquare,
@@ -24,6 +23,7 @@ import { demandsApi, standardizationApi, organsApi, usersApi, Org } from '../../
 import { formatCurrencyInput, parseCurrencyInput } from '../../lib/currency';
 import { STATUS_BADGE_CLS, statusLabel, BRAZILIAN_STATES } from '../../lib/demandMeta';
 import { SearchSelect } from '../ui/SearchSelect';
+import { FieldWrap } from '../ui/Fields';
 import { useAuth } from '../../contexts/AuthContext';
 import { useToast } from '../../contexts/ToastContext';
 
@@ -62,38 +62,6 @@ interface DraftPayload {
   notes: string;
   attachments: LocalAttachment[];
   savedAt: string;
-}
-
-function Field({
-  label,
-  required,
-  error,
-  hint,
-  children,
-  className = ''
-}: {
-  label: string;
-  required?: boolean;
-  error?: string;
-  hint?: string;
-  children: React.ReactNode;
-  className?: string;
-}) {
-  return (
-    <div className={`space-y-1.5 ${className}`}>
-      <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block">
-        {label} {required && <span className="text-red-500" title="Campo obrigatório">*</span>}
-      </label>
-      {children}
-      {error ? (
-        <p className="text-[10px] text-red-500 font-semibold flex items-center gap-1 animate-fade-in">
-          <AlertCircle size={11} className="shrink-0" /> {error}
-        </p>
-      ) : hint ? (
-        <p className="text-[10px] text-slate-400 dark:text-slate-500">{hint}</p>
-      ) : null}
-    </div>
-  );
 }
 
 function SectionCard({
@@ -654,7 +622,7 @@ export default function NewDemandView({ municipalities, onAddDemand, onNavigateT
               iconClass="bg-blue-50 dark:bg-blue-950/40"
             >
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-                <Field label="UF" required error={errors.uf}>
+                <FieldWrap label="UF" required error={errors.uf}>
                   <select
                     id="uf-select"
                     value={uf}
@@ -665,9 +633,9 @@ export default function NewDemandView({ municipalities, onAddDemand, onNavigateT
                       <option key={state} value={state}>{state}</option>
                     ))}
                   </select>
-                </Field>
+                </FieldWrap>
 
-                <Field label="Município" required error={errors.municipality}>
+                <FieldWrap label="Município" required error={errors.municipality}>
                   <SearchSelect
                     value={municipality}
                     onChange={handleMunicipalityChange}
@@ -678,9 +646,9 @@ export default function NewDemandView({ municipalities, onAddDemand, onNavigateT
                     noMatchMessage="Município não encontrado na base oficial do IBGE — não será possível salvar."
                     spellCheck={true}
                   />
-                </Field>
+                </FieldWrap>
 
-                <Field label="Prefeitura Solicitante" hint="Preenchida automaticamente pelo município.">
+                <FieldWrap label="Prefeitura Solicitante" hint="Preenchida automaticamente pelo município.">
                   <input
                     id="prefeitura-input"
                     type="text"
@@ -689,9 +657,9 @@ export default function NewDemandView({ municipalities, onAddDemand, onNavigateT
                     placeholder="Ex: Prefeitura Municipal de Petrolina"
                     className={inputCls(false)}
                   />
-                </Field>
+                </FieldWrap>
 
-                <Field label="Número da Proposta" hint="Identificador da proposta (ex.: PROP-2026-8794).">
+                <FieldWrap label="Número da Proposta" hint="Identificador da proposta (ex.: PROP-2026-8794).">
                   <input
                     id="proposalNumber-input"
                     type="text"
@@ -700,7 +668,7 @@ export default function NewDemandView({ municipalities, onAddDemand, onNavigateT
                     placeholder="Ex: PROP-2026-8794"
                     className={inputCls(false)}
                   />
-                </Field>
+                </FieldWrap>
               </div>
             </SectionCard>
 
@@ -712,7 +680,7 @@ export default function NewDemandView({ municipalities, onAddDemand, onNavigateT
               iconClass="bg-blue-50 dark:bg-blue-950/40"
             >
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-                <Field label="Objeto / Projeto" required error={errors.objeto} className="sm:col-span-2">
+                <FieldWrap label="Objeto / Projeto" required error={errors.objeto} className="sm:col-span-2">
                   <SearchSelect
                     value={objeto}
                     onChange={(v) => { setObjeto(v.toUpperCase()); revalidate('objeto', v); }}
@@ -722,9 +690,9 @@ export default function NewDemandView({ municipalities, onAddDemand, onNavigateT
                     error={errors.objeto}
                     spellCheck={true}
                   />
-                </Field>
+                </FieldWrap>
 
-                <Field label="Órgão Destinatário">
+                <FieldWrap label="Órgão Destinatário">
                   <SearchSelect
                     value={organ}
                     onChange={(v) => setOrgan(v.toUpperCase())}
@@ -736,9 +704,9 @@ export default function NewDemandView({ municipalities, onAddDemand, onNavigateT
                     noMatchMessage="Órgão não encontrado no cadastro mestre."
                     hint="Cadastro mestre — administradores podem criar novos órgãos direto no campo."
                   />
-                </Field>
+                </FieldWrap>
 
-                <Field label="Status Inicial" required>
+                <FieldWrap label="Status Inicial" required>
                   <select
                     id="status-select"
                     value={status}
@@ -750,9 +718,9 @@ export default function NewDemandView({ municipalities, onAddDemand, onNavigateT
                     <option value="concluido">Concluído</option>
                     <option value="rejeitado">Rejeitado</option>
                   </select>
-                </Field>
+                </FieldWrap>
 
-                <Field label="Ano" required error={errors.ano}>
+                <FieldWrap label="Ano" required error={errors.ano}>
                   <input
                     id="ano-input"
                     type="text"
@@ -768,9 +736,9 @@ export default function NewDemandView({ municipalities, onAddDemand, onNavigateT
                     placeholder="Ex.: 2026"
                     className={inputCls(!!errors.ano)}
                   />
-                </Field>
+                </FieldWrap>
 
-                <Field label="Link do Processo">
+                <FieldWrap label="Link do Processo">
                   <input
                     id="processLink-input"
                     type="url"
@@ -779,7 +747,7 @@ export default function NewDemandView({ municipalities, onAddDemand, onNavigateT
                     placeholder="https://processos.governo.gov.br/..."
                     className={inputCls(false)}
                   />
-                </Field>
+                </FieldWrap>
               </div>
             </SectionCard>
 
@@ -791,7 +759,7 @@ export default function NewDemandView({ municipalities, onAddDemand, onNavigateT
               iconClass="bg-emerald-50 dark:bg-emerald-950/40"
             >
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-                <Field label="Gestor Responsável">
+                <FieldWrap label="Gestor Responsável">
                   <SearchSelect
                     value={responsibleName}
                     onChange={(v) => setResponsibleName(v.toUpperCase())}
@@ -804,9 +772,9 @@ export default function NewDemandView({ municipalities, onAddDemand, onNavigateT
                     noMatchMessage="Selecione um usuário ativo da lista."
                     hint="Preenchido a partir da lista de usuários ativos do sistema."
                   />
-                </Field>
+                </FieldWrap>
 
-                <Field label="E-mail de Contato" error={errors.responsibleEmail}>
+                <FieldWrap label="E-mail de Contato" error={errors.responsibleEmail}>
                   <input
                     id="resp-email-input"
                     type="email"
@@ -816,9 +784,9 @@ export default function NewDemandView({ municipalities, onAddDemand, onNavigateT
                     placeholder="Ex: gestor@municipio.gov.br"
                     className={inputCls(!!errors.responsibleEmail)}
                   />
-                </Field>
+                </FieldWrap>
 
-                <Field label="Telefone" error={errors.responsiblePhone}>
+                <FieldWrap label="Telefone" error={errors.responsiblePhone}>
                   <div className="relative">
                     <Phone size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
                     <input
@@ -836,9 +804,9 @@ export default function NewDemandView({ municipalities, onAddDemand, onNavigateT
                       className={`${inputCls(!!errors.responsiblePhone)} pl-9`}
                     />
                   </div>
-                </Field>
+                </FieldWrap>
 
-                <Field label="Grau de Criticidade">
+                <FieldWrap label="Grau de Criticidade">
                   <div className="grid grid-cols-4 gap-1.5 p-1 bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 rounded-xl">
                     {PRIORITIES.map(pri => (
                       <button
@@ -855,7 +823,7 @@ export default function NewDemandView({ municipalities, onAddDemand, onNavigateT
                       </button>
                     ))}
                   </div>
-                </Field>
+                </FieldWrap>
               </div>
             </SectionCard>
 
@@ -867,7 +835,7 @@ export default function NewDemandView({ municipalities, onAddDemand, onNavigateT
               iconClass="bg-emerald-50 dark:bg-emerald-950/40"
             >
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-                <Field
+                <FieldWrap
                   label="Valor Solicitado (R$)"
                   error={errors.requestedValue}
                   hint="Digite apenas números; o formato monetário é aplicado automaticamente."
@@ -884,7 +852,7 @@ export default function NewDemandView({ municipalities, onAddDemand, onNavigateT
                       className={`${inputCls(!!errors.requestedValue)} pl-9`}
                     />
                   </div>
-                </Field>
+                </FieldWrap>
               </div>
             </SectionCard>
 

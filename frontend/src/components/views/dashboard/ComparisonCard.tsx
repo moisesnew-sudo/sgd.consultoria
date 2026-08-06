@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import { useMemo, memo } from 'react';
 import { TrendingUp, TrendingDown, Minus, ArrowUpRight } from 'lucide-react';
 import {
   ResponsiveContainer,
@@ -53,7 +53,7 @@ function DeltaStat({ label, cur, prev, fmt }: { label: string; cur: number; prev
   );
 }
 
-export default function ComparisonCard({ current, previous, currentYear, previousYear }: Props) {
+function ComparisonCard({ current, previous, currentYear, previousYear }: Props) {
   const chartData = useMemo(() => {
     const cur = byMonth(current);
     const prev = byMonth(previous);
@@ -96,3 +96,5 @@ export default function ComparisonCard({ current, previous, currentYear, previou
     </Card>
   );
 }
+
+export default memo(ComparisonCard);

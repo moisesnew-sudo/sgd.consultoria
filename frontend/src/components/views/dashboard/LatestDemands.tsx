@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import { useMemo, memo } from 'react';
 import { ListOrdered, ArrowRight, Inbox } from 'lucide-react';
 import { Demand } from '../../../types';
 import { formatCurrency } from '../../../services/api';
@@ -11,7 +11,7 @@ interface Props {
   onNavigateToTab: (tab: string) => void;
 }
 
-export default function LatestDemands({ demands, onSelectDemand, onNavigateToTab }: Props) {
+function LatestDemands({ demands, onSelectDemand, onNavigateToTab }: Props) {
   const latest = useMemo(
     () =>
       [...demands]
@@ -76,3 +76,5 @@ export default function LatestDemands({ demands, onSelectDemand, onNavigateToTab
     </Card>
   );
 }
+
+export default memo(LatestDemands);

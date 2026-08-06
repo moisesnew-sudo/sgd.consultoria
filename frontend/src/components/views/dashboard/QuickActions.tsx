@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { memo } from 'react';
 import { Plus, CalendarDays, BarChart3, MapPin, Users, Activity, ScrollText, Database, Zap } from 'lucide-react';
 import { Card } from '../../ui/Card';
 
@@ -15,7 +15,7 @@ interface ActionItem {
   cls: string;
 }
 
-export default function QuickActions({ onNavigateToTab, canCreate }: Props) {
+function QuickActions({ onNavigateToTab, canCreate }: Props) {
   const items: ActionItem[] = [
     ...(canCreate ? [{
       tab: 'new-demand',
@@ -97,3 +97,5 @@ export default function QuickActions({ onNavigateToTab, canCreate }: Props) {
     </Card>
   );
 }
+
+export default memo(QuickActions);

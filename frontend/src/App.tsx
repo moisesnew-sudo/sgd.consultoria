@@ -1,4 +1,4 @@
-import React, { useState, useEffect, Suspense, lazy, useCallback } from 'react';
+import { useState, useEffect, Suspense, lazy, useCallback } from 'react';
 import Sidebar from './components/layout/Sidebar';
 import { Header } from './components/ui/Header';
 import DemandsView from './components/views/DemandsView';
@@ -187,6 +187,7 @@ function AppContent() {
           onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
           isSidebarOpen={isSidebarOpen}
           pendingCount={pendingTriageCount}
+          onNavigateToTab={handleNavigateToTab}
         />
         <main className="flex-1 px-4 md:px-8 pb-12 pt-4">
           <div className="max-w-7xl mx-auto">

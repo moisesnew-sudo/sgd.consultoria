@@ -1086,16 +1086,17 @@ export default function DemandsView({
               {/* TABLET & DESKTOP: TABLE */}
               <div className="hidden sm:block overflow-x-auto custom-scrollbar max-h-[calc(100vh-310px)]" id="demands-table-wrapper">
                 <table className="w-full text-left border-collapse min-w-[880px]" id="demands-table">
+                  <caption className="sr-only">Tabela de demandas — {sortedDemands.length} registros, página {effectivePage} de {totalPages}</caption>
                   <thead>
                     <tr className="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-100 dark:border-slate-700/50 text-[10px] font-bold text-slate-400 uppercase tracking-wider sticky top-0 z-10">
-                      <th className="py-3.5 px-4 w-[120px]">Nº Proposta</th>
-                      <th className="py-3.5 px-4 w-[150px]">Município</th>
-                      <th className="py-3.5 px-4 w-[50px] text-center">UF</th>
-                      <th className="py-3.5 px-4 min-w-[220px]">Objeto</th>
-                      <th className="py-3.5 px-4 w-[110px] text-center">Status</th>
-                      <th className="py-3.5 px-4 w-[130px] text-right">Valor Global</th>
-                      <th className="py-3.5 px-4 w-[120px] text-center hidden lg:table-cell">Última Atualização</th>
-                      <th className="py-3.5 px-4 w-[130px] text-right">Ações</th>
+                      <th scope="col" className="py-3.5 px-4 w-[120px]">Nº Proposta</th>
+                      <th scope="col" className="py-3.5 px-4 w-[150px]">Município</th>
+                      <th scope="col" className="py-3.5 px-4 w-[50px] text-center">UF</th>
+                      <th scope="col" className="py-3.5 px-4 min-w-[220px]">Objeto</th>
+                      <th scope="col" className="py-3.5 px-4 w-[110px] text-center">Status</th>
+                      <th scope="col" className="py-3.5 px-4 w-[130px] text-right">Valor Global</th>
+                      <th scope="col" className="py-3.5 px-4 w-[120px] text-center hidden lg:table-cell">Última Atualização</th>
+                      <th scope="col" className="py-3.5 px-4 w-[130px] text-right">Ações</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 dark:divide-slate-700/50 text-xs text-slate-600">
@@ -1155,7 +1156,7 @@ export default function DemandsView({
                   pages={totalPages}
                   total={sortedDemands.length}
                   onChange={setPage}
-                  label={`${sortedDemands.length} demandas · ${PAGE_SIZE} por página`}
+                  label={`Página ${effectivePage} de ${totalPages} · ${sortedDemands.length} demandas · ${PAGE_SIZE} por página`}
                 />
               )}
             </>
@@ -1668,7 +1669,9 @@ export default function DemandsView({
                               <span className="text-[9px] text-slate-400">{file.size}</span>
                               {canEdit && file.id && (
                                 <button onClick={() => handleDeleteAttachment(file.id!)}
-                                  className="text-red-400 hover:text-red-600 p-0.5">
+                                  className="text-red-400 hover:text-red-600 p-0.5 cursor-pointer"
+                                  aria-label={`Remover anexo ${file.name}`}
+                                  title={`Remover anexo ${file.name}`}>
                                   <Trash2 size={11} />
                                 </button>
                               )}

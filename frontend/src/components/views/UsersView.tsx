@@ -5,8 +5,9 @@ import { PageHeader } from '../ui/PageHeader';
 import { Modal } from '../ui/Modal';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Fields';
+import { Table, TableHead, TableBody, TableEmpty, Th, Tr, Td } from '../ui/Table';
 import { User, UserRole } from '../../types';
-import { authApi, permissionsApi, ROLE_LABELS, ROLE_PERMISSIONS } from '../../services/api';
+import { authApi, ROLE_LABELS, ROLE_PERMISSIONS } from '../../services/api';
 import { useToast } from '../../contexts/ToastContext';
 import PermissionsModal from '../shared/PermissionsModal';
 
@@ -55,7 +56,7 @@ export default function UsersView({ currentUser }: UsersViewProps) {
       const data = await authApi.listUsers();
       setUsers(data);
     } catch (e: any) {
-      setError(e.message || 'Erro ao carregar usuÃ¡rios');
+      setError(e.message || 'Erro ao carregar usuários');
     } finally {
       setIsLoading(false);
     }
@@ -73,7 +74,7 @@ export default function UsersView({ currentUser }: UsersViewProps) {
       setShowForm(false);
       load();
     } catch (e: any) {
-      toast('error', 'Erro ao criar usuÃ¡rio', e?.message || 'NÃ£o foi possÃ­vel criar');
+      toast('error', 'Erro ao criar usuário', e?.message || 'Não foi possível criar');
     } finally {
       setSaving(false);
     }
@@ -88,8 +89,8 @@ export default function UsersView({ currentUser }: UsersViewProps) {
 
   const handleSaveEdit = async () => {
     if (!selectedUser) return;
-    if (!editName.trim()) return toast('error', 'Nome obrigatÃ³rio');
-    if (!editEmail.trim()) return toast('error', 'Email obrigatÃ³rio');
+    if (!editName.trim()) return toast('error', 'Nome obrigatório');
+    if (!editEmail.trim()) return toast('error', 'Email obrigatório');
     setSavingEdit(true);
     try {
       await authApi.updateUser(selectedUser.id, {
@@ -97,11 +98,11 @@ export default function UsersView({ currentUser }: UsersViewProps) {
         email: editEmail.trim(),
         role: editRole,
       });
-      toast('success', 'UsuÃ¡rio atualizado');
+      toast('success', 'Usuário atualizado');
       setSelectedUser(null);
       load();
     } catch (e: any) {
-      toast('error', 'Erro ao salvar', e?.message || 'NÃ£o foi possÃ­vel salvar');
+      toast('error', 'Erro ao salvar', e?.message || 'Não foi possível salvar');
     } finally {
       setSavingEdit(false);
     }
@@ -113,13 +114,13 @@ export default function UsersView({ currentUser }: UsersViewProps) {
       if (selectedUser?.id === u.id) setSelectedUser({ ...u, active: u.active !== false });
       load();
     } catch (e: any) {
-      toast('error', 'Erro ao atualizar', e?.message || 'NÃ£o foi possÃ­vel atualizar');
+      toast('error', 'Erro ao atualizar', e?.message || 'Não foi possível atualizar');
     }
   };
 
   const handleResetPassword = async () => {
     if (!passwordModal) return;
-    if (!newPassword || newPassword.length < 6) return toast('error', 'Senha deve ter no mÃ­nimo 6 caracteres');
+    if (!newPassword || newPassword.length < 6) return toast('error', 'Senha deve ter no mínimo 6 caracteres');
     setSavingPassword(true);
     try {
       await authApi.resetPasswordAsAdmin(passwordModal.id, newPassword);
@@ -127,7 +128,7 @@ export default function UsersView({ currentUser }: UsersViewProps) {
       setPasswordModal(null);
       setNewPassword('');
     } catch (e: any) {
-      toast('error', 'Erro ao alterar senha', e?.message || 'NÃ£o foi possÃ­vel alterar');
+      toast('error', 'Erro ao alterar senha', e?.message || 'Não foi possível alterar');
     } finally {
       setSavingPassword(false);
     }
@@ -137,12 +138,12 @@ export default function UsersView({ currentUser }: UsersViewProps) {
     if (!confirmDelete) return;
     try {
       await authApi.deleteUser(confirmDelete.id);
-      toast('success', 'UsuÃ¡rio excluÃ­do');
+      toast('success', 'Usuário excluído');
       setConfirmDelete(null);
       setSelectedUser(null);
       load();
     } catch (e: any) {
-      toast('error', 'Erro ao excluir', e?.message || 'NÃ£o foi possÃ­vel excluir');
+      toast('error', 'Erro ao excluir', e?.message || 'Não foi possível excluir');
     }
   };
 
@@ -153,28 +154,25 @@ export default function UsersView({ currentUser }: UsersViewProps) {
   return (
     <div className="max-w-6xl mx-auto space-y-6">
       <PageHeader
-        title="Controle de UsuÃ¡rios"
-        subtitle="Gerencie perfis e permissÃµes de acesso ao sistema."
+        title="Controle de Usuários"
+        subtitle="Gerencie perfis e permissões de acesso ao sistema."
         icon={<UsersIcon className="text-brand-600" size={26} />}
         actions={
-          <button
-            onClick={() => setShowForm(s => !s)}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-brand-600 hover:bg-brand-700 text-white font-bold text-xs uppercase tracking-wider shadow-sm transition-all"
-          >
-            <UserPlus size={16} /> Novo UsuÃ¡rio
-          </button>
+          <Button onClick={() => setShowForm(s => !s)} variant="primary" icon={<UserPlus size={16} />}>
+            Novo Usuário
+          </Button>
         }
       />
 
       {error && (
-        <div className="p-3 bg-rose-50 dark:bg-rose-900/30 border border-rose-200 dark:border-rose-800/60 text-rose-600 dark:text-rose-300 rounded-xl text-xs font-semibold flex items-center gap-2">
+        <div className="p-3 bg-rose-50 dark:bg-rose-900/30 border border-rose-200 dark:border-rose-800/60 text-rose-600 dark:text-rose-300 rounded-xl text-xs font-semibold flex items-center gap-2" role="alert">
           <AlertCircle size={16} /> {error}
         </div>
       )}
 
       {showForm && (
         <form onSubmit={handleCreate} className="bg-white dark:bg-[#111a2e] border border-slate-100 dark:border-slate-700/50 rounded-2xl p-6 shadow-sm space-y-4">
-          <h3 className="text-sm font-black text-slate-800 dark:text-white uppercase tracking-wider">Cadastrar UsuÃ¡rio</h3>
+          <h3 className="text-sm font-black text-slate-800 dark:text-white uppercase tracking-wider">Cadastrar Usuário</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-1">
               <label className="text-xs font-bold text-slate-700 dark:text-slate-200 block">Nome *</label>
@@ -185,8 +183,8 @@ export default function UsersView({ currentUser }: UsersViewProps) {
               <input type="email" lang="pt-BR" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-900/60 text-sm text-slate-800 dark:text-slate-100 focus:ring-2 focus:ring-brand-600" placeholder="usuario@sgd.gov.br" />
             </div>
             <div className="space-y-1">
-              <label className="text-xs font-bold text-slate-700 dark:text-slate-200 block">Senha temporÃ¡ria *</label>
-              <input type="password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-900/60 text-sm text-slate-800 dark:text-slate-100 focus:ring-2 focus:ring-brand-600" placeholder="MÃ­n. 6 caracteres" />
+              <label className="text-xs font-bold text-slate-700 dark:text-slate-200 block">Senha temporária *</label>
+              <input type="password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-900/60 text-sm text-slate-800 dark:text-slate-100 focus:ring-2 focus:ring-brand-600" placeholder="Mín. 6 caracteres" />
             </div>
             <div className="space-y-1">
               <label className="text-xs font-bold text-slate-700 dark:text-slate-200 block">Perfil</label>
@@ -207,63 +205,60 @@ export default function UsersView({ currentUser }: UsersViewProps) {
       )}
 
       <div className="bg-white dark:bg-[#111a2e] border border-slate-100 dark:border-slate-700/50 rounded-2xl shadow-sm overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
-            <thead>
-              <tr className="bg-slate-50 dark:bg-slate-800/40 border-b border-slate-100 dark:border-slate-700/50 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                <th className="py-4 px-6">UsuÃ¡rio</th>
-                <th className="py-4 px-6">Perfil</th>
-                <th className="py-4 px-6">Status</th>
-                <th className="py-4 px-6 text-right">AÃ§Ãµes</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100 dark:divide-slate-700/50">
-              {users.map((u) => {
-                const isSelf = u.id === currentUser.id;
-                return (
-                  <tr
-                    key={u.id}
-                    onClick={() => !isSelf && openDetail(u)}
-                    className={`text-xs text-slate-600 dark:text-slate-300 ${!isSelf ? 'cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors' : ''}`}
-                  >
-                    <td className="py-4 px-6">
-                      <div className="flex items-center gap-3">
-                        <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-brand-500 to-brand-800 text-white flex items-center justify-center font-bold text-sm shrink-0">
-                          {u.name.charAt(0).toUpperCase()}
-                        </div>
-                        <div>
-                          <p className="font-extrabold text-slate-800 dark:text-slate-100">{u.name}</p>
-                          <p className="text-[10px] text-slate-400 font-mono">{u.email}</p>
-                        </div>
+        <Table minWidth={720}>
+          <TableHead>
+            <Th>Usuário</Th>
+            <Th>Perfil</Th>
+            <Th>Status</Th>
+            <Th align="right">Ações</Th>
+          </TableHead>
+          <TableBody>
+            {users.length === 0 && !error && <TableEmpty colSpan={4} message="Nenhum usuário cadastrado." />}
+            {users.map((u) => {
+              const isSelf = u.id === currentUser.id;
+              return (
+                <Tr
+                  key={u.id}
+                  onClick={() => !isSelf && openDetail(u)}
+                  className={!isSelf ? 'cursor-pointer' : 'cursor-default'}
+                >
+                  <Td>
+                    <div className="flex items-center gap-3">
+                      <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-brand-500 to-brand-800 text-white flex items-center justify-center font-bold text-sm shrink-0">
+                        {u.name.charAt(0).toUpperCase()}
                       </div>
-                    </td>
-                    <td className="py-4 px-6">
-                      <span className={`inline-block px-2.5 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider ${ROLE_STYLES[u.role]}`}>
-                        {ROLE_LABELS[u.role]}
+                      <div>
+                        <p className="font-extrabold text-slate-800 dark:text-slate-100">{u.name}</p>
+                        <p className="text-[10px] text-slate-400 font-mono">{u.email}</p>
+                      </div>
+                    </div>
+                  </Td>
+                  <Td>
+                    <span className={`inline-block px-2.5 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider ${ROLE_STYLES[u.role]}`}>
+                      {ROLE_LABELS[u.role]}
+                    </span>
+                  </Td>
+                  <Td>
+                    {u.active !== false ? (
+                      <span className="inline-flex items-center gap-1 text-emerald-600 dark:text-emerald-400 font-semibold"><CheckCircle2 size={14} /> Ativo</span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 text-rose-600 dark:text-rose-400 font-semibold"><XCircle size={14} /> Inativo</span>
+                    )}
+                  </Td>
+                  <Td align="right">
+                    {isSelf ? (
+                      <span className="text-[10px] text-slate-400 italic">Você</span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 text-brand-600 text-[10px] font-semibold">
+                        Gerenciar <ChevronRight size={14} />
                       </span>
-                    </td>
-                    <td className="py-4 px-6">
-                      {u.active !== false ? (
-                        <span className="inline-flex items-center gap-1 text-emerald-600 dark:text-emerald-400 font-semibold"><CheckCircle2 size={14} /> Ativo</span>
-                      ) : (
-                        <span className="inline-flex items-center gap-1 text-rose-600 dark:text-rose-400 font-semibold"><XCircle size={14} /> Inativo</span>
-                      )}
-                    </td>
-                    <td className="py-4 px-6 text-right">
-                      {isSelf ? (
-                        <span className="text-[10px] text-slate-400 italic">VocÃª</span>
-                      ) : (
-                        <span className="inline-flex items-center gap-1 text-brand-600 text-[10px] font-semibold">
-                          Gerenciar <ChevronRight size={14} />
-                        </span>
-                      )}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+                    )}
+                  </Td>
+                </Tr>
+              );
+            })}
+          </TableBody>
+        </Table>
       </div>
 
       {/* Slide-over detail panel */}
@@ -281,15 +276,15 @@ export default function UsersView({ currentUser }: UsersViewProps) {
                   <p className="text-[10px] text-slate-400">ID: {selectedUser.id}</p>
                 </div>
               </div>
-              <button onClick={() => setSelectedUser(null)} className="p-2 rounded-xl text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
+              <button onClick={() => setSelectedUser(null)} aria-label="Fechar detalhes do usuário" className="p-2 rounded-xl text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer">
                 <X size={20} />
               </button>
             </div>
 
             <div className="p-6 space-y-8">
-              {/* InformaÃ§Ãµes Gerais */}
+              {/* Informações Gerais */}
               <section>
-                <h4 className="text-xs font-black text-slate-800 dark:text-slate-100 uppercase tracking-wider mb-4">InformaÃ§Ãµes Gerais</h4>
+                <h4 className="text-xs font-black text-slate-800 dark:text-slate-100 uppercase tracking-wider mb-4">Informações Gerais</h4>
                 <div className="space-y-4">
                   <div className="space-y-1">
                     <label className="text-[11px] font-bold text-slate-600 dark:text-slate-300 block">Nome</label>
@@ -321,18 +316,18 @@ export default function UsersView({ currentUser }: UsersViewProps) {
                     disabled={savingEdit}
                     className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-brand-600 hover:bg-brand-700 text-white font-bold text-xs uppercase tracking-wider disabled:opacity-50 transition-all"
                   >
-                    {savingEdit ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />} Salvar AlteraÃ§Ãµes
+                    {savingEdit ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />} Salvar Alterações
                   </button>
                 </div>
               </section>
 
-              {/* PermissÃµes */}
+              {/* Permissões */}
               <section>
-                <h4 className="text-xs font-black text-slate-800 dark:text-slate-100 uppercase tracking-wider mb-3">PermissÃµes</h4>
+                <h4 className="text-xs font-black text-slate-800 dark:text-slate-100 uppercase tracking-wider mb-3">Permissões</h4>
                 <div className="flex flex-wrap gap-1.5 mb-4">
                   {Object.entries(ROLE_PERMISSIONS[editRole]).map(([key, val]) => {
                     if (val) {
-                      const labelMap: Record<string, string> = { canCreate: 'Criar', canEdit: 'Editar', canDelete: 'Excluir', canManageUsers: 'UsuÃ¡rios', canViewUsers: 'Ver UsuÃ¡rios', canManageSettings: 'Config' };
+                      const labelMap: Record<string, string> = { canCreate: 'Criar', canEdit: 'Editar', canDelete: 'Excluir', canManageUsers: 'Usuários', canViewUsers: 'Ver Usuários', canManageSettings: 'Config' };
                       return <span key={key} className="px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 text-[9px] font-bold">{labelMap[key] || key}</span>;
                     }
                     return null;
@@ -342,13 +337,13 @@ export default function UsersView({ currentUser }: UsersViewProps) {
                   onClick={() => setPermTarget({ id: selectedUser.id, name: selectedUser.name })}
                   className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border-2 border-dashed border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-brand-600 hover:text-brand-600 dark:hover:border-brand-500 transition-all text-xs font-bold"
                 >
-                  <ShieldCheck size={16} /> Gerenciar PermissÃµes Individuais
+                  <ShieldCheck size={16} /> Gerenciar Permissões Individuais
                 </button>
               </section>
 
-              {/* SeguranÃ§a */}
+              {/* Segurança */}
               <section>
-                <h4 className="text-xs font-black text-slate-800 dark:text-slate-100 uppercase tracking-wider mb-3">SeguranÃ§a</h4>
+                <h4 className="text-xs font-black text-slate-800 dark:text-slate-100 uppercase tracking-wider mb-3">Segurança</h4>
                 <button
                   onClick={() => { setPasswordModal({ id: selectedUser.id, name: selectedUser.name }); setNewPassword(''); }}
                   className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-brand-600 hover:text-brand-600 dark:hover:border-brand-500 transition-all text-xs font-bold"
@@ -364,7 +359,7 @@ export default function UsersView({ currentUser }: UsersViewProps) {
                   onClick={() => setConfirmDelete({ id: selectedUser.id, name: selectedUser.name })}
                   className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-rose-50 dark:bg-rose-950/20 border border-rose-200 dark:border-rose-800/30 text-rose-600 dark:text-rose-400 hover:bg-rose-100 dark:hover:bg-rose-950/40 transition-all text-xs font-bold"
                 >
-                  <Trash2 size={16} /> Excluir UsuÃ¡rio
+                  <Trash2 size={16} /> Excluir Usuário
                 </button>
               </section>
             </div>
@@ -389,13 +384,13 @@ export default function UsersView({ currentUser }: UsersViewProps) {
           </>
         }
       >
-        <Input type="password" label="Nova Senha" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} placeholder="MÃ­n. 6 caracteres" />
+        <Input type="password" label="Nova Senha" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} placeholder="Mín. 6 caracteres" />
       </Modal>
 
       {/* Delete confirmation modal */}
       <Modal
         open={!!confirmDelete}
-        title="Excluir UsuÃ¡rio"
+        title="Excluir Usuário"
         subtitle={confirmDelete?.name}
         icon={<Trash2 size={20} className="text-rose-600" />}
         onClose={() => setConfirmDelete(null)}
@@ -410,7 +405,7 @@ export default function UsersView({ currentUser }: UsersViewProps) {
           </>
         }
       >
-        <p className="text-sm text-slate-600 dark:text-slate-300">Tem certeza? O usuÃ¡rio serÃ¡ desativado e nÃ£o poderÃ¡ mais acessar o sistema.</p>
+        <p className="text-sm text-slate-600 dark:text-slate-300">Tem certeza? O usuário será desativado e não poderá mais acessar o sistema.</p>
       </Modal>
 
       {permTarget && (

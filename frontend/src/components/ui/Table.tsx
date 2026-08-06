@@ -23,7 +23,7 @@ export function TableHead({ children }: { children: React.ReactNode }) {
 
 export function Th({ children, className = '', align = 'left', ...rest }: { children?: React.ReactNode; className?: string; align?: 'left' | 'right' | 'center' } & React.ThHTMLAttributes<HTMLTableCellElement>) {
   return (
-    <th {...rest} className={`px-5 py-3.5 whitespace-nowrap ${align === 'right' ? 'text-right' : align === 'center' ? 'text-center' : 'text-left'} ${className}`}>
+    <th {...rest} scope="col" className={`px-5 py-3.5 whitespace-nowrap ${align === 'right' ? 'text-right' : align === 'center' ? 'text-center' : 'text-left'} ${className}`}>
       {children}
     </th>
   );
@@ -33,8 +33,8 @@ export function TableBody({ children }: { children: React.ReactNode }) {
   return <tbody className="divide-y divide-slate-100 dark:divide-slate-700/50">{children}</tbody>;
 }
 
-export function Tr({ children, className = '' }: { children: React.ReactNode; className?: string }) {
-  return <tr className={`hover:bg-slate-50/60 dark:hover:bg-slate-800/30 transition-colors ${className}`}>{children}</tr>;
+export function Tr({ children, className = '', ...rest }: { children: React.ReactNode; className?: string } & React.HTMLAttributes<HTMLTableRowElement>) {
+  return <tr {...rest} className={`hover:bg-slate-50/60 dark:hover:bg-slate-800/30 transition-colors ${className}`}>{children}</tr>;
 }
 
 export function Td({ children, className = '', align = 'left', ...rest }: { children?: React.ReactNode; className?: string; align?: 'left' | 'right' | 'center' } & React.TdHTMLAttributes<HTMLTableCellElement>) {

@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { HardDrive, Download, RotateCcw, ShieldCheck, AlertTriangle, RefreshCw, Plus, CheckCircle, XCircle, Loader2 } from 'lucide-react';
+import { useState, useEffect, useCallback } from 'react';
+import { HardDrive, Download, RotateCcw, ShieldCheck, RefreshCw, Plus, CheckCircle, XCircle, Loader2, AlertCircle } from 'lucide-react';
 import { backupsApi } from '../../services/api';
 import { formatDate } from '../../services/api';
 import { useAuth } from '../../contexts/AuthContext';
@@ -18,11 +18,13 @@ export default function BackupManagementView() {
   const [verifying, setVerifying] = useState<number | null>(null);
   const [verifyResult, setVerifyResult] = useState<{ id: number; valid: boolean; stored_hash: string; computed_hash: string } | null>(null);
   const [confirmRestore, setConfirmRestore] = useState<number | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
+    setError(null);
     try { setBackups(await backupsApi.list()); }
-    catch { /* ignore */ }
+    catch (e: any) { setError(e?.message || 'Não foi possível carregar os backups.'); }
     finally { setLoading(false); }
   }, []);
 
@@ -79,12 +81,19 @@ export default function BackupManagementView() {
               {creating ? <Loader2 className="animate-spin" size={16} /> : <Plus size={16} />}
               {creating ? 'Criando...' : 'Novo Backup'}
             </button>
-            <button onClick={load} className="p-2 rounded-lg border border-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800">
+            <button onClick={load} aria-label="Atualizar lista de backups" className="p-2 rounded-lg border border-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer" title="Atualizar">
               <RefreshCw size={16} />
             </button>
           </>
         }
       />
+
+      {error && (
+        <div className="p-3 bg-rose-50 dark:bg-rose-900/30 border border-rose-200 dark:border-rose-800/60 text-rose-600 dark:text-rose-300 rounded-xl text-xs font-semibold flex items-center gap-2" role="alert">
+          <AlertCircle size={16} /> {error}
+          <button onClick={load} className="ml-auto text-[11px] font-bold underline hover:text-rose-700 dark:hover:text-rose-200">Tentar novamente</button>
+        </div>
+      )}
 
       {loading ? (
         <div className="space-y-3">
@@ -123,17 +132,20 @@ export default function BackupManagementView() {
                 <div className="flex items-center gap-1 shrink-0">
                   <a href={backupsApi.download(b.id)}
                     className="p-2 rounded-lg border border-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-500"
-                    title="Download">
+                    title="Download"
+                    aria-label={`Baixar backup ${b.filename}`}>
                     <Download size={14} />
                   </a>
                   <button onClick={() => handleVerify(b.id)} disabled={verifying === b.id}
-                    className="p-2 rounded-lg border border-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-500"
-                    title="Verificar integridade">
+                    className="p-2 rounded-lg border border-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-500 cursor-pointer disabled:cursor-not-allowed"
+                    title="Verificar integridade"
+                    aria-label={`Verificar integridade do backup ${b.filename}`}>
                     {verifying === b.id ? <Loader2 className="animate-spin" size={14} /> : <ShieldCheck size={14} />}
                   </button>
                   <button onClick={() => setConfirmRestore(b.id)} disabled={restoring !== null}
-                    className="p-2 rounded-lg border border-amber-200 hover:bg-amber-50 text-amber-600 dark:border-amber-800 dark:hover:bg-amber-900/20"
-                    title="Restaurar">
+                    className="p-2 rounded-lg border border-amber-200 hover:bg-amber-50 text-amber-600 dark:border-amber-800 dark:hover:bg-amber-900/20 cursor-pointer disabled:cursor-not-allowed"
+                    title="Restaurar"
+                    aria-label={`Restaurar backup ${b.filename}`}>
                     {restoring === b.id ? <Loader2 className="animate-spin" size={14} /> : <RotateCcw size={14} />}
                   </button>
                 </div>

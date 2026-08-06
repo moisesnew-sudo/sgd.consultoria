@@ -8,3 +8,8 @@ dist/
 *.log
 backend/backups/
 backup_*/
+*.tsbuildinfo
+frontend/vite.config.js
+frontend/vite.config.d.ts
+frontend/vite.config.mjs
+frontend/vite.config.cjs

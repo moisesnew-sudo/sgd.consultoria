@@ -1,7 +1,7 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
   Shield, LogIn, AlertTriangle, Users, PlusCircle, Trash2, ShieldOff, UserCog,
-  RefreshCw, Download, Activity, ArrowUpRight, ArrowDownRight
+  RefreshCw, Download, Activity, AlertCircle
 } from 'lucide-react';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
@@ -18,16 +18,20 @@ const PIE_COLORS = ['#6366f1', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b
 export default function AuditDashboardView() {
   const [stats, setStats] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [dateRange, setDateRange] = useState({ start: '', end: '' });
 
   const load = useCallback(async () => {
     setLoading(true);
+    setError(null);
     try {
       const params: any = {};
       if (dateRange.start) params.start_date = dateRange.start;
       if (dateRange.end) params.end_date = dateRange.end;
       setStats(await auditApi.getDashboardStats(params));
-    } catch { /* ignore */ }
+    } catch (e: any) {
+      setError(e?.message || 'Não foi possível carregar os indicadores de auditoria.');
+    }
     finally { setLoading(false); }
   }, [dateRange]);
 
@@ -42,15 +46,24 @@ export default function AuditDashboardView() {
         actions={
           <div className="flex items-center gap-2">
             <input type="date" value={dateRange.start} onChange={e => setDateRange(prev => ({ ...prev, start: e.target.value }))}
+              aria-label="Data inicial"
               className="px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 text-xs text-slate-700 dark:text-slate-200" />
             <input type="date" value={dateRange.end} onChange={e => setDateRange(prev => ({ ...prev, end: e.target.value }))}
+              aria-label="Data final"
               className="px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 text-xs text-slate-700 dark:text-slate-200" />
-            <button onClick={load} className="p-2 rounded-lg border border-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300" title="Atualizar indicadores">
+            <button onClick={load} className="p-2 rounded-lg border border-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 cursor-pointer" title="Atualizar indicadores" aria-label="Atualizar indicadores">
               <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
             </button>
           </div>
         }
       />
+
+      {error && (
+        <div className="p-3 bg-rose-50 dark:bg-rose-900/30 border border-rose-200 dark:border-rose-800/60 text-rose-600 dark:text-rose-300 rounded-xl text-xs font-semibold flex items-center gap-2" role="alert">
+          <AlertCircle size={16} /> {error}
+          <button onClick={load} className="ml-auto text-[11px] font-bold underline hover:text-rose-700 dark:hover:text-rose-200">Tentar novamente</button>
+        </div>
+      )}
 
       {loading ? (
         <div className="space-y-6">
@@ -208,7 +221,7 @@ export default function AuditDashboardView() {
           {/* Timeline */}
           <AuditTimeline embedded compact maxItems={30} />
         </>
-      ) : (
+      ) : error ? null : (
         <p className="text-sm text-slate-400 italic">Não foi possível carregar os dados.</p>
       )}
     </div>

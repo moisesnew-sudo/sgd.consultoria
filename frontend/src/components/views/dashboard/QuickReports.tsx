@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { memo } from 'react';
 import { BarChart3, ScrollText, Activity, Database, Plug, Shield, ChevronRight, FileBarChart2 } from 'lucide-react';
 import { Card } from '../../ui/Card';
 
@@ -14,7 +14,7 @@ interface ReportItem {
   cls: string;
 }
 
-export default function QuickReports({ onNavigateToTab }: Props) {
+function QuickReports({ onNavigateToTab }: Props) {
   const items: ReportItem[] = [
     {
       tab: 'reports',
@@ -83,3 +83,5 @@ export default function QuickReports({ onNavigateToTab }: Props) {
     </Card>
   );
 }
+
+export default memo(QuickReports);

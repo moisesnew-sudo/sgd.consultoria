@@ -1,8 +1,8 @@
-import { useCallback } from 'react';
+import { useCallback, useEffect } from 'react';
 import {
-  LayoutDashboard, FilePlus2, FolderKanban, MapPin, FileBarChart,
-  Calendar, Settings, Users, ScrollText, Plug, Database,
-  Briefcase, ShieldCheck, LogOut, User, Sun, Moon, MonitorSmartphone,
+  LayoutDashboard, FilePlus2, FolderKanban, FileBarChart,
+  Calendar, Settings, Users, ScrollText,
+  ShieldCheck, LogOut, Sun, Moon, MonitorSmartphone,
   Activity, Shield, LogIn, HardDrive, FileSearch, BarChart3
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
@@ -91,16 +91,26 @@ export default function Sidebar({ activeTab, setActiveTab, isOpen, setIsOpen, pe
     setIsOpen(false);
   }, [setActiveTab, setIsOpen]);
 
+  useEffect(() => {
+    if (!isOpen) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setIsOpen(false);
+    };
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, [isOpen, setIsOpen]);
+
   return (
     <>
       {isOpen && (
-        <div className="lg:hidden fixed inset-0 z-40 bg-black/60 backdrop-blur-sm" onClick={() => setIsOpen(false)} />
+        <div className="lg:hidden fixed inset-0 z-40 bg-black/60 backdrop-blur-sm" aria-hidden="true" onClick={() => setIsOpen(false)} />
       )}
 
       <aside
+        aria-label="Menu lateral"
         className={`fixed inset-y-0 left-0 z-40 w-72 bg-gov-900 dark:bg-[#0a1628] text-slate-100 flex flex-col shadow-2xl transition-transform duration-300 ease-out transform lg:translate-x-0 ${
           isOpen ? 'translate-x-0' : '-translate-x-full'
-        }`}
+        } ${isOpen ? 'visible' : 'invisible lg:visible'}`}
       >
         <div className="p-4 border-b border-white/5 shrink-0">
           <LogoFull />
@@ -111,7 +121,7 @@ export default function Sidebar({ activeTab, setActiveTab, isOpen, setIsOpen, pe
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-xs font-semibold text-slate-100 truncate">{user.name}</p>
-                <span className={`inline-block px-1.5 py-0.5 text-[7px] font-bold rounded mt-0.5 uppercase tracking-wider ${
+                <span className={`inline-block px-1.5 py-0.5 text-[9px] font-bold rounded mt-0.5 uppercase tracking-wider ${
                   user.role === 'admin' ? 'bg-gov-700/30 text-gov-300' :
                   user.role === 'gestor' || user.role === 'diretor' ? 'bg-blue-500/20 text-blue-300' :
                   'bg-amber-500/20 text-amber-300'

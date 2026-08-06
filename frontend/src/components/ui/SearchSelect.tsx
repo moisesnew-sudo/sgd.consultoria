@@ -40,6 +40,8 @@ interface SearchSelectProps {
 const BASE =
   'w-full h-[40px] px-3.5 rounded-xl border text-sm bg-white dark:bg-slate-900/60 text-slate-800 dark:text-slate-100 placeholder:text-slate-400 transition-colors focus:outline-none focus:ring-2 focus:ring-brand-600 focus:border-transparent pr-9';
 
+let searchSelectCounter = 0;
+
 function highlightOptionText(text: string, query: string): React.ReactNode {
   const q = textKey(query);
   if (!q) return text;
@@ -85,6 +87,12 @@ export function SearchSelect({
 
   const containerRef = useRef<HTMLDivElement>(null);
   const blurTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const inputIdRef = useRef<string | null>(null);
+  const listboxIdRef = useRef<string | null>(null);
+  if (inputIdRef.current === null) inputIdRef.current = `sgd-search-select-${++searchSelectCounter}`;
+  if (listboxIdRef.current === null) listboxIdRef.current = `${inputIdRef.current}-listbox`;
+  const inputId = inputIdRef.current;
+  const listboxId = listboxIdRef.current;
 
   // Filtro local (sem acento/caixa, parcial).
   const localMatches = useMemo(() => {
@@ -95,6 +103,8 @@ export function SearchSelect({
   }, [options, value]);
 
   const matches = fetcher ? fetched : localMatches;
+
+  const canCreate = Boolean(allowCreate && value.trim() && !matches.some(o => textKey(o.value) === textKey(value)));
 
   // Busca remota com debounce.
   useEffect(() => {
@@ -132,12 +142,26 @@ export function SearchSelect({
     setStrictError(null);
   };
 
-  const selectOption = (opt: SearchSelectOption) => {
+  const selectOption = useCallback((opt: SearchSelectOption) => {
     onChange(opt.value);
     onSelect?.(opt);
     clearAux();
     setOpen(false);
-  };
+  }, [onChange, onSelect]);
+
+  const handleCreate = useCallback(async () => {
+    if (!onCreate || !value.trim()) return;
+    setCreating(true);
+    try {
+      const created = await onCreate(value.trim().toUpperCase());
+      const opt: SearchSelectOption = created && 'value' in created ? created : { value: value.trim().toUpperCase() };
+      selectOption(opt);
+    } catch {
+      /* erro tratado pelo chamador */
+    } finally {
+      setCreating(false);
+    }
+  }, [onCreate, value, selectOption]);
 
   const handleChange = (text: string) => {
     onChange(text);
@@ -195,31 +219,20 @@ export function SearchSelect({
     selectOption(opt);
   };
 
-  const handleCreate = async () => {
-    if (!onCreate || !value.trim()) return;
-    setCreating(true);
-    try {
-      const created = await onCreate(value.trim().toUpperCase());
-      const opt: SearchSelectOption = created && 'value' in created ? created : { value: value.trim().toUpperCase() };
-      selectOption(opt);
-    } catch {
-      /* erro tratado pelo chamador */
-    } finally {
-      setCreating(false);
-    }
-  };
-
   const onKeyDown = (e: React.KeyboardEvent) => {
     if (!open) {
-      if (e.key === 'ArrowDown') setOpen(true);
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        setOpen(true);
+      }
       return;
     }
     if (e.key === 'ArrowDown') {
       e.preventDefault();
-      setHighlight(h => Math.min(h + 1, matches.length - 1));
+      if (matches.length > 0) setHighlight(h => Math.min(h + 1, matches.length - 1));
     } else if (e.key === 'ArrowUp') {
       e.preventDefault();
-      setHighlight(h => Math.max(h - 1, 0));
+      if (matches.length > 0) setHighlight(h => Math.max(h - 1, 0));
     } else if (e.key === 'Enter') {
       e.preventDefault();
       if (matches[highlight]) {
@@ -228,25 +241,35 @@ export function SearchSelect({
         onChange(value.trim());
         clearAux();
         setOpen(false);
+      } else if (canCreate) {
+        handleCreate();
       }
     } else if (e.key === 'Escape') {
       setOpen(false);
     }
   };
 
-  const canCreate = allowCreate && value.trim() && !matches.some(o => textKey(o.value) === textKey(value));
+  const showDropdown = open && !disabled && (matches.length > 0 || canCreate);
 
   return (
     <div className="space-y-1.5">
       {label && (
-        <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400">
+        <label htmlFor={inputId} className="block text-[10px] font-bold uppercase tracking-wider text-slate-400">
           {label}
           {required && <span className="text-red-500 ml-0.5">*</span>}
         </label>
       )}
       <div ref={containerRef} className="relative">
         <input
+          id={inputId}
           type="text"
+          role="combobox"
+          aria-expanded={showDropdown}
+          aria-controls={listboxId}
+          aria-autocomplete="list"
+          aria-activedescendant={open && matches[highlight] ? `${listboxId}-${highlight}` : undefined}
+          aria-invalid={Boolean(error || strictError)}
+          aria-describedby={error || strictError ? `${inputId}-error` : undefined}
           value={value}
           disabled={disabled}
           placeholder={placeholder}
@@ -262,14 +285,22 @@ export function SearchSelect({
           {loading || creating ? <Loader2 size={14} className="animate-spin" /> : <ChevronDown size={14} />}
         </span>
 
-        {open && !disabled && matches.length > 0 && (
-          <div className="absolute z-40 mt-1 w-full max-h-60 overflow-y-auto rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-[#111a2e] shadow-lg custom-scrollbar">
+        {showDropdown && (
+          <div
+            id={listboxId}
+            role="listbox"
+            aria-label={label ? String(label) : 'Lista de opções'}
+            className="absolute z-40 mt-1 w-full max-h-60 overflow-y-auto rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-[#111a2e] shadow-lg custom-scrollbar"
+          >
             {matches.map((opt, i) => {
               const selected = textKey(opt.value) === textKey(value);
               return (
                 <button
                   key={`${opt.value}-${opt.secondary || ''}`}
+                  id={`${listboxId}-${i}`}
                   type="button"
+                  role="option"
+                  aria-selected={selected}
                   onMouseDown={(e) => { e.preventDefault(); selectOption(opt); }}
                   onMouseEnter={() => setHighlight(i)}
                   className={`w-full text-left px-3.5 py-2.5 flex items-center justify-between gap-2 transition-colors ${
@@ -289,7 +320,7 @@ export function SearchSelect({
                 <button
                   type="button"
                   onMouseDown={(e) => { e.preventDefault(); handleCreate(); }}
-                  className="w-full flex items-center gap-2 text-xs font-bold text-brand-700 dark:text-brand-300 hover:bg-brand-50 dark:hover:bg-brand-900/40 rounded-lg px-2 py-1.5 transition-colors"
+                  className="w-full flex items-center gap-2 text-xs font-bold text-brand-700 dark:text-brand-300 hover:bg-brand-50 dark:hover:bg-brand-900/40 rounded-lg px-2 py-1.5 transition-colors cursor-pointer"
                 >
                   <Plus size={13} /> Criar &quot;{value.trim().toUpperCase()}&quot;
                 </button>
@@ -314,9 +345,9 @@ export function SearchSelect({
       )}
 
       {error ? (
-        <p className="text-[11px] font-semibold text-red-500">{error}</p>
+        <p id={`${inputId}-error`} className="text-[11px] font-semibold text-red-500">{error}</p>
       ) : strictError ? (
-        <p className="text-[11px] font-semibold text-red-500 flex items-center gap-1">
+        <p id={`${inputId}-error`} className="text-[11px] font-semibold text-red-500 flex items-center gap-1">
           <AlertCircle size={11} className="shrink-0" /> {strictError}
         </p>
       ) : hint ? (

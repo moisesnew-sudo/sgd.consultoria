@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import { useMemo, memo } from 'react';
 import { CalendarDays, ChevronRight } from 'lucide-react';
 import { Card } from '../../ui/Card';
 import { DashboardCalEvent, dateKey } from './types';
@@ -18,7 +18,7 @@ const TYPE_DOT: Record<string, string> = {
   outros: 'bg-slate-400',
 };
 
-export default function MiniCalendar({ events, onNavigateToTab }: Props) {
+function MiniCalendar({ events, onNavigateToTab }: Props) {
   const month = useMemo(() => {
     const now = new Date();
     const year = now.getFullYear();
@@ -117,3 +117,5 @@ export default function MiniCalendar({ events, onNavigateToTab }: Props) {
     </Card>
   );
 }
+
+export default memo(MiniCalendar);

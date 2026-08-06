@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, memo } from 'react';
 import { BellRing, AlertTriangle, Hourglass, AlertCircle, CalendarDays, CheckCircle2, ChevronRight } from 'lucide-react';
 import { Demand } from '../../../types';
 import { Card } from '../../ui/Card';
@@ -19,7 +19,7 @@ interface AlertItem {
   tab: string;
 }
 
-export default function AlertsPanel({ demands, events, onNavigateToTab }: Props) {
+function AlertsPanel({ demands, events, onNavigateToTab }: Props) {
   const alerts = useMemo<AlertItem[]>(() => {
     const open = demands.filter(d => d.status === 'pendente' || d.status === 'analise');
     const age = (d: Demand) => (Date.now() - new Date(d.created_at).getTime()) / 86400000;
@@ -120,3 +120,5 @@ export default function AlertsPanel({ demands, events, onNavigateToTab }: Props)
     </Card>
   );
 }
+
+export default memo(AlertsPanel);

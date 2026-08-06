@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { Shield, Users, Database, FileText, HardDrive, Download, Activity, RefreshCw, UserCheck, UserX, Clock, Archive } from 'lucide-react';
+import { useState, useEffect, useCallback } from 'react';
+import { Shield, Users, Database, FileText, HardDrive, Download, Activity, RefreshCw, UserCheck, Archive, AlertCircle } from 'lucide-react';
 import { lgpdApi } from '../../services/api';
 import { Card, Kpi } from '../ui/Card';
 import { PageHeader } from '../ui/PageHeader';
@@ -8,11 +8,13 @@ import { Skeleton } from '../ui/Skeleton';
 export default function LgpdView() {
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
+    setError(null);
     try { setData(await lgpdApi.dashboard()); }
-    catch { /* ignore */ }
+    catch (e: any) { setError(e?.message || 'Não foi possível carregar os dados de conformidade LGPD.'); }
     finally { setLoading(false); }
   }, []);
 
@@ -25,11 +27,18 @@ export default function LgpdView() {
         subtitle="Painel de conformidade com a Lei Geral de Proteção de Dados"
         icon={<Shield className="text-brand-600" />}
         actions={
-          <button onClick={load} className="p-2 rounded-lg border border-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800">
+          <button onClick={load} aria-label="Atualizar dados de conformidade LGPD" className="p-2 rounded-lg border border-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer" title="Atualizar">
             <RefreshCw size={16} />
           </button>
         }
       />
+
+      {error && (
+        <div className="p-3 bg-rose-50 dark:bg-rose-900/30 border border-rose-200 dark:border-rose-800/60 text-rose-600 dark:text-rose-300 rounded-xl text-xs font-semibold flex items-center gap-2" role="alert">
+          <AlertCircle size={16} /> {error}
+          <button onClick={load} className="ml-auto text-[11px] font-bold underline hover:text-rose-700 dark:hover:text-rose-200">Tentar novamente</button>
+        </div>
+      )}
 
       {loading ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -108,7 +117,7 @@ export default function LgpdView() {
             </Card>
           </div>
         </>
-      ) : (
+      ) : error ? null : (
         <p className="text-sm text-slate-400 italic">Não foi possível carregar os dados de conformidade LGPD.</p>
       )}
     </div>

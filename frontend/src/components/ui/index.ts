@@ -1,6 +1,6 @@
 export { Button } from './Button';
 export type { ButtonVariant, ButtonSize } from './Button';
-export { Input, Select, Textarea } from './Fields';
+export { Input, Select, Textarea, FieldWrap } from './Fields';
 export type { InputProps, SelectProps, TextareaProps } from './Fields';
 export { Tooltip } from './Tooltip';
 export type { TooltipPosition } from './Tooltip';

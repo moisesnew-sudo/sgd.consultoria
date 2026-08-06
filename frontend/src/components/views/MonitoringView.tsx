@@ -1,17 +1,20 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { Activity, Server, Database, Wifi, MemoryStick, Cpu, Clock, Users, HardDrive, AlertTriangle, CheckCircle, RefreshCw } from 'lucide-react';
+import { useState, useEffect, useCallback } from 'react';
+import { Activity, RefreshCw, AlertTriangle, CheckCircle, AlertCircle } from 'lucide-react';
 import { monitoringApi } from '../../services/api';
 import { Card } from '../ui/Card';
 import { PageHeader } from '../ui/PageHeader';
 import { Skeleton } from '../ui/Skeleton';
+import { Table, TableHead, TableBody, TableEmpty, Th, Tr, Td } from '../ui/Table';
 
 export default function MonitoringView() {
   const [health, setHealth] = useState<any>(null);
   const [history, setHistory] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
+    setError(null);
     try {
       const [h, hist] = await Promise.all([
         monitoringApi.health(),
@@ -19,7 +22,9 @@ export default function MonitoringView() {
       ]);
       setHealth(h);
       setHistory(hist);
-    } catch { /* ignore */ }
+    } catch (e: any) {
+      setError(e?.message || 'Não foi possível carregar dados de monitoramento.');
+    }
     finally { setLoading(false); }
   }, []);
 
@@ -38,11 +43,17 @@ export default function MonitoringView() {
         subtitle="Saúde do sistema em tempo real"
         icon={<Activity className="text-brand-600" />}
         actions={
-          <button onClick={load} className="p-2 rounded-lg border border-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800" title="Atualizar">
+          <button onClick={load} aria-label="Atualizar dados de monitoramento" className="p-2 rounded-lg border border-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer" title="Atualizar">
             <RefreshCw size={16} />
           </button>
         }
       />
+
+      {error && (
+        <div className="p-3 bg-rose-50 dark:bg-rose-900/30 border border-rose-200 dark:border-rose-800/60 text-rose-600 dark:text-rose-300 rounded-xl text-xs font-semibold flex items-center gap-2" role="alert">
+          <AlertCircle size={16} /> {error}
+        </div>
+      )}
 
       {loading ? (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -95,40 +106,33 @@ export default function MonitoringView() {
             </Card>
           </div>
 
-          {history.length > 0 && (
-            <Card title="Histórico de Monitoramento (últimas 24h)">
-              <div className="overflow-x-auto">
-                <table className="w-full text-xs">
-                  <thead>
-                    <tr className="bg-slate-50 dark:bg-slate-800/50 text-left text-[10px] uppercase font-bold text-slate-500">
-                      <th className="px-3 py-2">Data</th>
-                      <th className="px-3 py-2">CPU</th>
-                      <th className="px-3 py-2">RAM</th>
-                      <th className="px-3 py-2">API (ms)</th>
-                      <th className="px-3 py-2">Usuários</th>
-                      <th className="px-3 py-2">Demandas</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100 dark:divide-slate-700/50">
-                    {history.map((h: any) => (
-                      <tr key={h.id} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/30">
-                        <td className="px-3 py-2">{new Date(h.recorded_at).toLocaleString('pt-BR')}</td>
-                        <td className="px-3 py-2">{h.server_cpu?.toFixed(1)}</td>
-                        <td className="px-3 py-2">{h.server_memory?.toFixed(1)}%</td>
-                        <td className="px-3 py-2">{h.api_response_time}ms</td>
-                        <td className="px-3 py-2">{h.active_users}</td>
-                        <td className="px-3 py-2">{h.total_demands}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </Card>
-          )}
+          <Card title="Histórico de Monitoramento (últimas 24h)">
+            <Table minWidth={640}>
+              <TableHead>
+                <Th>Data</Th>
+                <Th>CPU</Th>
+                <Th>RAM</Th>
+                <Th>API (ms)</Th>
+                <Th>Usuários</Th>
+                <Th>Demandas</Th>
+              </TableHead>
+              <TableBody>
+                {history.length === 0 && <TableEmpty colSpan={6} message="Nenhum registro de monitoramento nas últimas 24h." />}
+                {history.map((h: any) => (
+                  <Tr key={h.id}>
+                    <Td><span className="text-xs">{new Date(h.recorded_at).toLocaleString('pt-BR')}</span></Td>
+                    <Td><span className="text-xs">{h.server_cpu?.toFixed(1)}</span></Td>
+                    <Td><span className="text-xs">{h.server_memory?.toFixed(1)}%</span></Td>
+                    <Td><span className="text-xs">{h.api_response_time}ms</span></Td>
+                    <Td><span className="text-xs">{h.active_users}</span></Td>
+                    <Td><span className="text-xs">{h.total_demands}</span></Td>
+                  </Tr>
+                ))}
+              </TableBody>
+            </Table>
+          </Card>
         </>
-      ) : (
-        <p className="text-sm text-slate-400 italic">Não foi possível carregar dados de monitoramento.</p>
-      )}
+      ) : null}
     </div>
   );
 }

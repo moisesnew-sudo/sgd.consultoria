@@ -1,4 +1,3 @@
-import React from 'react';
 import type { DemandStatus, DemandPriority } from '../../types';
 import { STATUS_BADGE_CLS, PRIORITY_BADGE_CLS, statusLabel, priorityLabel } from '../../lib/demandMeta';
 

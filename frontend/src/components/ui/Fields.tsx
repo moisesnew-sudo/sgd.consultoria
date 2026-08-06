@@ -1,4 +1,5 @@
 import React from 'react';
+import { AlertCircle } from 'lucide-react';
 
 const FIELD_BASE =
   'w-full h-[40px] px-3.5 rounded-xl border text-sm bg-white dark:bg-slate-900/60 text-slate-800 dark:text-slate-100 placeholder:text-slate-400 transition-colors focus:outline-none focus:ring-2 focus:ring-brand-600 focus:border-transparent';
@@ -11,21 +12,24 @@ interface FieldWrapProps {
   hint?: string;
   required?: boolean;
   id?: string;
+  className?: string;
   children: React.ReactNode;
 }
 
-function FieldWrap({ label, error, hint, required, id, children }: FieldWrapProps) {
+export function FieldWrap({ label, error, hint, required, id, className = '', children }: FieldWrapProps) {
   return (
-    <div className="space-y-1.5">
+    <div className={`space-y-1.5 ${className}`}>
       {label && (
         <label htmlFor={id} className="block text-[10px] font-bold uppercase tracking-wider text-slate-400">
           {label}
-          {required && <span className="text-red-500 ml-0.5">*</span>}
+          {required && <span className="text-red-500 ml-0.5" title="Campo obrigatório">*</span>}
         </label>
       )}
       {children}
       {error ? (
-        <p className="text-[11px] font-semibold text-red-500">{error}</p>
+        <p className="text-[11px] font-semibold text-red-500 flex items-center gap-1 animate-fade-in">
+          <AlertCircle size={11} className="shrink-0" /> {error}
+        </p>
       ) : hint ? (
         <p className="text-[11px] text-slate-400">{hint}</p>
       ) : null}

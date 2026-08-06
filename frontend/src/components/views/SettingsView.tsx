@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Settings as SettingsIcon, Shield, Download, Save, Loader2, Key, Eye, EyeOff, LogOut
 } from 'lucide-react';
@@ -6,6 +6,7 @@ import { settingsApi } from '../../services/api';
 import { useAuth } from '../../contexts/AuthContext';
 import { useToast } from '../../contexts/ToastContext';
 import { PageHeader } from '../ui/PageHeader';
+import { Input } from '../ui/Fields';
 
 interface SettingsViewProps {
   onBackToLogin: () => void;
@@ -135,61 +136,60 @@ export default function SettingsView({ onBackToLogin }: SettingsViewProps) {
           message.includes('sucesso') || message.includes('Sucesso')
             ? 'bg-green-50 text-green-700 border border-green-200'
             : 'bg-red-50 text-red-700 border border-red-200'
-        }`}>
+        }`} role={message.includes('sucesso') || message.includes('Sucesso') ? 'status' : 'alert'}>
           {message}
         </div>
       )}
 
       {/* General Settings */}
-      <div className="bg-white border border-slate-100 rounded-3xl p-6 shadow-sm space-y-5">
-        <h3 className="text-xs font-extrabold text-brand-700 uppercase tracking-widest flex items-center gap-2">
+      <div className="bg-white dark:bg-[#111a2e] border border-slate-100 dark:border-slate-700/50 rounded-3xl p-6 shadow-sm space-y-5">
+        <h3 className="text-xs font-extrabold text-brand-700 dark:text-brand-400 uppercase tracking-widest flex items-center gap-2">
           <SettingsIcon size={16} /> Aparência
         </h3>
 
-        <div className="space-y-1">
-          <label className="text-xs font-bold text-slate-700 block">Nome da Organização</label>
-          <input
-            type="text"
-            lang="pt-BR"
-            spellCheck={true}
-            value={settings.organization_name}
-            onChange={(e) => setSettings({ ...settings, organization_name: e.target.value })}
-            className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-brand-600 focus:border-transparent"
-          />
-        </div>
+        <Input
+          label="Nome da Organização"
+          type="text"
+          value={settings.organization_name}
+          onChange={(e) => setSettings({ ...settings, organization_name: e.target.value })}
+        />
 
-        <div className="grid grid-cols-2 gap-4">
-          <div className="space-y-1">
-            <label className="text-xs font-bold text-slate-700 block">Cor Primária</label>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="space-y-1.5">
+            <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400">Cor Primária</label>
             <div className="flex items-center gap-2">
               <input
                 type="color"
                 value={settings.primary_color}
                 onChange={(e) => setSettings({ ...settings, primary_color: e.target.value })}
-                className="w-10 h-10 rounded-lg border border-slate-200 cursor-pointer"
+                className="w-10 h-10 rounded-lg border border-slate-200 dark:border-slate-700 cursor-pointer"
+                aria-label="Cor Primária"
               />
               <input
                 type="text"
                 value={settings.primary_color}
                 onChange={(e) => setSettings({ ...settings, primary_color: e.target.value })}
-                className="flex-1 px-3 py-2 rounded-lg border border-slate-200 text-xs font-mono text-slate-700 focus:outline-none focus:ring-2 focus:ring-brand-600"
+                className="flex-1 px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900/60 text-xs font-mono text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-brand-600 focus:border-transparent"
+                aria-label="Valor hexadecimal da cor primária"
               />
             </div>
           </div>
-          <div className="space-y-1">
-            <label className="text-xs font-bold text-slate-700 block">Cor de Destaque</label>
+          <div className="space-y-1.5">
+            <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400">Cor de Destaque</label>
             <div className="flex items-center gap-2">
               <input
                 type="color"
                 value={settings.accent_color}
                 onChange={(e) => setSettings({ ...settings, accent_color: e.target.value })}
-                className="w-10 h-10 rounded-lg border border-slate-200 cursor-pointer"
+                className="w-10 h-10 rounded-lg border border-slate-200 dark:border-slate-700 cursor-pointer"
+                aria-label="Cor de Destaque"
               />
               <input
                 type="text"
                 value={settings.accent_color}
                 onChange={(e) => setSettings({ ...settings, accent_color: e.target.value })}
-                className="flex-1 px-3 py-2 rounded-lg border border-slate-200 text-xs font-mono text-slate-700 focus:outline-none focus:ring-2 focus:ring-brand-600"
+                className="flex-1 px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900/60 text-xs font-mono text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-brand-600 focus:border-transparent"
+                aria-label="Valor hexadecimal da cor de destaque"
               />
             </div>
           </div>
@@ -206,76 +206,73 @@ export default function SettingsView({ onBackToLogin }: SettingsViewProps) {
       </div>
 
       {/* Password */}
-      <div className="bg-white border border-slate-100 rounded-3xl p-6 shadow-sm space-y-5">
-        <h3 className="text-xs font-extrabold text-brand-700 uppercase tracking-widest flex items-center gap-2">
+      <div className="bg-white dark:bg-[#111a2e] border border-slate-100 dark:border-slate-700/50 rounded-3xl p-6 shadow-sm space-y-5">
+        <h3 className="text-xs font-extrabold text-brand-700 dark:text-brand-400 uppercase tracking-widest flex items-center gap-2">
           <Shield size={16} /> Segurança
         </h3>
 
-        <div className="bg-slate-50 rounded-xl p-4 mb-4">
-          <p className="text-xs text-slate-600">
-            Usuário logado: <strong className="text-slate-900">{user?.name}</strong> ({user?.email})
+        <div className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-4 mb-4">
+          <p className="text-xs text-slate-600 dark:text-slate-300">
+            Usuário logado: <strong className="text-slate-900 dark:text-white">{user?.name}</strong> ({user?.email})
           </p>
           <p className="text-[10px] text-slate-400 mt-1 uppercase font-bold">Perfil: {user?.role === 'admin' ? 'Administrador' : user?.role === 'gestor' ? 'Gestor' : user?.role === 'analista' ? 'Analista' : 'Consulta'}</p>
         </div>
 
         <div className="space-y-3">
-          <div className="space-y-1">
-            <label className="text-xs font-bold text-slate-700 block">Senha Atual *</label>
-            <div className="relative">
-              <input
-                type={showCurrentPassword ? 'text' : 'password'}
-                value={currentPassword}
-                onChange={(e) => setCurrentPassword(e.target.value)}
-                className="w-full px-4 py-2.5 pr-10 rounded-xl border border-slate-200 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-brand-600 focus:border-transparent"
-              />
+          <Input
+            label="Senha Atual"
+            required
+            type={showCurrentPassword ? 'text' : 'password'}
+            value={currentPassword}
+            onChange={(e) => setCurrentPassword(e.target.value)}
+            iconRight={
               <button
                 type="button"
                 onClick={() => setShowCurrentPassword(!showCurrentPassword)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                className="text-slate-400 hover:text-slate-600 focus:outline-none cursor-pointer"
+                aria-label={showCurrentPassword ? 'Ocultar senha' : 'Exibir senha'}
               >
                 {showCurrentPassword ? <EyeOff size={16} /> : <Eye size={16} />}
               </button>
-            </div>
-          </div>
+            }
+          />
 
-          <div className="space-y-1">
-            <label className="text-xs font-bold text-slate-700 block">Nova Senha *</label>
-            <div className="relative">
-              <input
-                type={showNewPassword ? 'text' : 'password'}
-                value={newPassword}
-                onChange={(e) => setNewPassword(e.target.value)}
-                placeholder="Mínimo 8 caracteres"
-                className="w-full px-4 py-2.5 pr-10 rounded-xl border border-slate-200 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-brand-600 focus:border-transparent"
-              />
+          <Input
+            label="Nova Senha"
+            required
+            type={showNewPassword ? 'text' : 'password'}
+            value={newPassword}
+            onChange={(e) => setNewPassword(e.target.value)}
+            placeholder="Mínimo 8 caracteres"
+            iconRight={
               <button
                 type="button"
                 onClick={() => setShowNewPassword(!showNewPassword)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                className="text-slate-400 hover:text-slate-600 focus:outline-none cursor-pointer"
+                aria-label={showNewPassword ? 'Ocultar senha' : 'Exibir senha'}
               >
                 {showNewPassword ? <EyeOff size={16} /> : <Eye size={16} />}
               </button>
-            </div>
-          </div>
+            }
+          />
 
-          <div className="space-y-1">
-            <label className="text-xs font-bold text-slate-700 block">Confirmar Nova Senha *</label>
-            <div className="relative">
-              <input
-                type={showConfirmPassword ? 'text' : 'password'}
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                className="w-full px-4 py-2.5 pr-10 rounded-xl border border-slate-200 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-brand-600 focus:border-transparent"
-              />
+          <Input
+            label="Confirmar Nova Senha"
+            required
+            type={showConfirmPassword ? 'text' : 'password'}
+            value={confirmPassword}
+            onChange={(e) => setConfirmPassword(e.target.value)}
+            iconRight={
               <button
                 type="button"
                 onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                className="text-slate-400 hover:text-slate-600 focus:outline-none cursor-pointer"
+                aria-label={showConfirmPassword ? 'Ocultar senha' : 'Exibir senha'}
               >
                 {showConfirmPassword ? <EyeOff size={16} /> : <Eye size={16} />}
               </button>
-            </div>
-          </div>
+            }
+          />
 
           <button
             onClick={handleChangePassword}
@@ -289,8 +286,8 @@ export default function SettingsView({ onBackToLogin }: SettingsViewProps) {
       </div>
 
       {/* Data Management */}
-      <div className="bg-white border border-slate-100 rounded-3xl p-6 shadow-sm space-y-5">
-        <h3 className="text-xs font-extrabold text-brand-700 uppercase tracking-widest flex items-center gap-2">
+      <div className="bg-white dark:bg-[#111a2e] border border-slate-100 dark:border-slate-700/50 rounded-3xl p-6 shadow-sm space-y-5">
+        <h3 className="text-xs font-extrabold text-brand-700 dark:text-brand-400 uppercase tracking-widest flex items-center gap-2">
           <Download size={16} /> Dados
         </h3>
 
@@ -309,11 +306,11 @@ export default function SettingsView({ onBackToLogin }: SettingsViewProps) {
       </div>
 
       {/* Session */}
-      <div className="bg-white border border-slate-100 rounded-3xl p-6 shadow-sm space-y-4">
-        <h3 className="text-xs font-extrabold text-brand-700 uppercase tracking-widest flex items-center gap-2">
+      <div className="bg-white dark:bg-[#111a2e] border border-slate-100 dark:border-slate-700/50 rounded-3xl p-6 shadow-sm space-y-4">
+        <h3 className="text-xs font-extrabold text-brand-700 dark:text-brand-400 uppercase tracking-widest flex items-center gap-2">
           <LogOut size={16} /> Sessão
         </h3>
-        <p className="text-xs text-slate-500">
+        <p className="text-xs text-slate-500 dark:text-slate-400">
           Ao sair, você precisará inserir suas credenciais novamente para acessar o sistema.
         </p>
         <button

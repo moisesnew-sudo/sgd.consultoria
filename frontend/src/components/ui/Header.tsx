@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Menu, X, Sun, Moon, MonitorSmartphone, LogOut, ChevronDown } from 'lucide-react';
+import { Menu, X, Sun, Moon, MonitorSmartphone, LogOut, ChevronDown, Inbox } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useTheme, ThemeMode } from '../../contexts/ThemeContext';
 import { ROLE_LABELS } from '../../services/api';
@@ -8,9 +8,10 @@ interface HeaderProps {
   onToggleSidebar: () => void;
   isSidebarOpen: boolean;
   pendingCount: number;
+  onNavigateToTab?: (tab: string) => void;
 }
 
-export function Header({ onToggleSidebar, isSidebarOpen, pendingCount }: HeaderProps) {
+export function Header({ onToggleSidebar, isSidebarOpen, pendingCount, onNavigateToTab }: HeaderProps) {
   const { user, logout, isAuthenticated } = useAuth();
   const { theme, setTheme } = useTheme();
   const [scrolled, setScrolled] = useState(false);
@@ -29,8 +30,15 @@ export function Header({ onToggleSidebar, isSidebarOpen, pendingCount }: HeaderP
         setShowUserMenu(false);
       }
     };
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setShowUserMenu(false);
+    };
     document.addEventListener('click', close);
-    return () => document.removeEventListener('click', close);
+    document.addEventListener('keydown', onKeyDown);
+    return () => {
+      document.removeEventListener('click', close);
+      document.removeEventListener('keydown', onKeyDown);
+    };
   }, [showUserMenu]);
 
   const cycleTheme = useCallback(() => {
@@ -88,7 +96,16 @@ export function Header({ onToggleSidebar, isSidebarOpen, pendingCount }: HeaderP
 
         {/* Right side */}
         <div className="flex items-center gap-2">
-
+          {pendingCount > 0 && (
+            <button
+              onClick={() => onNavigateToTab?.('demands')}
+              className="hidden md:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-gov-100 dark:bg-gov-900/40 text-gov-800 dark:text-gov-300 text-[10px] font-bold hover:bg-gov-200 dark:hover:bg-gov-800/50 transition-colors cursor-pointer"
+              title="Abrir demandas pendentes"
+            >
+              <Inbox size={12} />
+              {pendingCount} pendente{pendingCount > 1 ? 's' : ''}
+            </button>
+          )}
 
           {/* Theme toggle */}
           <button
@@ -104,7 +121,9 @@ export function Header({ onToggleSidebar, isSidebarOpen, pendingCount }: HeaderP
           {isAuthenticated && user && (
             <div className="relative" data-user-menu>
               <button
-                onClick={() => setShowUserMenu(!showUserMenu)}
+                onClick={() => setShowUserMenu(prev => !prev)}
+                aria-haspopup="menu"
+                aria-expanded={showUserMenu}
                 className="flex items-center gap-2 pl-3 pr-2 py-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-all group"
               >
                 <div className="w-7 h-7 rounded-full bg-gradient-to-br from-gov-600 to-gov-800 flex items-center justify-center text-[10px] font-bold text-white shrink-0">
@@ -118,7 +137,11 @@ export function Header({ onToggleSidebar, isSidebarOpen, pendingCount }: HeaderP
               </button>
 
               {showUserMenu && (
-                <div className="absolute right-0 top-full mt-1 w-56 bg-white dark:bg-[#0f1f3a] border border-slate-200 dark:border-slate-700/50 rounded-xl shadow-elevated py-1.5 animate-scale-in origin-top-right">
+                <div
+                  className="absolute right-0 top-full mt-1 w-56 bg-white dark:bg-[#0f1f3a] border border-slate-200 dark:border-slate-700/50 rounded-xl shadow-elevated py-1.5 animate-scale-in origin-top-right"
+                  role="menu"
+                  aria-label="Menu do usuário"
+                >
                   <div className="px-3.5 py-2 border-b border-slate-100 dark:border-slate-700/50">
                     <p className="text-xs font-bold text-slate-700 dark:text-slate-200">{user.name}</p>
                     <span className={`inline-block mt-0.5 px-1.5 py-0.5 text-[8px] font-bold rounded uppercase tracking-wider ${
@@ -131,7 +154,8 @@ export function Header({ onToggleSidebar, isSidebarOpen, pendingCount }: HeaderP
                   </div>
                   <button
                     onClick={() => { logout(); setShowUserMenu(false); }}
-                    className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-xs font-semibold text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                    role="menuitem"
+                    className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-xs font-semibold text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors cursor-pointer"
                   >
                     <LogOut size={14} />
                     Sair do Sistema

@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import { useMemo, memo } from 'react';
 import { Hourglass, ArrowRight, CheckCircle2 } from 'lucide-react';
 import { Demand } from '../../../types';
 import { Card } from '../../ui/Card';
@@ -11,7 +11,7 @@ interface Props {
   onNavigateToTab: (tab: string) => void;
 }
 
-export default function DeadlinesCard({ demands, onSelectDemand, onNavigateToTab }: Props) {
+function DeadlinesCard({ demands, onSelectDemand, onNavigateToTab }: Props) {
   const items = useMemo(() => {
     const open = demands.filter(d => d.status === 'pendente' || d.status === 'analise');
     return open
@@ -90,3 +90,5 @@ export default function DeadlinesCard({ demands, onSelectDemand, onNavigateToTab
     </Card>
   );
 }
+
+export default memo(DeadlinesCard);

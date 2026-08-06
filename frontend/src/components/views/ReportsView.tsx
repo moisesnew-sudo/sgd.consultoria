@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import {
-  BarChart3, Download, TrendingUp, AlertTriangle, CheckCircle2, Clock, FileText, Sparkles,
+  BarChart3, Download, TrendingUp, AlertTriangle, CheckCircle2, FileText, Sparkles,
   Search, X, SlidersHorizontal, FilterX, FileJson
 } from 'lucide-react';
 import { Demand, DemandStatus, DemandPriority } from '../../types';
@@ -9,7 +9,8 @@ import { useAuth } from '../../contexts/AuthContext';
 import ExecutiveReport from '../shared/ExecutiveReport';
 import ExportMenu, { ExportMenuItem } from '../ui/ExportMenu';
 import { STATUS_LABELS, PRIORITY_LABELS } from '../../lib/demandMeta';
-import { PageHeader, Kpi, EmptyState, FiltersDrawer, Input, Select } from '../ui';
+import { PageHeader, Kpi, FiltersDrawer, Input, Select } from '../ui';
+import { Table, TableHead, TableBody, TableEmpty, Th, Tr, Td } from '../ui/Table';
 
 interface ReportsViewProps {
   demands: Demand[];
@@ -523,44 +524,34 @@ export default function ReportsView({ demands }: ReportsViewProps) {
           <h3 className="text-xs font-extrabold text-slate-500 dark:text-slate-400 uppercase tracking-widest">Últimas 10 Demandas Filtradas</h3>
         </div>
         <div className="overflow-x-auto">
-          <table className="w-full text-left">
-            <thead>
-              <tr className="bg-slate-50/80 dark:bg-slate-800/50">
-                <th className="px-5 py-3 text-[10px] font-extrabold text-slate-500 dark:text-slate-400 uppercase tracking-wider">ID</th>
-                <th className="px-5 py-3 text-[10px] font-extrabold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Título</th>
-                <th className="px-5 py-3 text-[10px] font-extrabold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Município</th>
-                <th className="px-5 py-3 text-[10px] font-extrabold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Ano</th>
-                <th className="px-5 py-3 text-[10px] font-extrabold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Status</th>
-                <th className="px-5 py-3 text-[10px] font-extrabold text-slate-500 dark:text-slate-400 uppercase tracking-wider text-right">Valor</th>
-              </tr>
-            </thead>
-            <tbody>
+          <Table minWidth={0}>
+            <TableHead>
+              <Th>ID</Th>
+              <Th>Título</Th>
+              <Th>Município</Th>
+              <Th>Ano</Th>
+              <Th>Status</Th>
+              <Th align="right">Valor</Th>
+            </TableHead>
+            <TableBody>
+              {filtered.length === 0 && <TableEmpty colSpan={6} message="Nenhum dado encontrado." />}
               {filtered.slice(0, 10).map((d) => (
-                <tr key={d.id} className="border-t border-slate-100/50 dark:border-slate-700/30 hover:bg-slate-50/30 dark:hover:bg-slate-800/30 transition-colors">
-                  <td className="px-5 py-3 text-[10px] font-mono font-bold text-slate-600 dark:text-slate-300">{d.id}</td>
-                  <td className="px-5 py-3 text-xs font-bold text-slate-800 dark:text-slate-100 max-w-[200px] truncate">{d.title}</td>
-                  <td className="px-5 py-3 text-xs text-slate-600 dark:text-slate-300">{d.municipality} - {d.uf}</td>
-                  <td className="px-5 py-3 text-xs font-mono text-slate-500 dark:text-slate-400">{d.ano || '—'}</td>
-                  <td className="px-5 py-3">
+                <Tr key={d.id}>
+                  <Td><span className="text-[10px] font-mono font-bold text-slate-600 dark:text-slate-300">{d.id}</span></Td>
+                  <Td><span className="text-xs font-bold text-slate-800 dark:text-slate-100 max-w-[200px] block truncate">{d.title}</span></Td>
+                  <Td><span className="text-xs text-slate-600 dark:text-slate-300">{d.municipality} - {d.uf}</span></Td>
+                  <Td><span className="text-xs font-mono text-slate-500 dark:text-slate-400">{d.ano || '—'}</span></Td>
+                  <Td>
                     <span className="inline-block px-2 py-1 rounded-md bg-slate-100 dark:bg-slate-700 text-[9px] font-bold text-slate-600 dark:text-slate-200 uppercase">
                       {STATUS_LABELS[d.status]}
                     </span>
-                  </td>
-                  <td className="px-5 py-3 text-xs font-mono font-bold text-slate-800 dark:text-white text-right">
-                    {formatCurrency(d.requested_value || 0)}
-                  </td>
-                </tr>
+                  </Td>
+                  <Td align="right"><span className="text-xs font-mono font-bold text-slate-800 dark:text-white">{formatCurrency(d.requested_value || 0)}</span></Td>
+                </Tr>
               ))}
-            </tbody>
-          </table>
+            </TableBody>
+          </Table>
         </div>
-        {filtered.length === 0 && (
-          <EmptyState
-            icon={<Clock size={24} />}
-            title="Nenhum dado encontrado"
-            className="py-8"
-          />
-        )}
       </div>
 
       {showReport && (

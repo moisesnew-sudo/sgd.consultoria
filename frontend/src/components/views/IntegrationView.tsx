@@ -1,9 +1,10 @@
-import React, { useState, useEffect } from 'react';
-import { Plug, KeyRound, Copy, Check, Code2, Webhook, RefreshCw } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Plug, KeyRound, Copy, Check, Code2, Webhook, RefreshCw, Lock, Unlock } from 'lucide-react';
 import { integrationsApi } from '../../services/api';
 import { useAuth } from '../../contexts/AuthContext';
-import { Skeleton, CardSkeleton } from '../ui/Skeleton';
+import { CardSkeleton } from '../ui/Skeleton';
 import { PageHeader } from '../ui/PageHeader';
+import { Table, TableHead, TableBody, TableEmpty, Th, Tr, Td } from '../ui/Table';
 
 const METHOD_COLORS: Record<string, string> = {
   GET: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300',
@@ -53,7 +54,7 @@ export default function IntegrationView() {
         subtitle="Conecte o CGASI.SE a outros sistemas via REST API"
         icon={<Plug className="text-brand-600" />}
         actions={
-          <button onClick={load} className="p-2 rounded-lg border border-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800" title="Atualizar">
+          <button onClick={load} aria-label="Atualizar dados de integração" className="p-2 rounded-lg border border-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer" title="Atualizar">
             <RefreshCw size={16} />
           </button>
         }
@@ -84,7 +85,7 @@ export default function IntegrationView() {
               </div>
               <div className="flex items-center gap-2">
                 <code className="flex-1 px-2 py-1.5 bg-slate-900 text-blue-300 rounded-lg text-[11px] font-mono truncate">{info.baseUrl}</code>
-                <button onClick={() => copy(info.baseUrl, 'url')} className="p-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800">
+                <button onClick={() => copy(info.baseUrl, 'url')} aria-label="Copiar base URL" className="p-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer">
                   {copied === 'url' ? <Check size={14} className="text-emerald-500" /> : <Copy size={14} />}
                 </button>
               </div>
@@ -97,30 +98,27 @@ export default function IntegrationView() {
             <div className="px-4 py-3 border-b border-slate-100 dark:border-slate-700/50 text-xs font-bold text-slate-700 dark:text-slate-200 flex items-center gap-1.5">
               <Code2 size={14} /> Endpoints Disponíveis
             </div>
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="bg-slate-50 dark:bg-slate-800/50 text-left text-[10px] uppercase font-bold text-slate-500">
-                    <th className="px-4 py-2">Método</th>
-                    <th className="px-4 py-2">Rota</th>
-                    <th className="px-4 py-2">Auth</th>
-                    <th className="px-4 py-2">Descrição</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 dark:divide-slate-700/50">
-                  {info.endpoints.map((e: any, i: number) => (
-                    <tr key={i} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/30">
-                      <td className="px-4 py-2">
-                        <span className={`text-[10px] px-2 py-0.5 rounded font-bold ${METHOD_COLORS[e.method] || 'bg-slate-100 text-slate-600'}`}>{e.method}</span>
-                      </td>
-                      <td className="px-4 py-2 font-mono text-[11px] text-slate-600 dark:text-slate-300">{e.path}</td>
-                      <td className="px-4 py-2 text-xs">{e.auth ? <span className="text-amber-600 font-bold">🔒 JWT</span> : <span className="text-slate-400">Público</span>}</td>
-                      <td className="px-4 py-2 text-xs text-slate-500">{e.desc}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            <Table minWidth={560}>
+              <TableHead>
+                <Th>Método</Th>
+                <Th>Rota</Th>
+                <Th>Auth</Th>
+                <Th>Descrição</Th>
+              </TableHead>
+              <TableBody>
+                {info.endpoints.length === 0 && <TableEmpty colSpan={4} message="Nenhum endpoint disponível." />}
+                {info.endpoints.map((e: any, i: number) => (
+                  <Tr key={i}>
+                    <Td>
+                      <span className={`text-[10px] px-2 py-0.5 rounded font-bold ${METHOD_COLORS[e.method] || 'bg-slate-100 text-slate-600'}`}>{e.method}</span>
+                    </Td>
+                    <Td><span className="font-mono text-[11px] text-slate-600 dark:text-slate-300">{e.path}</span></Td>
+                    <Td>{e.auth ? <span className="inline-flex items-center gap-1 text-amber-600 font-bold"><Lock size={11} /> JWT</span> : <span className="inline-flex items-center gap-1 text-slate-400"><Unlock size={11} /> Público</span>}</Td>
+                    <Td><span className="text-xs text-slate-500">{e.desc}</span></Td>
+                  </Tr>
+                ))}
+              </TableBody>
+            </Table>
           </div>
 
           {/* cURL example */}
@@ -129,7 +127,7 @@ export default function IntegrationView() {
               <div className="flex items-center gap-1.5 text-[10px] font-bold text-brand-700 dark:text-brand-300 uppercase">
                 <Code2 size={13} /> Exemplo (cURL)
               </div>
-              <button onClick={() => copy(curlExample, 'curl')} className="p-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800">
+              <button onClick={() => copy(curlExample, 'curl')} aria-label="Copiar exemplo cURL" className="p-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer">
                 {copied === 'curl' ? <Check size={14} className="text-emerald-500" /> : <Copy size={14} />}
               </button>
             </div>

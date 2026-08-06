@@ -4,9 +4,9 @@ import {
   PlusCircle, Pencil, Trash2, MessageSquare, LogIn, LogOut, Upload, Download,
   Shield, ArrowRight, ChevronDown, ChevronUp, Globe, Monitor
 } from 'lucide-react';
-import { auditApi, formatDate } from '../../services/api';
+import { auditApi } from '../../services/api';
 import { AuditLog } from '../../types';
-import { Input, Select, FiltersDrawer } from '../ui';
+import { Input, Select, FiltersDrawer, Pagination } from '../ui';
 import { ENTITY_LABELS, ENTITY_OPTIONS, AUDIT_ACTION_LABELS, AUDIT_ACTION_OPTIONS, STATUS_LABELS, PRIORITY_LABELS } from '../../lib/demandMeta';
 
 const ACTION_CONFIG: Record<string, { label: string; verb: string; icon: React.ReactNode; color: string; bg: string; ring: string }> = {
@@ -316,7 +316,7 @@ export default function AuditTimeline({ embedded = false, compact = false, maxIt
                 </span>
               )}
             </button>
-            <button onClick={load} title="Atualizar" className="p-2 h-[40px] aspect-square rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300">
+            <button onClick={load} title="Atualizar" aria-label="Atualizar registro de auditoria" className="p-2 h-[40px] aspect-square rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 cursor-pointer">
               <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
             </button>
           </div>
@@ -489,23 +489,12 @@ export default function AuditTimeline({ embedded = false, compact = false, maxIt
 
       {/* Pagination */}
       {!embedded && pages > 1 && (
-        <div className="p-3 border-t border-slate-100 dark:border-slate-700/50 flex items-center justify-between">
-          <span className="text-[10px] text-slate-400">
-            Página {page} de {pages} · {total} registros
-          </span>
-          <div className="flex items-center gap-1.5">
-            <button disabled={page <= 1} onClick={() => setPage(p => p - 1)}
-              className="px-2.5 py-1 rounded-lg border text-[10px] font-bold border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-            >
-              Anterior
-            </button>
-            <button disabled={page >= pages} onClick={() => setPage(p => p + 1)}
-              className="px-2.5 py-1 rounded-lg border text-[10px] font-bold border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-            >
-              Próxima
-            </button>
-          </div>
-        </div>
+        <Pagination
+          page={page}
+          pages={pages}
+          total={total}
+          onChange={setPage}
+        />
       )}
 
       <FiltersDrawer open={filtersOpen} onClose={() => setFiltersOpen(false)} onApply={applyFilters} onClear={() => setDraft({ entityType: 'all', action: 'all', dateFrom: '', dateTo: '', userName: 'all' })}>

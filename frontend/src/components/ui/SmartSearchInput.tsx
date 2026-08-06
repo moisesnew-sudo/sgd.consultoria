@@ -24,6 +24,12 @@ export function SmartSearchInput({
   const [open, setOpen] = useState(false);
   const [hi, setHi] = useState(0);
   const wrapRef = useRef<HTMLDivElement>(null);
+  const inputIdRef = useRef<string | null>(null);
+  const listboxIdRef = useRef<string | null>(null);
+  if (inputIdRef.current === null) inputIdRef.current = 'sgd-smart-search';
+  if (listboxIdRef.current === null) listboxIdRef.current = 'sgd-smart-search-listbox';
+  const inputId = inputIdRef.current;
+  const listboxId = listboxIdRef.current;
 
   useEffect(() => {
     const onDoc = (e: MouseEvent) => {
@@ -70,7 +76,13 @@ export function SmartSearchInput({
     <div ref={wrapRef} className={`relative ${className}`}>
       <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
       <input
+        id={inputId}
         type="text"
+        role="combobox"
+        aria-expanded={open && suggestions.length > 0}
+        aria-controls={listboxId}
+        aria-autocomplete="list"
+        aria-activedescendant={open && suggestions[hi] ? `${listboxId}-${hi}` : undefined}
         value={value}
         onChange={(e) => {
           onChange(e.target.value);
@@ -93,7 +105,12 @@ export function SmartSearchInput({
       )}
 
       {open && suggestions.length > 0 && (
-        <div className="absolute z-30 mt-2 w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl shadow-xl overflow-hidden animate-scale-in">
+        <div
+          id={listboxId}
+          role="listbox"
+          aria-label="Sugestões de busca"
+          className="absolute z-30 mt-2 w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl shadow-xl overflow-hidden animate-scale-in"
+        >
           <div className="max-h-80 overflow-y-auto custom-scrollbar py-1.5">
             {suggestions.map((s, i) => {
               const showHeader = s.group !== lastGroup;
@@ -106,6 +123,9 @@ export function SmartSearchInput({
                     </p>
                   )}
                   <button
+                    id={`${listboxId}-${i}`}
+                    role="option"
+                    aria-selected={hi === i}
                     onMouseEnter={() => setHi(i)}
                     onClick={() => pick(s)}
                     className={`w-full flex items-center gap-2.5 px-3.5 py-2 text-left transition-colors ${

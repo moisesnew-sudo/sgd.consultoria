@@ -66,7 +66,7 @@ export default function InactivityWrapper({ children, onLogout }: { children: Re
               <Button variant="outline" onClick={onLogout} icon={<LogOut size={14} />}>
                 Sair
               </Button>
-              <Button variant="primary" onClick={handleStayActive} className="flex-1">
+              <Button variant="primary" onClick={handleStayActive} className="flex-1" data-autofocus>
                 Manter Sessão
               </Button>
             </>
@@ -77,7 +77,7 @@ export default function InactivityWrapper({ children, onLogout }: { children: Re
               <Clock className="text-amber-600" size={28} />
             </div>
             <p className="text-sm text-slate-500 dark:text-slate-400">
-              Sua sessão expirará em <span className="font-bold text-amber-600">{Math.floor(timeLeft / 60)}:{String(timeLeft % 60).padStart(2, '0')}</span> minutos devido à inatividade.
+              Sua sessão expirará em <span className="font-bold text-amber-600">{String(Math.floor(timeLeft / 60)).padStart(2, '0')}:{String(timeLeft % 60).padStart(2, '0')}</span> minutos devido à inatividade.
             </p>
           </div>
         </Modal>
