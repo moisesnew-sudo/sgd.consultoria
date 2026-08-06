@@ -69,6 +69,7 @@ import settingsRoutes from './routes/settings.js';
 import commentsRoutes from './routes/comments.js';
 import auditRoutes from './routes/audit.js';
 import integrationsRoutes from './routes/integrations.js';
+import webhookRoutes from './routes/webhooks.js';
 import permissionsRoutes from './routes/permissions.js';
 import passwordResetRoutes from './routes/password-reset.js';
 import sessionsRoutes from './routes/sessions.js';
@@ -181,6 +182,17 @@ const apiLimiter = rateLimit({
   max: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS || '200'),
   message: { error: 'Muitas requisições. Por favor, tente novamente mais tarde.' },
   standardHeaders: true,
+  legacyHeaders: false,
+  // Webhooks externos possuem limiter dedicado (máx. maior, para retries legítimos)
+  skip: (req) => req.path.startsWith('/integrations/webhooks')
+});
+
+// Limiter dedicado para webhooks (sistemas externos podem retryar eventos)
+const webhookLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: parseInt(process.env.WEBHOOK_RATE_LIMIT_MAX || '1000'),
+  message: { error: 'Muitas requisições de webhook. Tente novamente mais tarde.' },
+  standardHeaders: true,
   legacyHeaders: false
 });
 
@@ -190,6 +202,13 @@ app.use('/api/', apiLimiter);
 
 // Cookies
 app.use(cookieParser());
+
+// ✅ Webhooks externos: autenticados por HMAC (sem cookie/JWT), montados ANTES do CSRF.
+// express.raw captura o body como Buffer — assinatura HMAC sobre bytes exatos.
+// Precisa vir ANTES do express.json global para que o body chegue cru ao middleware.
+app.use('/api/integrations/webhooks', webhookLimiter);
+app.use('/api/integrations/webhooks', express.raw({ type: () => true, limit: '10mb' }));
+app.use('/api/integrations/webhooks', webhookRoutes);
 
 // Body parsing
 app.use(express.json({ limit: '10mb' }));

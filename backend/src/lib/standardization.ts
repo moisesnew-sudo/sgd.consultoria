@@ -134,6 +134,28 @@ export async function buildStandardizationScan(): Promise<StdReport> {
   };
 }
 
+/** Renomeia um município para a grafia oficial sem violar o UNIQUE(name, uf):
+ *  se outra linha (ativa ou soft-deletada) já ocupa o par, descarta esta linha e
+ *  garante que a linha oficial fique ativa. */
+async function renameMunicipalitySafely(rowId: number, name: string, uf: string): Promise<void> {
+  const clash = await all<{ id: number; deleted_at: Date | null }>(
+    'SELECT id, deleted_at FROM municipalities WHERE id <> $1 AND name = $2 AND uf = $3',
+    [rowId, name, uf]
+  );
+  if (clash.length > 0) {
+    const softDeleted = clash.find(c => c.deleted_at);
+    if (softDeleted) {
+      await run('UPDATE municipalities SET deleted_at = NULL, updated_at = NOW() WHERE id = $1', [softDeleted.id]);
+    }
+    await run('UPDATE municipalities SET deleted_at = NOW() WHERE id = $1', [rowId]);
+    return;
+  }
+  await run(
+    'UPDATE municipalities SET name = $1, uf = $2, updated_at = NOW() WHERE id = $3',
+    [name, uf, rowId]
+  );
+}
+
 async function recomputeCounters() {
   await run(
     `UPDATE municipalities SET demands_count = 0, total_value = 0, updated_at = NOW()
@@ -201,10 +223,7 @@ export async function applyStandardizationScan(): Promise<StdReport> {
       await run('UPDATE municipalities SET deleted_at = NOW() WHERE id = $1', [r.id]);
     }
     if (keeper.name !== official.name || keeper.uf !== official.uf) {
-      await run(
-        'UPDATE municipalities SET name = $1, uf = $2, updated_at = NOW() WHERE id = $3',
-        [official.name, official.uf, keeper.id]
-      );
+      await renameMunicipalitySafely(keeper.id, official.name, official.uf);
     }
   }
 
@@ -215,10 +234,7 @@ export async function applyStandardizationScan(): Promise<StdReport> {
   for (const r of remaining) {
     const official = findOfficialMunicipality(r.name, r.uf);
     if (official && (official.nome !== r.name || official.uf !== r.uf)) {
-      await run(
-        'UPDATE municipalities SET name = $1, uf = $2, updated_at = NOW() WHERE id = $3',
-        [official.nome, official.uf, r.id]
-      );
+      await renameMunicipalitySafely(r.id, official.nome, official.uf);
     }
   }
 
@@ -236,7 +252,7 @@ export async function applyStandardizationScan(): Promise<StdReport> {
     await run(
       `INSERT INTO municipalities (name, uf, demands_count, total_value, region)
        VALUES ($1, $2, 0, 0, $3)
-       ON CONFLICT (name, uf) DO NOTHING`,
+       ON CONFLICT (name, uf) DO UPDATE SET deleted_at = NULL, updated_at = NOW()`,
       [official.nome, official.uf, regionForUf(official.uf)]
     );
   }

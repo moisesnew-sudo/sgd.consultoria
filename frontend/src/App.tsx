@@ -8,6 +8,7 @@ import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { ToastProvider } from './contexts/ToastContext';
 import { Demand, MunicipalityData } from './types';
 import { demandsApi, municipalitiesApi } from './services/api';
+import { DemandsNavFilters } from './components/views/DemandsView';
 import { Skeleton } from './components/ui/Skeleton';
 import { Spinner } from './components/ui/Spinner';
 import ErrorBoundary from './components/ui/ErrorBoundary';
@@ -67,6 +68,7 @@ function AppContent() {
   const [activeTab, setActiveTab] = useState<string>('dashboard');
   const [isSidebarOpen, setIsSidebarOpen] = useState<boolean>(false);
   const [selectedDemandFromDashboard, setSelectedDemandFromDashboard] = useState<Demand | null>(null);
+  const [demandNavFilters, setDemandNavFilters] = useState<DemandsNavFilters | null>(null);
   const [showResetPassword, setShowResetPassword] = useState(false);
 
   const loadData = useCallback(async () => {
@@ -108,6 +110,12 @@ function AppContent() {
 
   const handleSelectDemandFromDashboard = (demand: Demand) => {
     setSelectedDemandFromDashboard(demand);
+    setActiveTab('demands');
+  };
+
+  /** Abre a página de Demandas já filtrada (ex.: clique em município/estado). */
+  const handleOpenDemandsWithFilters = (filters: DemandsNavFilters) => {
+    setDemandNavFilters({ municipality: filters.municipality, uf: filters.uf, status: filters.status });
     setActiveTab('demands');
   };
 
@@ -187,13 +195,14 @@ function AppContent() {
               <DashboardView
                 onNavigateToTab={handleNavigateToTab}
                 onSelectDemand={handleSelectDemandFromDashboard}
+                onOpenDemands={handleOpenDemandsWithFilters}
               />
             </Suspense></ErrorBoundary>
           )}
 
           {activeTab === 'executive-panel' && (
             <ErrorBoundary><Suspense fallback={<ViewFallback />}>
-              <ExecutivePanelView />
+              <ExecutivePanelView onOpenDemands={handleOpenDemandsWithFilters} />
             </Suspense></ErrorBoundary>
           )}
 
@@ -217,6 +226,8 @@ function AppContent() {
               onDeleteDemand={handleDeleteDemand}
               isLoading={isLoading}
               onNavigateToTab={handleNavigateToTab}
+              initialFilters={demandNavFilters}
+              onFiltersConsumed={() => setDemandNavFilters(null)}
             />
           )}
 

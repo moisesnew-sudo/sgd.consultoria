@@ -1,6 +1,7 @@
 import bcrypt from 'bcryptjs';
 import { get, run, all } from './database.js';
 import { logger } from './lib/logger.js';
+import { DEMAND_STATUSES } from './types.js';
 
 export async function runSeed() {
   logger.info('🌱 Verificando dados iniciais...');
@@ -101,6 +102,9 @@ export async function runSeed() {
     { key: 'backups.restore', name: 'Backups - Restaurar', category: 'Auditoria', description: 'Restaurar backups' },
     { key: 'monitoring.view', name: 'Monitoramento - Visualizar', category: 'Auditoria', description: 'Visualizar monitoramento do sistema' },
     { key: 'lgpd.view', name: 'LGPD - Visualizar', category: 'Auditoria', description: 'Visualizar painel LGPD' },
+    { key: 'integrations.view', name: 'Integrações - Visualizar', category: 'Integrações', description: 'Visualizar painel de integrações e eventos' },
+    { key: 'integrations.manage', name: 'Integrações - Gerenciar', category: 'Integrações', description: 'Gerenciar sistemas de integração' },
+    { key: 'integrations.sync', name: 'Integrações - Sincronizar', category: 'Integrações', description: 'Executar sincronização manual com sistemas externos' },
   ];
 
   for (const p of permissions) {
@@ -123,7 +127,8 @@ export async function runSeed() {
     'demands.export_excel', 'demands.export_pdf',
     'reports.view', 'reports.emit', 'reports.print', 'reports.export',
     'users.view', 'users.create', 'users.delete',
-    'audit.view', 'sessions.view', 'backups.view', 'monitoring.view', 'lgpd.view'
+    'audit.view', 'sessions.view', 'backups.view', 'monitoring.view', 'lgpd.view',
+    'integrations.view'
   ].filter(k => permMap[k]).map(k => permMap[k]);
   const analistaPerms = [
     'dashboard.view', 'demands.view', 'demands.create', 'demands.edit',
@@ -237,6 +242,59 @@ export async function runSeed() {
   }
   if (organCount > 0) {
     logger.info(`✅ ${organCount} órgãos do cadastro mestre criados`);
+  }
+
+  // Seed dos sistemas de integração (referência para webhooks e mapeamento de status).
+  // Os segredos NÃO são seedados: secret_env_key aponta para a variável de ambiente.
+  const INTEGRATION_SYSTEMS = [
+    { code: 'transferegov', name: 'Transferegov', secret_env_key: 'TRANSFEREGOV_WEBHOOK_SECRET' },
+    { code: 'sei', name: 'SEI', secret_env_key: 'SEI_WEBHOOK_SECRET' },
+    { code: 'cglog', name: 'CGLOG', secret_env_key: 'CGLOG_WEBHOOK_SECRET' },
+  ];
+  for (const s of INTEGRATION_SYSTEMS) {
+    await run(
+      'INSERT INTO integration_systems (code, name, secret_env_key) VALUES ($1, $2, $3) ON CONFLICT (code) DO NOTHING',
+      [s.code, s.name, s.secret_env_key]
+    );
+  }
+
+  // Seed do mapeamento de status externo -> status interno do SGD.
+  // Somente status existentes no enum do SGD (types.ts) são criados.
+  const STATUS_MAPPINGS = [
+    { system: 'transferegov', external: 'APROVADO', internal: 'concluido', description: 'Mapeia o status APROVADO do Transferegov para concluido no SGD (proposta aprovada)' },
+    { system: 'transferegov', external: 'EM_ANALISE', internal: 'analise', description: 'Mapeia o status EM_ANALISE do Transferegov para analise no SGD (proposta em análise)' },
+    { system: 'transferegov', external: 'PENDENTE', internal: 'pendente', description: 'Mapeia o status PENDENTE do Transferegov para pendente no SGD (proposta pendente)' },
+    { system: 'transferegov', external: 'CANCELADO', internal: 'rejeitado', description: 'Mapeia o status CANCELADO do Transferegov para rejeitado no SGD (proposta cancelada)' },
+    { system: 'sei', external: 'TRAMITANDO', internal: 'analise', description: 'Mapeia o status TRAMITANDO do SEI para analise no SGD (processo em trâmite)' },
+    { system: 'sei', external: 'FINALIZADO', internal: 'concluido', description: 'Mapeia o status FINALIZADO do SEI para concluido no SGD (processo finalizado)' },
+    { system: 'cglog', external: 'EM_ANALISE', internal: 'analise', description: 'Mapeia o status EM_ANALISE do CGLOG para analise no SGD (em análise)' },
+    { system: 'cglog', external: 'CONCLUIDO', internal: 'concluido', description: 'Mapeia o status CONCLUIDO do CGLOG para concluido no SGD (concluído)' },
+    { system: 'cglog', external: 'CANCELADO', internal: 'rejeitado', description: 'Mapeia o status CANCELADO do CGLOG para rejeitado no SGD (cancelado)' },
+  ];
+
+  const validInternalStatuses = new Set<string>(DEMAND_STATUSES);
+  let mappingCount = 0;
+  for (const m of STATUS_MAPPINGS) {
+    if (!validInternalStatuses.has(m.internal)) {
+      logger.warn(`⚠️  Mapeamento ignorado (status interno inválido): ${m.system} ${m.external} -> ${m.internal}`);
+      continue;
+    }
+    const system = await get<{ id: number }>('SELECT id FROM integration_systems WHERE code = $1', [m.system]);
+    if (!system) {
+      logger.warn(`⚠️  Mapeamento ignorado (sistema não encontrado): ${m.system}`);
+      continue;
+    }
+    await run(
+      `INSERT INTO integration_status_mapping (system_id, external_status, internal_status, description)
+       VALUES ($1, $2, $3, $4)
+       ON CONFLICT (system_id, external_status)
+       DO UPDATE SET internal_status = EXCLUDED.internal_status, description = EXCLUDED.description, active = TRUE, updated_at = NOW()`,
+      [system.id, m.external, m.internal, m.description]
+    );
+    mappingCount++;
+  }
+  if (mappingCount > 0) {
+    logger.info(`✅ ${mappingCount} mapeamentos de status de integração sincronizados`);
   }
 
   logger.info('🎉 Seed concluído com sucesso!');

@@ -45,6 +45,8 @@ import { DashboardCalEvent } from './dashboard/types';
 interface DashboardViewProps {
   onNavigateToTab: (tab: string) => void;
   onSelectDemand: (demand: Demand) => void;
+  /** Abre a página de Demandas já filtrada (ex.: clique em município). */
+  onOpenDemands?: (filters: { municipality?: string; uf?: string; status?: string }) => void;
 }
 
 const STATUS_LABEL: Record<string, string> = {
@@ -114,7 +116,7 @@ const loadUserCalEvents = (): DashboardCalEvent[] => {
   }
 };
 
-export default function DashboardView({ onNavigateToTab, onSelectDemand }: DashboardViewProps) {
+export default function DashboardView({ onNavigateToTab, onSelectDemand, onOpenDemands }: DashboardViewProps) {
   const { user, hasPermission } = useAuth();
   const [demands, setDemands] = useState<Demand[]>([]);
   const [prevDemands, setPrevDemands] = useState<Demand[]>([]);
@@ -526,12 +528,17 @@ export default function DashboardView({ onNavigateToTab, onSelectDemand }: Dashb
 
       {/* RANKINGS */}
       <section className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <Card title="Ranking de Municípios" subtitle="Por volume de demandas" icon={<Trophy size={18} />}>
+        <Card title="Ranking de Municípios" subtitle="Por volume de demandas — clique para ver" icon={<Trophy size={18} />}>
           <div className="space-y-3">
             {charts.rankingMuni.length === 0 && <p className="text-xs text-slate-400">Sem dados.</p>}
             {charts.rankingMuni.map((m, i) => (
-              <div key={m.name} className="flex items-center gap-3">
-                <span className={`w-6 h-6 rounded-lg flex items-center justify-center text-[11px] font-black ${i === 0 ? 'bg-amber-100 text-amber-700' : i === 1 ? 'bg-slate-100 text-slate-600' : i === 2 ? 'bg-orange-100 text-orange-700' : 'bg-slate-50 text-slate-400'}`}>{i + 1}</span>
+              <button
+                key={m.name}
+                onClick={() => onOpenDemands?.({ municipality: m.name, uf: m.name.split('/')[1] || undefined })}
+                title={`Ver demandas de ${m.name}`}
+                className="w-full flex items-center gap-3 text-left cursor-pointer rounded-xl px-2 py-1 -mx-2 transition-colors hover:bg-brand-50/60 dark:hover:bg-brand-900/20"
+              >
+                <span className={`w-6 h-6 rounded-lg flex items-center justify-center text-[11px] font-black shrink-0 ${i === 0 ? 'bg-amber-100 text-amber-700' : i === 1 ? 'bg-slate-100 text-slate-600' : i === 2 ? 'bg-orange-100 text-orange-700' : 'bg-slate-50 text-slate-400'}`}>{i + 1}</span>
                 <div className="flex-1 min-w-0">
                   <div className="flex justify-between text-xs">
                     <span className="font-semibold text-slate-700 dark:text-slate-200 truncate">{m.name}</span>
@@ -539,7 +546,7 @@ export default function DashboardView({ onNavigateToTab, onSelectDemand }: Dashb
                   </div>
                   <div className="text-[10px] text-slate-400">{formatCurrency(m.value)}</div>
                 </div>
-              </div>
+              </button>
             ))}
           </div>
         </Card>

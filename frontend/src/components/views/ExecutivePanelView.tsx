@@ -1,21 +1,32 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   BarChart3, TrendingUp, DollarSign, Clock, CheckCircle2,
-  FilterX, RefreshCw,
+  FilterX, RefreshCw, MapPin,
 } from 'lucide-react';
 import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid,
-  PieChart, Pie, Cell, AreaChart, Area, Legend,
+  PieChart, Pie, Cell, Legend,
 } from 'recharts';
 import { demandsApi } from '../../services/api';
 import { ExecutiveStats } from '../../types';
 import { PageHeader, Card, Kpi, Spinner } from '../ui';
 import { statusLabel } from '../../lib/demandMeta';
 
+export interface ExecutiveNavFilters {
+  municipality?: string;
+  uf?: string;
+  status?: string;
+}
+
+interface ExecutivePanelViewProps {
+  /** Navega para a página de Demandas já filtrada (clique em estado/município). */
+  onOpenDemands?: (filters: ExecutiveNavFilters) => void;
+}
+
 const UF_LIST = [
   'AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG','PA',
   'PB','PR','PE','PI','RJ','RN','RS','RO','RR','SC','SP','SE','TO',
-];
+].sort((a, b) => a.localeCompare(b, 'pt-BR'));
 
 const STATUS_COLORS: Record<string, string> = {
   pendente: '#f59e0b',
@@ -48,26 +59,25 @@ function fmtNumber(v: number): string {
   return v.toLocaleString('pt-BR');
 }
 
-function monthLabel(m: string): string {
-  const [year, month] = m.split('-');
-  const d = new Date(parseInt(year), parseInt(month) - 1);
-  return d.toLocaleDateString('pt-BR', { month: 'short', year: '2-digit' });
-}
-
-export default function ExecutivePanelView() {
+export default function ExecutivePanelView({ onOpenDemands }: ExecutivePanelViewProps) {
   const [data, setData] = useState<ExecutiveStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [year, setYear] = useState('');
   const [uf, setUf] = useState('');
   const [status, setStatus] = useState('');
+  const [municipality, setMunicipality] = useState('');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
+  const [muniOptions, setMuniOptions] = useState<{ municipality: string; uf: string }[]>([]);
 
   const fetchData = async () => {
     setLoading(true);
     try {
-      const result = await demandsApi.getExecutiveStats({ year, uf, status, dateFrom, dateTo });
+      const result = await demandsApi.getExecutiveStats({ year, uf, status, municipality, dateFrom, dateTo });
       setData(result);
+      if (!municipality) {
+        setMuniOptions(result.byMunicipality.map(m => ({ municipality: m.municipality, uf: m.uf })));
+      }
     } catch (e) {
       console.error('Executive stats error', e);
     } finally {
@@ -80,11 +90,11 @@ export default function ExecutivePanelView() {
   const applyFilters = () => fetchData();
 
   const clearFilters = () => {
-    setYear(''); setUf(''); setStatus(''); setDateFrom(''); setDateTo('');
+    setYear(''); setUf(''); setStatus(''); setMunicipality(''); setDateFrom(''); setDateTo('');
     setTimeout(() => fetchData(), 0);
   };
 
-  const hasFilters = year || uf || status || dateFrom || dateTo;
+  const hasFilters = year || uf || status || municipality || dateFrom || dateTo;
 
   const ufMax = useMemo(() => data ? Math.max(...data.byUf.map(u => u.count), 1) : 1, [data]);
 
@@ -93,23 +103,22 @@ export default function ExecutivePanelView() {
     return Math.round((data.summary.completed / data.summary.total) * 100);
   }, [data]);
 
-  const ufChartData = useMemo(() => data ? data.byUf.map(u => ({ uf: u.uf, demandas: u.count, valor: u.totalValue })) : [], [data]);
   const statusChartData = useMemo(() => data ? data.byStatus.map(s => ({ name: statusLabel(s.status as any), value: s.count, status: s.status })) : [], [data]);
-  const monthChartData = useMemo(() => data ? data.byMonth.map(m => ({ month: monthLabel(m.month), demandas: m.count, valor: m.totalValue })) : [], [data]);
   const organChartData = useMemo(() => data ? data.byOrgan.slice(0, 10).reverse() : [], [data]);
-  const muniChartData = useMemo(() => data ? data.byMunicipality.slice(0, 10).reverse() : [], [data]);
+  const muniChartData = useMemo(() => data ? [...data.byMunicipality].sort((a, b) => b.count - a.count).slice(0, 10).reverse() : [], [data]);
+  const muniTableData = useMemo(() => data ? [...data.byMunicipality].sort((a, b) => a.municipality.localeCompare(b.municipality, 'pt-BR', { sensitivity: 'base' })) : [], [data]);
 
   const years = useMemo(() => {
     if (!data) return [];
     const ys = new Set(data.byMonth.map(m => m.month.split('-')[0]));
-    return Array.from(ys).sort().reverse();
+    return Array.from(ys).sort((a, b) => b.localeCompare(a));
   }, [data]);
 
   return (
     <div className="space-y-6">
       <PageHeader
         title="Painel Executivo"
-        subtitle="Visao estrategica consolidada"
+        subtitle="Visão estratégica consolidada"
         icon={<BarChart3 size={24} />}
         actions={
           hasFilters && (
@@ -133,11 +142,17 @@ export default function ExecutivePanelView() {
           <option value="">Todas as UFs</option>
           {UF_LIST.map(u => <option key={u} value={u}>{u}</option>)}
         </select>
+        <select value={municipality} onChange={e => setMunicipality(e.target.value)} className="text-xs border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1.5 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 max-w-[220px]">
+          <option value="">Todos os Municípios</option>
+          {(muniOptions.length > 0 ? muniOptions : muniTableData).map(m => (
+            <option key={`${m.municipality}-${m.uf}`} value={`${m.municipality}/${m.uf}`}>{m.municipality} ({m.uf})</option>
+          ))}
+        </select>
         <select value={status} onChange={e => setStatus(e.target.value)} className="text-xs border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1.5 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200">
           <option value="">Todos os Status</option>
           <option value="pendente">Pendente</option>
-          <option value="analise">Em Analise</option>
-          <option value="concluido">Concluido</option>
+          <option value="analise">Em Análise</option>
+          <option value="concluido">Concluído</option>
           <option value="rejeitado">Rejeitado</option>
         </select>
         <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="text-xs border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1.5 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200" />
@@ -157,34 +172,39 @@ export default function ExecutivePanelView() {
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
             <Kpi label="Total de Demandas" value={fmtNumber(data.summary.total)} icon={<BarChart3 size={18} />} accent="brand" />
             <Kpi label="Valor Global" value={fmtCurrency(data.summary.totalValue)} icon={<DollarSign size={18} />} accent="gov" />
-            <Kpi label="Valor Medio" value={fmtCurrency(data.summary.avgValue)} icon={<TrendingUp size={18} />} accent="blue" />
+            <Kpi label="Valor Médio" value={fmtCurrency(data.summary.avgValue)} icon={<TrendingUp size={18} />} accent="blue" />
             <Kpi label="Pendentes" value={fmtNumber(data.summary.pending)} icon={<Clock size={18} />} accent="amber" />
-            <Kpi label="Concluidas" value={`${completionPct}%`} hint={`${data.summary.completed} demandas`} icon={<CheckCircle2 size={18} />} accent="green" />
+            <Kpi label="Concluídas" value={`${completionPct}%`} hint={`${data.summary.completed} demandas`} icon={<CheckCircle2 size={18} />} accent="green" />
           </div>
 
           {/* MAPA DE CALOR POR UF + STATUS PIE */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
             <div className="lg:col-span-2">
-              <Card title="Demandas por Estado" subtitle={`${data.byUf.length} UFs com demandas`}>
+              <Card title="Demandas por Estado" subtitle="Clique em um estado para ver as demandas">
                 <div className="grid grid-cols-4 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-7 gap-1.5">
                   {UF_LIST.map(ufItem => {
                     const found = data.byUf.find(u => u.uf === ufItem);
                     const count = found?.count || 0;
                     return (
-                      <div key={ufItem} className={`rounded-lg p-2 text-center transition-colors ${heatColor(count, ufMax)} group cursor-default`}>
+                      <button
+                        key={ufItem}
+                        onClick={() => onOpenDemands?.({ uf: ufItem })}
+                        title={`Ver demandas de ${ufItem}${found ? ` (${count})` : ''}`}
+                        className={`rounded-lg p-2 text-center transition-all ${heatColor(count, ufMax)} group cursor-pointer hover:ring-2 hover:ring-brand-500/60 hover:shadow-md`}
+                      >
                         <span className="block text-[10px] font-black text-slate-700 dark:text-slate-200">{ufItem}</span>
                         <span className="block text-sm font-bold text-slate-900 dark:text-white">{count}</span>
                         {found && (
                           <span className="block text-[8px] text-slate-500 dark:text-slate-400 truncate">{fmtCurrency(found.totalValue)}</span>
                         )}
-                      </div>
+                      </button>
                     );
                   })}
                 </div>
               </Card>
             </div>
             <div>
-              <Card title="Distribuicao por Status">
+              <Card title="Distribuição por Status">
                 <div className="h-[260px]">
                   <ResponsiveContainer width="100%" height="100%">
                     <PieChart>
@@ -211,33 +231,9 @@ export default function ExecutivePanelView() {
             </div>
           </div>
 
-          {/* EVOLUCAO MENSAL */}
-          <Card title="Evolucao Mensal" subtitle={`${data.byMonth.length} meses de dados`}>
-            <div className="h-[280px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={monthChartData}>
-                  <defs>
-                    <linearGradient id="gradDemandas" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="#3b82f6" stopOpacity={0.3} />
-                      <stop offset="100%" stopColor="#3b82f6" stopOpacity={0.02} />
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
-                  <XAxis dataKey="month" tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
-                  <YAxis tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
-                  <Tooltip
-                    contentStyle={{ borderRadius: 12, border: '1px solid #e2e8f0', fontSize: 12 }}
-                    formatter={(v: any, name: any) => [name === 'demandas' ? `${v} demanda(s)` : fmtCurrency(v), name === 'demandas' ? 'Demandas' : 'Valor']}
-                  />
-                  <Area type="monotone" dataKey="demandas" stroke="#3b82f6" fill="url(#gradDemandas)" strokeWidth={2} dot={false} />
-                </AreaChart>
-              </ResponsiveContainer>
-            </div>
-          </Card>
-
           {/* RANKINGS */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            <Card title="Ranking de Municipios" subtitle="Top 10 por quantidade">
+            <Card title="Ranking de Municípios" subtitle="Top 10 por quantidade">
               <div className="h-[340px]">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={muniChartData} layout="vertical" margin={{ left: 10, right: 20 }}>
@@ -253,7 +249,7 @@ export default function ExecutivePanelView() {
                 </ResponsiveContainer>
               </div>
             </Card>
-            <Card title="Ranking de Orgaos" subtitle="Top 10 por quantidade">
+            <Card title="Ranking de Órgãos" subtitle="Top 10 por quantidade">
               <div className="h-[340px]">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={organChartData} layout="vertical" margin={{ left: 10, right: 20 }}>
@@ -272,22 +268,31 @@ export default function ExecutivePanelView() {
           </div>
 
           {/* TABELA RESUMO */}
-          <Card title="Resumo por Municipio" subtitle={`${data.byMunicipality.length} municipios`}>
+          <Card title="Resumo por Município" subtitle="Clique em um município para ver as demandas" action={
+            <span className="flex items-center gap-1 text-[10px] font-semibold text-brand-600 dark:text-brand-400">
+              <MapPin size={12} /> {data.byMunicipality.length} municípios
+            </span>
+          }>
             <div className="overflow-x-auto custom-scrollbar">
               <table className="w-full text-left text-xs">
                 <thead>
                   <tr className="border-b border-slate-100 dark:border-slate-700/50 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                    <th className="py-2 px-3">Municipio</th>
+                    <th className="py-2 px-3">Município</th>
                     <th className="py-2 px-3 text-center">UF</th>
                     <th className="py-2 px-3 text-right">Demandas</th>
                     <th className="py-2 px-3 text-right">Valor Total</th>
-                    <th className="py-2 px-3 text-right">Valor Medio</th>
+                    <th className="py-2 px-3 text-right">Valor Médio</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-50 dark:divide-slate-800">
-                  {data.byMunicipality.map((m, i) => (
-                    <tr key={`${m.municipality}-${m.uf}`} className={i % 2 === 0 ? 'bg-white dark:bg-transparent' : 'bg-slate-50/40 dark:bg-slate-800/10'}>
-                      <td className="py-2 px-3 font-semibold text-slate-800 dark:text-slate-200">{m.municipality}</td>
+                  {muniTableData.map((m, i) => (
+                    <tr
+                      key={`${m.municipality}-${m.uf}`}
+                      onClick={() => onOpenDemands?.({ municipality: `${m.municipality}/${m.uf}`, uf: m.uf })}
+                      title={`Ver demandas de ${m.municipality}/${m.uf}`}
+                      className={`cursor-pointer transition-colors hover:bg-brand-50/60 dark:hover:bg-brand-900/20 ${i % 2 === 0 ? 'bg-white dark:bg-transparent' : 'bg-slate-50/40 dark:bg-slate-800/10'}`}
+                    >
+                      <td className="py-2 px-3 font-semibold text-slate-800 dark:text-slate-200 group-hover:text-brand-700">{m.municipality}</td>
                       <td className="py-2 px-3 text-center font-mono text-slate-500">{m.uf}</td>
                       <td className="py-2 px-3 text-right font-bold text-slate-700 dark:text-slate-200">{m.count}</td>
                       <td className="py-2 px-3 text-right font-mono text-slate-600 dark:text-slate-300">{fmtCurrency(m.totalValue)}</td>

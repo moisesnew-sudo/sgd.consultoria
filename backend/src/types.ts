@@ -72,6 +72,7 @@ export interface Demand {
   responsible_email: string;
   responsible_phone: string;
   notes?: string;
+  deadline?: string | null;
   created_by?: number;
   created_at: string;
   updated_at: string;

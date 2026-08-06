@@ -1,4 +1,5 @@
 import crypto from 'crypto';
+import type { PoolClient } from 'pg';
 import { run } from '../database.js';
 
 const SAFE_COL_RE = /^[a-z_][a-z0-9_]*$/;
@@ -17,15 +18,21 @@ export async function addTimelineEvent(
   userName: string,
   statusChangedTo?: string | null,
   eventType: string = 'note',
-  details?: Record<string, unknown> | null
+  details?: Record<string, unknown> | null,
+  client?: PoolClient
 ): Promise<string> {
   const eventId = `ev-${crypto.randomUUID().slice(0, 8)}`;
   const now = new Date().toISOString();
-  await run(
-    `INSERT INTO timeline_events (id, demand_id, title, description, user_name, status_changed_to, event_type, details, created_at)
+  const query = {
+    text: `INSERT INTO timeline_events (id, demand_id, title, description, user_name, status_changed_to, event_type, details, created_at)
      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
-    [eventId, demandId, title, description, userName, statusChangedTo || null, eventType, details ? JSON.stringify(details) : null, now]
-  );
+    values: [eventId, demandId, title, description, userName, statusChangedTo || null, eventType, details ? JSON.stringify(details) : null, now],
+  };
+  if (client) {
+    await client.query(query);
+  } else {
+    await run(query.text, query.values);
+  }
   return eventId;
 }
 

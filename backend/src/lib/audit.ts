@@ -1,3 +1,4 @@
+import type { PoolClient } from 'pg';
 import { run } from '../database.js';
 import { addTimelineEvent } from './helpers.js';
 import { logger } from './logger.js';
@@ -42,7 +43,7 @@ export function extractMeta(req?: any): { ip_address: string; user_agent: string
   return { ip_address, user_agent };
 }
 
-export async function logAudit(entry: AuditEntry): Promise<void> {
+export async function logAudit(entry: AuditEntry, client?: PoolClient): Promise<void> {
   try {
     const { browser, os } = parseUserAgent(entry.user_agent);
     const details = entry.details || {};
@@ -50,17 +51,22 @@ export async function logAudit(entry: AuditEntry): Promise<void> {
     details._os = os;
     if (entry.ip_address) details._ip = entry.ip_address;
 
-    await run(
-      `INSERT INTO audit_logs (entity_type, entity_id, action, user_id, user_name, details, ip_address, user_agent)
+    const query = {
+      text: `INSERT INTO audit_logs (entity_type, entity_id, action, user_id, user_name, details, ip_address, user_agent)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-      [
+      values: [
         entry.entity_type, entry.entity_id, entry.action,
         entry.user_id || null, entry.user_name || null,
         JSON.stringify(details),
         entry.ip_address || null,
         entry.user_agent || null
-      ]
-    );
+      ],
+    };
+    if (client) {
+      await client.query(query);
+    } else {
+      await run(query.text, query.values);
+    }
   } catch (err) {
     logger.error('Audit log error (non-fatal):', err);
   }

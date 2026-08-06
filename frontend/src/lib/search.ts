@@ -37,28 +37,47 @@ export interface ParsedQuery {
 const FIELD_ALIASES: Record<string, keyof ParsedQuery> = {
   municipio: 'municipality',
   municipios: 'municipality',
+  municipality: 'municipality',
+  cidade: 'municipality',
+  city: 'municipality',
   mun: 'municipality',
   objeto: 'object',
   obj: 'object',
+  object: 'object',
   status: 'status',
   st: 'status',
+  situacao: 'status',
+  situ: 'status',
+  situation: 'status',
   orgao: 'organ',
   org: 'organ',
+  organ: 'organ',
+  agency: 'organ',
   numero: 'number',
   num: 'number',
+  number: 'number',
   proposta: 'number',
   valor: 'value',
   val: 'value',
+  value: 'value',
   usuario: 'user',
   responsavel: 'user',
   user: 'user',
   ano: 'year',
+  year: 'year',
   uf: 'uf',
+  estado: 'uf',
+  state: 'uf',
   categoria: 'category',
+  category: 'category',
+  programa: 'category',
+  program: 'category',
+  prog: 'category',
   prioridade: 'priority',
+  priority: 'priority',
 };
 
-const FIELD_PATTERN = /(?:^|\s)(municipios?|mun|objeto|obj|status|st|orgao|org|numero|num|proposta|valor|val|usuario|responsavel|user|ano|uf|categoria|prioridade):/gi;
+const FIELD_PATTERN = /(?:^|\s)(municipios?|municipality|cidade|city|mun|situation|situacao|situ|objeto|object|obj|numero|number|num|proposta|orgao|organ|agency|org|status|st|programa|program|prog|prioridade|priority|valor|value|val|usuario|responsavel|user|estado|state|categoria|category|ano|year|uf)[:=]/gi;
 
 export function parseFieldQuery(raw: string): ParsedQuery {
   const parsed: ParsedQuery = { free: '' };
@@ -110,7 +129,7 @@ const parseValueNumber = (s: string): number => {
   const t = s.replace(/\s/g, '');
   if (t.includes(',')) return Number(t.replace(/\./g, '').replace(',', '.'));
   const dots = (t.match(/\./g) || []).length;
-  if (dots > 1) return Number(t.replace(/\./g, ''));
+  if (dots === 1 && /\.\d{1,2}$/.test(t)) return Number(t);
   return Number(t.replace(/\./g, ''));
 };
 
@@ -142,12 +161,16 @@ const includesAny = (value: string | undefined, terms: string[]): boolean => {
   return terms.some(t => t && v.includes(normalize(t)));
 };
 
+/** Combina município/UF (ex.: "SAPEZAL/MT") para busca por texto livre. */
+const municipalityKey = (d: Demand): string => `${d.municipality}/${d.uf}`;
+
 export function matchesQuery(d: Demand, p: ParsedQuery): boolean {
   if (p.free) {
     const haystack = [
       d.id,
       d.title,
       d.municipality,
+      municipalityKey(d),
       d.description,
       d.category,
       d.organ,
@@ -156,9 +179,12 @@ export function matchesQuery(d: Demand, p: ParsedQuery): boolean {
       d.responsible_name,
       d.responsible_email,
       d.responsible_phone,
+      d.notes,
+      d.uf,
       d.ano ? String(d.ano) : '',
     ];
-    const matched = includesAny(haystack.join('\u0001'), p.free.split(/\s+/));
+    const terms = p.free.split(/\s+/).filter(Boolean);
+    const matched = includesAny(haystack.join('\u0001'), terms);
     if (!matched) {
       const digits = p.free.replace(/\D/g, '');
       if (!digits || !String(Math.round(d.requested_value || 0)).includes(digits)) {
@@ -167,7 +193,15 @@ export function matchesQuery(d: Demand, p: ParsedQuery): boolean {
     }
   }
 
-  if (p.municipality && !includesAny(d.municipality, [p.municipality]) && !includesAny(`${d.municipality}/${d.uf}`, [p.municipality])) return false;
+  if (p.municipality) {
+    const raw = p.municipality.trim();
+    const parts = raw.split('/');
+    if (parts.length === 2 && /^[A-Z]{2}$/i.test(parts[1])) {
+      if (!includesAny(d.municipality, [parts[0]]) || !includesAny(d.uf, [parts[1]])) return false;
+    } else if (!includesAny(d.municipality, [raw]) && !includesAny(municipalityKey(d), [raw])) {
+      return false;
+    }
+  }
   if (p.object && !includesAny([d.title, d.description, d.category].join('\u0001'), [p.object])) return false;
   if (p.status && !includesAny(statusLabel(d.status), [p.status]) && !includesAny(d.status, [p.status])) return false;
   if (p.organ && !includesAny(d.organ, [p.organ])) return false;
@@ -214,7 +248,8 @@ export function buildSuggestions(demands: Demand[], raw: string): SearchSuggesti
   const nq = normalize(trimmed);
   const tokens = trimmed.split(/\s+/);
   const lastToken = tokens[tokens.length - 1];
-  const colonIndex = lastToken.indexOf(':');
+  const sepIndex = Math.max(lastToken.indexOf(':'), lastToken.indexOf('='));
+  const colonIndex = sepIndex > 0 ? sepIndex : -1;
   const fieldKey = colonIndex > 0 ? FIELD_ALIASES[lastToken.slice(0, colonIndex).toLowerCase()] : undefined;
   const fieldValuePrefix = fieldKey ? lastToken.slice(colonIndex + 1) : '';
 

@@ -285,6 +285,7 @@ export const demandsApi = {
     category?: string;
     search?: string;
     ano?: string;
+    sortBy?: string;
     page?: number;
     limit?: number;
   }) => {
@@ -326,7 +327,7 @@ export const demandsApi = {
     }),
 
   getDashboardStats: () => request<DashboardStats>('/demands/stats/dashboard'),
-  getExecutiveStats: (params?: { year?: string; uf?: string; status?: string; dateFrom?: string; dateTo?: string }) => {
+  getExecutiveStats: (params?: { year?: string; uf?: string; status?: string; municipality?: string; dateFrom?: string; dateTo?: string }) => {
     const qs = new URLSearchParams();
     if (params) Object.entries(params).forEach(([k, v]) => { if (v) qs.append(k, v); });
     const q = qs.toString();

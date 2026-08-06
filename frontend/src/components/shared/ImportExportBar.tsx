@@ -22,6 +22,7 @@ interface FiltersState {
   dateTo?: string;
   valueMin?: string;
   valueMax?: string;
+  municipality?: string;
 }
 
 interface ImportExportBarProps {

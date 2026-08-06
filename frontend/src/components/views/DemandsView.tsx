@@ -34,7 +34,7 @@ import { Demand, DemandStatus, DemandPriority } from '../../types';
 import { demandsApi, standardizationApi, organsApi, usersApi, Org, formatCurrency, formatDate } from '../../services/api';
 import { formatCurrencyInput, parseCurrencyInput } from '../../lib/currency';
 import { BRAZILIAN_STATES } from '../../lib/demandMeta';
-import { StatusBadge, PriorityBadge, PageHeader, SummaryCard, EmptyState, FiltersDrawer, Select, Input, SmartSearchInput, Highlight } from '../ui';
+import { StatusBadge, PriorityBadge, PageHeader, SummaryCard, EmptyState, FiltersDrawer, Select, Input, SmartSearchInput, Highlight, Pagination } from '../ui';
 import { SearchSelect } from '../ui/SearchSelect';
 import { ConfirmModal } from '../ui/ConfirmModal';
 import { useAuth } from '../../contexts/AuthContext';
@@ -57,6 +57,15 @@ interface DemandsViewProps {
   onDeleteDemand?: (id: string) => void;
   isLoading: boolean;
   onNavigateToTab?: (tab: string) => void;
+  /** Filtros iniciais aplicados ao abrir a página (ex.: clique em município no Painel Executivo). */
+  initialFilters?: { municipality?: string; uf?: string; status?: string } | null;
+  onFiltersConsumed?: () => void;
+}
+
+export interface DemandsNavFilters {
+  municipality?: string;
+  uf?: string;
+  status?: string;
 }
 
 const CATEGORIES = [
@@ -69,7 +78,11 @@ const CATEGORIES = [
   'Mobiliário e Parquinhos',
   'Construção e Ampliação',
   'Capacitação Docente'
-];
+].sort((a, b) => a.localeCompare(b, 'pt-BR', { sensitivity: 'base' }));
+
+const PAGE_SIZE = 50;
+
+const comparePtBr = (a: string, b: string): number => a.localeCompare(b, 'pt-BR', { sensitivity: 'base' });
 
 export default function DemandsView({ 
   demands, 
@@ -79,7 +92,9 @@ export default function DemandsView({
   onAddDemand,
   onDeleteDemand,
   isLoading,
-  onNavigateToTab
+  onNavigateToTab,
+  initialFilters,
+  onFiltersConsumed
 }: DemandsViewProps) {
   const { user, isAuthenticated, hasPermission } = useAuth();
   const { toast } = useToast();
@@ -96,6 +111,7 @@ export default function DemandsView({
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [priorityFilter, setPriorityFilter] = useState<string>('all');
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
+  const [municipalityFilter, setMunicipalityFilter] = useState<string>('all');
   const [ufFilter, setUfFilter] = useState<string>('all');
   const [responsibleFilter, setResponsibleFilter] = useState<string>('all');
   const [anoFilter, setAnoFilter] = useState<string>('all');
@@ -110,13 +126,16 @@ export default function DemandsView({
   // Filter drawer (draft applied on "Aplicar")
   const [isFiltersOpen, setIsFiltersOpen] = useState(false);
   const [draft, setDraft] = useState<{
-    status: string; priority: string; category: string; uf: string;
+    status: string; priority: string; category: string; municipality: string; uf: string;
     responsible: string; ano: string; dateFrom: string; dateTo: string;
     valueMin: string; valueMax: string; sortBy: string;
   } | null>(null);
 
   // View Mode
   const [viewMode, setViewMode] = useState<'list' | 'kanban'>('list');
+
+  // Paginação da lista
+  const [page, setPage] = useState(1);
 
   // Selected Demand Detail Modal
   const [detailedDemand, setDetailedDemand] = useState<Demand | null>(null);
@@ -221,6 +240,24 @@ export default function DemandsView({
     }
   }, [selectedDemandFromDashboard, clearSelectedDemandFromDashboard]);
 
+  // Aplica filtros recebidos por navegação (ex.: clique em município/estado)
+  useEffect(() => {
+    if (!initialFilters) return;
+    if (initialFilters.municipality) {
+      const parts = initialFilters.municipality.split('/');
+      setMunicipalityFilter(parts[0]);
+      if (parts.length === 2 && /^[A-Z]{2}$/i.test(parts[1])) setUfFilter(parts[1].toUpperCase());
+    }
+    if (initialFilters.uf) setUfFilter(initialFilters.uf.toUpperCase());
+    if (initialFilters.status) setStatusFilter(initialFilters.status);
+    onFiltersConsumed?.();
+  }, [initialFilters, onFiltersConsumed]);
+
+  // Volta para a primeira página sempre que filtros/ordenação mudam
+  useEffect(() => {
+    setPage(1);
+  }, [search, statusFilter, priorityFilter, categoryFilter, municipalityFilter, ufFilter, responsibleFilter, anoFilter, dateFrom, dateTo, valueMin, valueMax, sortBy]);
+
   // Handle detailed demand opening
   const handleOpenDetail = (demand: Demand) => {
     setDetailedDemand(demand);
@@ -306,11 +343,24 @@ export default function DemandsView({
     }
   };
 
-  // List of unique UFs and responsibles
-  const uniqueUfs = useMemo(() => Array.from(new Set(demands.map(d => d.uf))).sort(), [demands]);
+  // List of unique UFs, municipalities and responsibles (ordenação alfabética)
+  const uniqueUfs = useMemo(() => Array.from(new Set(demands.map(d => d.uf))).sort(comparePtBr), [demands]);
+  const uniqueMunicipalities = useMemo(() => {
+    const seen = new Map<string, { name: string; ufs: Set<string> }>();
+    for (const d of demands) {
+      if (!d.municipality) continue;
+      const key = d.municipality.toUpperCase();
+      const entry = seen.get(key) || { name: d.municipality, ufs: new Set<string>() };
+      if (d.uf) entry.ufs.add(d.uf);
+      seen.set(key, entry);
+    }
+    return Array.from(seen.values())
+      .map(e => ({ name: e.name, label: `${e.name}${e.ufs.size > 0 ? ` (${Array.from(e.ufs).sort().join('/')})` : ''}` }))
+      .sort((a, b) => comparePtBr(a.name, b.name));
+  }, [demands]);
   const uniqueResponsibles = useMemo(() => Array.from(
     new Set(demands.map(d => d.responsible_name).filter(Boolean))
-  ).sort(), [demands]);
+  ).sort(comparePtBr), [demands]);
 
   const runSmartSearch = () => {
     const q = nlQuery.trim();
@@ -338,6 +388,7 @@ export default function DemandsView({
       status: statusFilter,
       priority: priorityFilter,
       category: categoryFilter,
+      municipality: municipalityFilter,
       uf: ufFilter,
       responsible: responsibleFilter,
       ano: anoFilter,
@@ -360,6 +411,7 @@ export default function DemandsView({
     setStatusFilter(draft.status);
     setPriorityFilter(draft.priority);
     setCategoryFilter(draft.category);
+    setMunicipalityFilter(draft.municipality);
     setUfFilter(draft.uf);
     setResponsibleFilter(draft.responsible);
     setAnoFilter(draft.ano);
@@ -373,13 +425,14 @@ export default function DemandsView({
 
   const clearAllFilters = () => {
     setSearch(''); setStatusFilter('all'); setPriorityFilter('all');
-    setCategoryFilter('all'); setUfFilter('all'); setResponsibleFilter('all');
+    setCategoryFilter('all'); setMunicipalityFilter('all'); setUfFilter('all'); setResponsibleFilter('all');
     setAnoFilter('all'); setDateFrom(''); setDateTo(''); setValueMin(''); setValueMax('');
   };
 
   const activeFilterCount =
     (statusFilter !== 'all' ? 1 : 0) + (priorityFilter !== 'all' ? 1 : 0) +
-    (categoryFilter !== 'all' ? 1 : 0) + (ufFilter !== 'all' ? 1 : 0) +
+    (categoryFilter !== 'all' ? 1 : 0) + (municipalityFilter !== 'all' ? 1 : 0) +
+    (ufFilter !== 'all' ? 1 : 0) +
     (responsibleFilter !== 'all' ? 1 : 0) + (anoFilter !== 'all' ? 1 : 0) +
     (dateFrom ? 1 : 0) + (dateTo ? 1 : 0) + (valueMin ? 1 : 0) + (valueMax ? 1 : 0);
 
@@ -388,6 +441,7 @@ export default function DemandsView({
   if (statusFilter !== 'all') activeChips.push({ id: 'status', label: `Status: ${statusFilter}`, onRemove: () => setStatusFilter('all') });
   if (priorityFilter !== 'all') activeChips.push({ id: 'priority', label: `Prioridade: ${priorityFilter}`, onRemove: () => setPriorityFilter('all') });
   if (categoryFilter !== 'all') activeChips.push({ id: 'category', label: `Categoria: ${categoryFilter}`, onRemove: () => setCategoryFilter('all') });
+  if (municipalityFilter !== 'all') activeChips.push({ id: 'municipality', label: `Município: ${municipalityFilter}`, onRemove: () => setMunicipalityFilter('all') });
   if (ufFilter !== 'all') activeChips.push({ id: 'uf', label: `UF: ${ufFilter}`, onRemove: () => setUfFilter('all') });
   if (responsibleFilter !== 'all') activeChips.push({ id: 'responsible', label: `Responsável: ${responsibleFilter}`, onRemove: () => setResponsibleFilter('all') });
   if (anoFilter !== 'all') activeChips.push({ id: 'ano', label: `Ano: ${anoFilter}`, onRemove: () => setAnoFilter('all') });
@@ -412,6 +466,12 @@ export default function DemandsView({
     const matchesStatus = statusFilter === 'all' || d.status === statusFilter;
     const matchesPriority = priorityFilter === 'all' || d.priority === priorityFilter;
     const matchesCategory = categoryFilter === 'all' || d.category === categoryFilter;
+    const muniParts = municipalityFilter === 'all' ? [] : municipalityFilter.split('/');
+    const matchesMunicipality = municipalityFilter === 'all' || (
+      muniParts.length === 2
+        ? d.municipality.toUpperCase() === muniParts[0].toUpperCase() && d.uf === muniParts[1]
+        : d.municipality.toUpperCase() === municipalityFilter.toUpperCase()
+    );
     const matchesUf = ufFilter === 'all' || d.uf === ufFilter;
     const matchesResponsible = responsibleFilter === 'all' || d.responsible_name === responsibleFilter;
     const matchesAno = anoFilter === 'all' || String(d.ano) === anoFilter;
@@ -425,9 +485,9 @@ export default function DemandsView({
     const matchesValueMax = !valueMax || value <= Number(valueMax);
 
     return matchesSearch && matchesStatus && matchesPriority && matchesCategory &&
-      matchesUf && matchesResponsible && matchesAno && matchesDateFrom && matchesDateTo &&
+      matchesMunicipality && matchesUf && matchesResponsible && matchesAno && matchesDateFrom && matchesDateTo &&
       matchesValueMin && matchesValueMax;
-  }), [demands, search, parsedQuery, statusFilter, priorityFilter, categoryFilter, ufFilter, responsibleFilter, anoFilter, dateFrom, dateTo, valueMin, valueMax]);
+  }), [demands, search, parsedQuery, statusFilter, priorityFilter, categoryFilter, municipalityFilter, ufFilter, responsibleFilter, anoFilter, dateFrom, dateTo, valueMin, valueMax]);
 
   // Sort demands
   const sortedDemands = useMemo(() => [...filteredDemands].sort((a, b) => {
@@ -443,8 +503,28 @@ export default function DemandsView({
     if (sortBy === 'lowest-value') {
       return a.requested_value - b.requested_value;
     }
+    if (sortBy === 'municipality-asc') {
+      return comparePtBr(a.municipality, b.municipality) || comparePtBr(a.title, b.title);
+    }
+    if (sortBy === 'municipality-desc') {
+      return comparePtBr(b.municipality, a.municipality) || comparePtBr(a.title, b.title);
+    }
+    if (sortBy === 'title-asc') {
+      return comparePtBr(a.title, b.title);
+    }
+    if (sortBy === 'title-desc') {
+      return comparePtBr(b.title, a.title);
+    }
     return 0;
   }), [filteredDemands, sortBy]);
+
+  // Paginação (lista e kanban usam o total filtrado)
+  const totalPages = Math.max(1, Math.ceil(sortedDemands.length / PAGE_SIZE));
+  const effectivePage = Math.min(page, totalPages);
+  const pageDemands = useMemo(
+    () => sortedDemands.slice((effectivePage - 1) * PAGE_SIZE, effectivePage * PAGE_SIZE),
+    [sortedDemands, effectivePage]
+  );
 
   // Kanban Columns
   const KANBAN_COLUMNS: { id: DemandStatus; title: string; color: string }[] = [
@@ -689,6 +769,7 @@ export default function DemandsView({
                   status: statusFilter !== 'all' ? statusFilter : undefined,
                   priority: priorityFilter !== 'all' ? priorityFilter : undefined,
                   category: categoryFilter !== 'all' ? categoryFilter : undefined,
+                  municipality: municipalityFilter !== 'all' ? municipalityFilter : undefined,
                   uf: ufFilter !== 'all' ? ufFilter : undefined,
                   responsible: responsibleFilter !== 'all' ? responsibleFilter : undefined,
                   ano: anoFilter !== 'all' ? anoFilter : undefined,
@@ -779,7 +860,7 @@ export default function DemandsView({
         onApply={applyFilters}
         onClear={() => {
           clearAllFilters();
-          setDraft({ ...draft!, status: 'all', priority: 'all', category: 'all', uf: 'all', responsible: 'all', ano: 'all', dateFrom: '', dateTo: '', valueMin: '', valueMax: '' });
+          setDraft({ ...draft!, status: 'all', priority: 'all', category: 'all', municipality: 'all', uf: 'all', responsible: 'all', ano: 'all', dateFrom: '', dateTo: '', valueMin: '', valueMax: '' });
         }}
         title="Filtros de demandas"
       >
@@ -865,6 +946,17 @@ export default function DemandsView({
         </Select>
 
         <Select
+          label="Município"
+          value={draft?.municipality || 'all'}
+          onChange={(e) => setDraft({ ...draft!, municipality: e.target.value })}
+        >
+          <option value="all">Municípios (Todos)</option>
+          {uniqueMunicipalities.map(m => (
+            <option key={m.name} value={m.name}>{m.label}</option>
+          ))}
+        </Select>
+
+        <Select
           label="Estado (UF)"
           value={draft?.uf || 'all'}
           onChange={(e) => setDraft({ ...draft!, uf: e.target.value })}
@@ -905,6 +997,10 @@ export default function DemandsView({
           <option value="oldest">Mais antigos</option>
           <option value="highest-value">Maior Valor (R$)</option>
           <option value="lowest-value">Menor Valor (R$)</option>
+          <option value="municipality-asc">Município (A–Z)</option>
+          <option value="municipality-desc">Município (Z–A)</option>
+          <option value="title-asc">Objeto (A–Z)</option>
+          <option value="title-desc">Objeto (Z–A)</option>
         </Select>
 
         <div className="grid grid-cols-2 gap-3">
@@ -953,7 +1049,7 @@ export default function DemandsView({
             <>
               {/* MOBILE: CARD LIST */}
               <div className="sm:hidden divide-y divide-slate-100 dark:divide-slate-700/50" id="demands-card-list">
-                {sortedDemands.map((demand) => (
+                {pageDemands.map((demand) => (
                   <div key={demand.id} className="p-4 space-y-3">
                     <div className="flex items-center justify-between gap-2">
                       <span className="font-mono text-[10px] font-bold text-slate-500 bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded-md truncate max-w-[55%]">
@@ -1003,7 +1099,7 @@ export default function DemandsView({
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 dark:divide-slate-700/50 text-xs text-slate-600">
-                    {sortedDemands.map((demand, index) => (
+                    {pageDemands.map((demand, index) => (
                       <tr
                         key={demand.id}
                         onClick={() => handleOpenDetail(demand)}
@@ -1051,6 +1147,17 @@ export default function DemandsView({
                   </tbody>
                 </table>
               </div>
+
+              {/* PAGINAÇÃO */}
+              {sortedDemands.length > PAGE_SIZE && (
+                <Pagination
+                  page={effectivePage}
+                  pages={totalPages}
+                  total={sortedDemands.length}
+                  onChange={setPage}
+                  label={`${sortedDemands.length} demandas · ${PAGE_SIZE} por página`}
+                />
+              )}
             </>
           )}
         </div>

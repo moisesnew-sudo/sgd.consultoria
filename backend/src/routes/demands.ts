@@ -29,7 +29,8 @@ const demandSchema = z.object({
   responsible_email: z.string().email('Email inválido').optional().or(z.literal('')),
   responsible_phone: z.string().optional(),
   notes: z.string().optional(),
-  ano: z.coerce.number().int().optional()
+  ano: z.coerce.number().int().optional(),
+  deadline: z.string().datetime({ offset: true }).optional().nullable()
 });
 
 const timelineEventSchema = z.object({
@@ -108,7 +109,7 @@ router.get('/', authenticateToken, requirePermission('demands.view'), async (req
       status, priority, municipality, uf, category, search,
       organ, proposal_number, object, responsible,
       valueMin, valueMax, dateFrom, dateTo, updatedFrom, updatedTo,
-      include_deleted, page = '1', limit = '50',
+      ano, sortBy, include_deleted, page = '1', limit = '50',
     } = req.query;
     // ✅ CORREÇÃO: Lógica correta de include_deleted
     let sql = 'SELECT * FROM demands';
@@ -123,19 +124,31 @@ router.get('/', authenticateToken, requirePermission('demands.view'), async (req
 
     if (status && status !== 'all') { conditions.push(`status = $${params.length + 1}`); params.push(status); }
     if (priority && priority !== 'all') { conditions.push(`priority = $${params.length + 1}`); params.push(priority); }
-    if (municipality && municipality !== 'all') { conditions.push(`municipality ILIKE $${params.length + 1}`); params.push(municipality); }
+    if (ano && ano !== 'all') { conditions.push(`(ano = $${params.length + 1} OR EXTRACT(YEAR FROM created_at) = $${params.length + 1})`); params.push(parseInt(String(ano), 10)); }
+    if (municipality && municipality !== 'all') {
+      const raw = String(municipality).trim().toUpperCase();
+      const parts = raw.split('/');
+      if (parts.length === 2 && /^[A-Z]{2}$/.test(parts[1])) {
+        conditions.push(`municipality ILIKE $${params.length + 1} AND uf = $${params.length + 2}`);
+        params.push(`%${parts[0]}%`, parts[1]);
+      } else {
+        conditions.push(`municipality ILIKE $${params.length + 1}`);
+        params.push(`%${raw}%`);
+      }
+    }
     if (uf && uf !== 'all') { conditions.push(`uf = $${params.length + 1}`); params.push(String(uf).toUpperCase()); }
     if (category && category !== 'all') { conditions.push(`category ILIKE $${params.length + 1}`); params.push(category); }
-    if (organ && organ !== 'all') { conditions.push(`organ ILIKE $${params.length + 1}`); params.push(organ); }
+    if (organ && organ !== 'all') { conditions.push(`organ ILIKE $${params.length + 1}`); params.push(`%${organ}%`); }
     if (proposal_number && proposal_number !== 'all') {
       conditions.push(`proposal_number ILIKE $${params.length + 1}`);
       params.push(`%${proposal_number}%`);
     }
     if (object && object !== 'all') {
-      conditions.push(`title ILIKE $${params.length + 1}`);
-      params.push(`%${object}%`);
+      conditions.push(`(title ILIKE $${params.length + 1} OR description ILIKE $${params.length + 2})`);
+      const t = `%${object}%`;
+      params.push(t, t);
     }
-    if (responsible && responsible !== 'all') { conditions.push(`responsible_name ILIKE $${params.length + 1}`); params.push(responsible); }
+    if (responsible && responsible !== 'all') { conditions.push(`responsible_name ILIKE $${params.length + 1}`); params.push(`%${responsible}%`); }
     if (valueMin && valueMin !== 'all') { conditions.push(`requested_value >= $${params.length + 1}`); params.push(Number(valueMin)); }
     if (valueMax && valueMax !== 'all') { conditions.push(`requested_value <= $${params.length + 1}`); params.push(Number(valueMax)); }
     if (dateFrom && dateFrom !== 'all') { conditions.push(`created_at >= $${params.length + 1}`); params.push(dateFrom); }
@@ -143,9 +156,9 @@ router.get('/', authenticateToken, requirePermission('demands.view'), async (req
     if (updatedFrom && updatedFrom !== 'all') { conditions.push(`updated_at >= $${params.length + 1}`); params.push(updatedFrom); }
     if (updatedTo && updatedTo !== 'all') { conditions.push(`updated_at < $${params.length + 1}`); params.push(new Date(`${updatedTo}T23:59:59`).toISOString()); }
     if (search) {
-      conditions.push(`(id ILIKE $${params.length + 1} OR title ILIKE $${params.length + 2} OR municipality ILIKE $${params.length + 3} OR organ ILIKE $${params.length + 4} OR proposal_number ILIKE $${params.length + 5} OR responsible_name ILIKE $${params.length + 6} OR description ILIKE $${params.length + 7} OR category ILIKE $${params.length + 8})`);
+      conditions.push(`(id ILIKE $${params.length + 1} OR title ILIKE $${params.length + 2} OR municipality ILIKE $${params.length + 3} OR organ ILIKE $${params.length + 4} OR proposal_number ILIKE $${params.length + 5} OR responsible_name ILIKE $${params.length + 6} OR description ILIKE $${params.length + 7} OR category ILIKE $${params.length + 8} OR uf ILIKE $${params.length + 9} OR prefeitura ILIKE $${params.length + 10} OR notes ILIKE $${params.length + 11} OR CAST(ano AS TEXT) ILIKE $${params.length + 12})`);
       const t = `%${search}%`;
-      params.push(t, t, t, t, t, t, t, t);
+      params.push(t, t, t, t, t, t, t, t, t, t, t, t);
     }
     if (conditions.length > 0) {
       sql += ' WHERE ' + conditions.join(' AND ');
@@ -154,9 +167,25 @@ router.get('/', authenticateToken, requirePermission('demands.view'), async (req
     const countSql = `SELECT COUNT(*) as count FROM demands ${conditions.length > 0 ? 'WHERE ' + conditions.join(' AND ') : ''}`;
     const countResult = await get<{ count: string }>(countSql, [...params]);
     const total = parseInt(countResult?.count || '0');
-    const offset = (Number(page) - 1) * Number(limit);
-    sql += ` ORDER BY created_at DESC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
-    params.push(Number(limit), offset);
+    const safeLimit = Math.min(Math.max(Number(limit) || 50, 1), 2000);
+    const safePage = Math.max(Number(page) || 1, 1);
+    const offset = (safePage - 1) * safeLimit;
+    const ORDER_MAP: Record<string, string> = {
+      newest: 'created_at DESC',
+      oldest: 'created_at ASC',
+      'highest-value': 'requested_value DESC NULLS LAST',
+      'lowest-value': 'requested_value ASC NULLS LAST',
+      municipality: 'municipality ASC, created_at DESC',
+      title: 'title ASC, created_at DESC',
+      organ: 'organ ASC, created_at DESC',
+      category: 'category ASC, created_at DESC',
+      status: 'status ASC, created_at DESC',
+      priority: 'priority ASC, created_at DESC',
+    };
+    const sortKey = typeof sortBy === 'string' ? sortBy.toLowerCase() : '';
+    const orderClause = ORDER_MAP[sortKey] || 'created_at DESC';
+    sql += ` ORDER BY ${orderClause} LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
+    params.push(safeLimit, offset);
     const demands = await all(sql, params);
 
     // ✅ CORREÇÃO: JSON aggregation para evitar N+1
@@ -184,7 +213,7 @@ router.get('/', authenticateToken, requirePermission('demands.view'), async (req
 
     res.json({
       data: demandsWithDetails,
-      pagination: { page: Number(page), limit: Number(limit), total, pages: Math.ceil(total / Number(limit)) }
+      pagination: { page: safePage, limit: safeLimit, total, pages: Math.ceil(total / safeLimit) }
     });
   } catch (error) {
     logger.error('Get demands error', { error });
@@ -264,8 +293,8 @@ router.get('/stats/dashboard', authenticateToken, async (req: Request, res: Resp
 
 router.get('/stats/executive', authenticateToken, requirePermission('dashboard.view'), async (req: Request, res: Response) => {
   try {
-    const { year, uf, status, dateFrom, dateTo } = req.query as Record<string, string>;
-    const cacheKey = `executive-stats:${year || ''}:${uf || ''}:${status || ''}:${dateFrom || ''}:${dateTo || ''}`;
+    const { year, uf, status, municipality, dateFrom, dateTo } = req.query as Record<string, string>;
+    const cacheKey = `executive-stats:${year || ''}:${uf || ''}:${status || ''}:${municipality || ''}:${dateFrom || ''}:${dateTo || ''}`;
     const cached = getCached<any>(cacheKey);
     if (cached) return res.json(cached);
 
@@ -276,6 +305,17 @@ router.get('/stats/executive', authenticateToken, requirePermission('dashboard.v
     if (year) { conditions.push(`EXTRACT(YEAR FROM created_at) = $${idx++}`); params.push(parseInt(year)); }
     if (uf) { conditions.push(`uf = $${idx++}`); params.push(uf.toUpperCase()); }
     if (status) { conditions.push(`status = $${idx++}`); params.push(status); }
+    if (municipality) {
+      const raw = String(municipality).trim().toUpperCase();
+      const parts = raw.split('/');
+      if (parts.length === 2 && /^[A-Z]{2}$/.test(parts[1])) {
+        conditions.push(`municipality ILIKE $${idx++} AND uf = $${idx++}`);
+        params.push(`%${parts[0]}%`, parts[1]);
+      } else {
+        conditions.push(`municipality ILIKE $${idx++}`);
+        params.push(`%${raw}%`);
+      }
+    }
     if (dateFrom) { conditions.push(`created_at >= $${idx++}`); params.push(dateFrom); }
     if (dateTo) { conditions.push(`created_at <= ($${idx++}::date + INTERVAL '1 day')`); params.push(dateTo); }
 
@@ -292,9 +332,9 @@ router.get('/stats/executive', authenticateToken, requirePermission('dashboard.v
       all<{ status: string; count: string; total_value: string }>(
         `SELECT status, COUNT(*) as count, COALESCE(SUM(requested_value), 0) as total_value FROM demands WHERE ${w} GROUP BY status ORDER BY count DESC`, params),
       all<{ organ: string; count: string; total_value: string }>(
-        `SELECT organ, COUNT(*) as count, COALESCE(SUM(requested_value), 0) as total_value FROM demands WHERE ${w} AND organ != '' GROUP BY organ ORDER BY count DESC LIMIT 12`, params),
+        `SELECT organ, COUNT(*) as count, COALESCE(SUM(requested_value), 0) as total_value FROM demands WHERE ${w} AND organ != '' GROUP BY organ ORDER BY count DESC`, params),
       all<{ municipality: string; uf: string; count: string; total_value: string }>(
-        `SELECT municipality, uf, COUNT(*) as count, COALESCE(SUM(requested_value), 0) as total_value FROM demands WHERE ${w} GROUP BY municipality, uf ORDER BY count DESC LIMIT 15`, params),
+        `SELECT municipality, uf, COUNT(*) as count, COALESCE(SUM(requested_value), 0) as total_value FROM demands WHERE ${w} GROUP BY municipality, uf ORDER BY municipality ASC, uf ASC`, params),
       all<{ month: string; count: string; total_value: string }>(
         `SELECT TO_CHAR(created_at, 'YYYY-MM') as month, COUNT(*) as count, COALESCE(SUM(requested_value), 0) as total_value FROM demands WHERE ${w} GROUP BY month ORDER BY month`, params),
     ]);
@@ -399,14 +439,14 @@ router.post('/', authenticateToken, requirePermission('demands.create'), async (
     const anoVal = data.ano ?? currentYear;
 
     await run(
-      `INSERT INTO demands (id, title, description, category, status, priority, municipality, uf, requested_value, prefeitura, proposal_number, organ, process_link, responsible_name, responsible_email, responsible_phone, notes, created_by, created_at, updated_at, ano)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21)`,
+      `INSERT INTO demands (id, title, description, category, status, priority, municipality, uf, requested_value, prefeitura, proposal_number, organ, process_link, responsible_name, responsible_email, responsible_phone, notes, created_by, created_at, updated_at, ano, deadline)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22)`,
       [id, data.title, data.description || '', data.category, data.status || 'pendente', data.priority || 'media',
        data.municipality, data.uf, data.requested_value || 0, data.prefeitura || `Prefeitura Municipal de ${data.municipality}`,
        data.proposal_number || `PROP-${currentYear}-${crypto.randomUUID().slice(0, 4).toUpperCase()}`,
        data.organ || '', data.process_link || '', data.responsible_name || req.user!.name,
        data.responsible_email || req.user!.email, data.responsible_phone || '', data.notes || '',
-       req.user!.id, now, now, anoVal]
+       req.user!.id, now, now, anoVal, data.deadline ?? null]
     );
     await addTimelineEvent(id, 'Demanda Cadastrada', `Demanda criada por ${req.user!.name}`, req.user!.name, data.status || 'pendente', 'created', {
       status: data.status || 'pendente', municipality: data.municipality, uf: data.uf, requested_value: data.requested_value || 0

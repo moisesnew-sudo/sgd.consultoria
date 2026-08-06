@@ -123,6 +123,9 @@ export async function initDatabase() {
       updated_at TIMESTAMPTZ DEFAULT NOW()
     );
 
+    -- Deadline recebido de sistemas externos (Fase 2.2) — idempotente para bancos já existentes
+    ALTER TABLE demands ADD COLUMN IF NOT EXISTS deadline TIMESTAMPTZ NULL;
+
     CREATE TABLE IF NOT EXISTS timeline_events (
       id TEXT PRIMARY KEY,
       demand_id TEXT NOT NULL REFERENCES demands(id) ON DELETE CASCADE,
@@ -374,6 +377,94 @@ export async function initDatabase() {
       recorded_at TIMESTAMPTZ DEFAULT NOW()
     );
     CREATE INDEX IF NOT EXISTS idx_monitoring_logs_recorded ON monitoring_logs(recorded_at);
+
+    -- Módulo Integrações Governamentais (Fase 1 — webhooks)
+    -- Segredos NÃO são armazenados no banco: a coluna secret_env_key referencia
+    -- a variável de ambiente (ex.: TRANSFEREGOV_WEBHOOK_SECRET, SEI_WEBHOOK_SECRET, CGLOG_WEBHOOK_SECRET).
+    CREATE TABLE IF NOT EXISTS integration_systems (
+      id SERIAL PRIMARY KEY,
+      code TEXT UNIQUE NOT NULL,
+      name TEXT NOT NULL,
+      secret_env_key TEXT NOT NULL,
+      active BOOLEAN DEFAULT TRUE,
+      config JSONB,
+      created_at TIMESTAMPTZ DEFAULT NOW(),
+      updated_at TIMESTAMPTZ DEFAULT NOW(),
+      tenant_id INTEGER DEFAULT 1
+    );
+
+    CREATE TABLE IF NOT EXISTS webhook_events (
+      id SERIAL PRIMARY KEY,
+      system_id INTEGER NOT NULL REFERENCES integration_systems(id),
+      system_code TEXT NOT NULL,
+      event_type TEXT NOT NULL DEFAULT 'unknown',
+      idempotency_key TEXT UNIQUE NOT NULL,
+      payload JSONB,
+      headers JSONB,
+      signature TEXT,
+      received_ip TEXT,
+      status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending', 'processed', 'failed', 'unmatched', 'duplicate')),
+      error TEXT,
+      received_at TIMESTAMPTZ DEFAULT NOW(),
+      processed_at TIMESTAMPTZ,
+      tenant_id INTEGER DEFAULT 1
+    );
+    CREATE INDEX IF NOT EXISTS idx_webhook_events_system ON webhook_events(system_id);
+    CREATE INDEX IF NOT EXISTS idx_webhook_events_status ON webhook_events(status);
+    CREATE INDEX IF NOT EXISTS idx_webhook_events_received ON webhook_events(received_at);
+
+    CREATE TABLE IF NOT EXISTS integration_logs (
+      id SERIAL PRIMARY KEY,
+      system_id INTEGER REFERENCES integration_systems(id),
+      system_code TEXT NOT NULL,
+      direction TEXT NOT NULL DEFAULT 'in' CHECK(direction IN ('in', 'out')),
+      action TEXT NOT NULL,
+      demand_id TEXT,
+      webhook_event_id INTEGER REFERENCES webhook_events(id),
+      status TEXT NOT NULL DEFAULT 'success' CHECK(status IN ('success', 'warning', 'error')),
+      message TEXT,
+      created_at TIMESTAMPTZ DEFAULT NOW(),
+      tenant_id INTEGER DEFAULT 1
+    );
+    CREATE INDEX IF NOT EXISTS idx_integration_logs_system ON integration_logs(system_id);
+    CREATE INDEX IF NOT EXISTS idx_integration_logs_created ON integration_logs(created_at);
+    CREATE INDEX IF NOT EXISTS idx_integration_logs_demand ON integration_logs(demand_id);
+
+    CREATE TABLE IF NOT EXISTS demand_integrations (
+      id SERIAL PRIMARY KEY,
+      demand_id TEXT NOT NULL REFERENCES demands(id) ON DELETE CASCADE,
+      system_id INTEGER NOT NULL REFERENCES integration_systems(id),
+      external_id TEXT,
+      proposal_number TEXT,
+      last_sync_at TIMESTAMPTZ,
+      sync_status TEXT NOT NULL DEFAULT 'none' CHECK(sync_status IN ('none', 'pending', 'synced', 'error')),
+      data JSONB,
+      created_at TIMESTAMPTZ DEFAULT NOW(),
+      updated_at TIMESTAMPTZ DEFAULT NOW(),
+      tenant_id INTEGER DEFAULT 1,
+      UNIQUE(demand_id, system_id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_demand_integrations_proposal ON demand_integrations(proposal_number);
+    CREATE INDEX IF NOT EXISTS idx_demand_integrations_external ON demand_integrations(external_id);
+    CREATE INDEX IF NOT EXISTS idx_demand_integrations_system ON demand_integrations(system_id);
+
+    -- Mapeamento configurável de status externo (Transferegov/SEI/CGLOG) -> status interno do SGD.
+    -- internal_status restrito ao enum do SGD; regras podem ser desativadas sem excluir histórico.
+    CREATE TABLE IF NOT EXISTS integration_status_mapping (
+      id SERIAL PRIMARY KEY,
+      tenant_id INTEGER DEFAULT 1,
+      system_id INTEGER NOT NULL REFERENCES integration_systems(id),
+      external_status TEXT NOT NULL,
+      internal_status TEXT NOT NULL CHECK(internal_status IN ('analise', 'pendente', 'concluido', 'rejeitado')),
+      description TEXT,
+      active BOOLEAN DEFAULT TRUE,
+      created_at TIMESTAMPTZ DEFAULT NOW(),
+      updated_at TIMESTAMPTZ DEFAULT NOW(),
+      UNIQUE(system_id, external_status)
+    );
+    CREATE INDEX IF NOT EXISTS idx_integration_status_mapping_system ON integration_status_mapping(system_id);
+    CREATE INDEX IF NOT EXISTS idx_integration_status_mapping_external ON integration_status_mapping(external_status);
+    CREATE INDEX IF NOT EXISTS idx_integration_status_mapping_active ON integration_status_mapping(active);
   `);
 
   // Migração: unificar role 'administrador' → 'admin'
