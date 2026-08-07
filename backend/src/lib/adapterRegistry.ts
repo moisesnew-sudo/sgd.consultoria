@@ -22,3 +22,17 @@ export function getAdapter(systemCode: string): IntegrationAdapter | undefined {
   const code = String(systemCode || '').toLowerCase().trim();
   return ADAPTERS[code] ?? undefined;
 }
+
+const ADAPTER_NAMES: Record<string, string> = {
+  transferegov: 'Transferegov',
+  sei: 'SEI',
+  cglog: 'CGLOG',
+};
+
+/**
+ * Lista os adapters registrados (Fase 3.1 — backend administrativo).
+ * Usado pelo painel para expor os sistemas com adapter disponível.
+ */
+export function listAdapters(): { code: string; name: string }[] {
+  return Object.keys(ADAPTERS).map((code) => ({ code, name: ADAPTER_NAMES[code] ?? code }));
+}

@@ -28,6 +28,16 @@ export interface ProcessWebhookEventResult {
   reason?: string;
 }
 
+export interface ProcessWebhookEventOptions {
+  /** Origem da execução — 'webhook' (padrão) ou 'manual' (sincronização administrativa). */
+  triggeredBy?: string;
+}
+
+interface RunContext {
+  startedAt: number;
+  triggeredBy: string;
+}
+
 interface WebhookEventRow {
   id: number;
   system_id: number;
@@ -43,7 +53,12 @@ class AlreadyProcessedError extends Error {}
 const TERMINAL_STATUSES = ['processed', 'duplicate'];
 const CHANGE_COLUMNS = ['status', 'deadline'] as const;
 
-export async function processWebhookEvent(eventId: number): Promise<ProcessWebhookEventResult> {
+export async function processWebhookEvent(eventId: number, options?: ProcessWebhookEventOptions): Promise<ProcessWebhookEventResult> {
+  const ctx: RunContext = {
+    startedAt: Date.now(),
+    triggeredBy: options?.triggeredBy || 'webhook',
+  };
+
   const event = await get<WebhookEventRow>('SELECT * FROM webhook_events WHERE id = $1', [eventId]);
   if (!event) {
     logger.warn('Webhook event não encontrado', { eventId });
@@ -57,7 +72,7 @@ export async function processWebhookEvent(eventId: number): Promise<ProcessWebho
 
   const adapter = getAdapter(event.system_code);
   if (!adapter) {
-    await persistFailure(event, 'adapter not found');
+    await persistFailure(event, 'adapter not found', ctx);
     return { success: false, status: 'failed', reason: 'adapter not found' };
   }
 
@@ -69,22 +84,22 @@ export async function processWebhookEvent(eventId: number): Promise<ProcessWebho
 
   if (result.action === 'synced') {
     try {
-      return await persistSynced(event, result);
+      return await persistSynced(event, result, ctx);
     } catch (error) {
       const reason = `persist error: ${error instanceof Error ? error.message : String(error)}`;
       logger.error('Falha na persistência da sincronização (rollback aplicado)', { eventId, error });
-      await persistFailure(event, reason);
+      await persistFailure(event, reason, ctx);
       return { success: false, status: 'failed', reason };
     }
   }
 
   // unmatched | ignored
-  await persistUnmatched(event, result.reason || 'sem correspondência');
+  await persistUnmatched(event, result.reason || 'sem correspondência', ctx);
   return { success: true, status: 'unmatched', reason: result.reason };
 }
 
 /** Caminho de sucesso: atualiza demanda, timeline, auditoria, vínculo e evento — atômico. */
-async function persistSynced(event: WebhookEventRow, result: SyncResult): Promise<ProcessWebhookEventResult> {
+async function persistSynced(event: WebhookEventRow, result: SyncResult, ctx: RunContext): Promise<ProcessWebhookEventResult> {
   return transaction<ProcessWebhookEventResult>(async (client) => {
     // Guarda concorrente: se outro processo já finalizou, aborta sem escrever nada.
     const guarded = await client.query<{ id: number }>(
@@ -188,11 +203,13 @@ async function persistSynced(event: WebhookEventRow, result: SyncResult): Promis
       ]
     );
 
-    // 5. Log de integração (success).
+    // 5. Log de integração (success) — instrumentado com os campos de execução da Fase 3.1.
+    const durationMs = Date.now() - ctx.startedAt;
+    const successMessage = `Sincronização concluída para a demanda ${demandId}`;
     await client.query(
-      `INSERT INTO integration_logs (system_id, system_code, direction, action, demand_id, webhook_event_id, status, message)
-       VALUES ($1, $2, 'in', 'integration.sync', $3, $4, 'success', $5)`,
-      [event.system_id, event.system_code, demandId, event.id, `Sincronização concluída para a demanda ${demandId}`]
+      `INSERT INTO integration_logs (system_id, system_code, direction, action, demand_id, webhook_event_id, status, message, duration_ms, http_status, response_summary, triggered_by, error_message)
+       VALUES ($1, $2, 'in', 'integration.sync', $3, $4, 'success', $5, $6, NULL, $5, $7, NULL)`,
+      [event.system_id, event.system_code, demandId, event.id, successMessage, durationMs, ctx.triggeredBy]
     );
 
     logger.info('Webhook event processado com sucesso', { eventId: event.id, demandId, changes });
@@ -206,34 +223,38 @@ async function persistSynced(event: WebhookEventRow, result: SyncResult): Promis
 }
 
 /** Sem correspondência (status desconhecido ou demanda inexistente): warning + evento unmatched. */
-async function persistUnmatched(event: WebhookEventRow, reason: string): Promise<void> {
+async function persistUnmatched(event: WebhookEventRow, reason: string, ctx: RunContext): Promise<void> {
   await transaction(async (client) => {
     await client.query(
       `UPDATE webhook_events SET status = 'unmatched', processed_at = NOW(), error = $2
        WHERE id = $1 AND status NOT IN ('processed', 'duplicate')`,
       [event.id, reason]
     );
+    const durationMs = Date.now() - ctx.startedAt;
+    const message = `Evento sem correspondência no SGD: ${reason}`;
     await client.query(
-      `INSERT INTO integration_logs (system_id, system_code, direction, action, webhook_event_id, status, message)
-       VALUES ($1, $2, 'in', 'integration.sync', $3, 'warning', $4)`,
-      [event.system_id, event.system_code, event.id, `Evento sem correspondência no SGD: ${reason}`]
+      `INSERT INTO integration_logs (system_id, system_code, direction, action, webhook_event_id, status, message, duration_ms, http_status, response_summary, triggered_by, error_message)
+       VALUES ($1, $2, 'in', 'integration.sync', $3, 'warning', $4, $5, NULL, $4, $6, NULL)`,
+      [event.system_id, event.system_code, event.id, message, durationMs, ctx.triggeredBy]
     );
   });
   logger.warn('Webhook event sem correspondência', { eventId: event.id, reason });
 }
 
 /** Falha: log error + evento failed (gravação pós-rollback via pool, sempre executada). */
-async function persistFailure(event: WebhookEventRow, reason: string): Promise<void> {
+async function persistFailure(event: WebhookEventRow, reason: string, ctx: RunContext): Promise<void> {
   try {
     await transaction(async (client) => {
       await client.query(
         `UPDATE webhook_events SET status = 'failed', processed_at = NOW(), error = $2 WHERE id = $1`,
         [event.id, reason]
       );
+      const durationMs = Date.now() - ctx.startedAt;
+      const message = `Falha na sincronização: ${reason}`;
       await client.query(
-        `INSERT INTO integration_logs (system_id, system_code, direction, action, webhook_event_id, status, message)
-         VALUES ($1, $2, 'in', 'integration.sync', $3, 'error', $4)`,
-        [event.system_id, event.system_code, event.id, `Falha na sincronização: ${reason}`]
+        `INSERT INTO integration_logs (system_id, system_code, direction, action, webhook_event_id, status, message, duration_ms, http_status, response_summary, triggered_by, error_message)
+         VALUES ($1, $2, 'in', 'integration.sync', $3, 'error', $4, $5, NULL, NULL, $6, $7)`,
+        [event.system_id, event.system_code, event.id, message, durationMs, ctx.triggeredBy, reason]
       );
     });
   } catch (error) {
