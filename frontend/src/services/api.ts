@@ -29,6 +29,10 @@ import {
   IntegrationSystemDetail,
   IntegrationAdapter,
   IntegrationSyncResult,
+  IntegrationSystem,
+  IntegrationSystemsResponse,
+  IntegrationSystemCreateData,
+  IntegrationSystemUpdateData,
 } from '../types';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'https://api.gruposgd.com.br';
@@ -451,7 +455,7 @@ export const integrationsApi = {
   getInfo: () => request<IntegrationInfo>('/integrations'),
 };
 
-// Integration Admin API (Fase 3.1 — Fase C1)
+// Integration Admin API (Fase 3.1 — Fase C1/C4)
 export const integrationAdminApi = {
   getDashboard: () => request<IntegrationDashboard>('/integrations/admin/dashboard'),
 
@@ -488,8 +492,44 @@ export const integrationAdminApi = {
       method: 'POST',
       body: JSON.stringify(payload ? { payload } : {}),
     }),
-};
 
+  // Sistemas de Integração (Fase C4)
+  getSystems: (params?: {
+    page?: number;
+    limit?: number;
+    search?: string;
+    active?: boolean;
+  }) => {
+    const qs = new URLSearchParams();
+    if (params) {
+      Object.entries(params).forEach(([key, value]) => {
+        if (value !== undefined && value !== '' && value !== null) qs.append(key, String(value));
+      });
+    }
+    const q = qs.toString();
+    return request<IntegrationSystemsResponse>(`/integrations/systems${q ? '?' + q : ''}`);
+  },
+
+  getSystem: (id: number) => request<IntegrationSystem>(`/integrations/systems/${id}`),
+
+  createSystem: (data: IntegrationSystemCreateData) =>
+    request<IntegrationSystem>('/integrations/systems', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
+  updateSystem: (id: number, data: IntegrationSystemUpdateData) =>
+    request<IntegrationSystem>(`/integrations/systems/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
+
+  setSystemActive: (id: number, active: boolean) =>
+    request<IntegrationSystem>(`/integrations/systems/${id}/${active ? 'activate' : 'deactivate'}`, {
+      method: 'PATCH',
+    }),
+
+};
 // Municipalities API
 export const municipalitiesApi = {
   getAll: async (params?: { uf?: string; region?: string; search?: string }) => {

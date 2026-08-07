@@ -491,4 +491,91 @@ describe('Integrações - Administração de Sistemas (Fase 3.1)', () => {
       expect(logs[0].status).toBe('success');
     });
   });
+
+  describe('C4.1 - Proteção de configurações sensíveis', () => {
+    let systemId: number;
+    const SECRET_CONFIG = {
+      endpoint: 'https://api.x.com',
+      api_key: 'REAL_API_KEY_123',
+      password: 'REAL_PASS_456',
+      client_secret: 'CS_999',
+    };
+
+    beforeAll(async () => {
+      const res = await withCsrf(adminAgent, adminCsrfToken, 'post', '/api/integrations/systems', {
+        code: uniqueCode('c41'),
+        name: 'Sistema C4.1 Secreto',
+        secret_env_key: 'TEST_SECRET',
+        config: SECRET_CONFIG,
+      });
+      expect(res.status).toBe(201);
+      systemId = res.body.id;
+      testSystems.push(systemId);
+    });
+
+    it('1. gestor (integrations.view) — GET /systems não deve conter segredo real', async () => {
+      const res = await gestorAgent.get('/api/integrations/systems');
+      expect(res.status).toBe(200);
+      const body = JSON.stringify(res.body);
+      expect(body).not.toContain('REAL_API_KEY_123');
+      expect(body).not.toContain('REAL_PASS_456');
+      expect(body).not.toContain('CS_999');
+    });
+
+    it('2. gestor (integrations.view) — GET /systems/:id deve mascarar config', async () => {
+      const res = await gestorAgent.get(`/api/integrations/systems/${systemId}`);
+      expect(res.status).toBe(200);
+      expect(res.body.config.api_key).toBe('[REDACTED]');
+      expect(res.body.config.password).toBe('[REDACTED]');
+      expect(res.body.config.client_secret).toBe('[REDACTED]');
+      expect(res.body.config.endpoint).toBe('https://api.x.com');
+    });
+
+    it('3. admin (integrations.manage) — pode ver valores reais e editar', async () => {
+      const detail = await adminAgent.get(`/api/integrations/systems/${systemId}`);
+      expect(detail.status).toBe(200);
+      expect(detail.body.config.api_key).toBe('REAL_API_KEY_123');
+
+      const res = await withCsrf(adminAgent, adminCsrfToken, 'put', `/api/integrations/systems/${systemId}`, {
+        name: 'Sistema C4.1 Renomeado',
+      });
+      expect(res.status).toBe(200);
+      expect(res.body.name).toBe('Sistema C4.1 Renomeado');
+    });
+
+    it('4. atualização sem alterar segredo (envio de [REDACTED]) mantém valor existente', async () => {
+      const res = await withCsrf(adminAgent, adminCsrfToken, 'put', `/api/integrations/systems/${systemId}`, {
+        config: {
+          endpoint: 'https://api.x.com',
+          api_key: '[REDACTED]',
+          password: '[REDACTED]',
+          client_secret: '[REDACTED]',
+        },
+      });
+      expect(res.status).toBe(200);
+      expect(res.body.config.api_key).toBe('REAL_API_KEY_123');
+      expect(res.body.config.password).toBe('REAL_PASS_456');
+
+      const db = await get<{ config: any }>('SELECT config FROM integration_systems WHERE id = $1', [systemId]);
+      expect(db?.config?.api_key).toBe('REAL_API_KEY_123');
+      expect(db?.config?.password).toBe('REAL_PASS_456');
+    });
+
+    it('5. atualização alterando segredo atualiza corretamente', async () => {
+      const res = await withCsrf(adminAgent, adminCsrfToken, 'put', `/api/integrations/systems/${systemId}`, {
+        config: {
+          endpoint: 'https://api.x.com',
+          api_key: 'NOVO_API_KEY',
+          password: '[REDACTED]',
+        },
+      });
+      expect(res.status).toBe(200);
+      expect(res.body.config.api_key).toBe('NOVO_API_KEY');
+      expect(res.body.config.password).toBe('REAL_PASS_456');
+
+      const db = await get<{ config: any }>('SELECT config FROM integration_systems WHERE id = $1', [systemId]);
+      expect(db?.config?.api_key).toBe('NOVO_API_KEY');
+      expect(db?.config?.password).toBe('REAL_PASS_456');
+    });
+  });
 });

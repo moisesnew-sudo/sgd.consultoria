@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { get, all, run, transaction } from '../database.js';
 import { logAudit, extractMeta } from './audit.js';
 import { logger } from './logger.js';
+import { sanitizeIntegrationConfig, mergeIntegrationConfig } from './redact.js';
 
 const integrationSystemSchema = z.object({
   code: z.string().min(1, 'Code é obrigatório').regex(/^[a-z0-9_-]+$/, 'Code deve conter apenas letras minúsculas, números, _ e -'),
@@ -36,14 +37,27 @@ export interface IntegrationSystemResponse {
   secretConfigured: boolean;
 }
 
-function mapSystem(row: any): IntegrationSystemResponse {
+/**
+ * Decide se o usuário pode ver os valores reais de `config`.
+ * Apenas quem possui `integrations.manage` (ou role admin) vê segredos.
+ */
+export function canViewSensitiveConfig(user: any): boolean {
+  if (!user) return false;
+  return (
+    user.role === 'admin' ||
+    user.role === 'administrador' ||
+    (Array.isArray(user.permissions) && user.permissions.includes('integrations.manage'))
+  );
+}
+
+function mapSystem(row: any, canViewSecrets = true): IntegrationSystemResponse {
   return {
     id: row.id,
     code: row.code,
     name: row.name,
     description: row.description ?? null,
     active: row.active,
-    config: row.config,
+    config: row.config ? (sanitizeIntegrationConfig(row.config, canViewSecrets) as Record<string, unknown>) : null,
     created_at: row.created_at,
     updated_at: row.updated_at,
     secretConfigured: !!row.secret_env_key && !!process.env[row.secret_env_key],
@@ -60,7 +74,7 @@ function validateConfig(config: unknown): Record<string, unknown> | null {
   }
 }
 
-export async function getAll(filters: IntegrationSystemFilters = {}): Promise<{ data: IntegrationSystemResponse[]; total: number }> {
+export async function getAll(filters: IntegrationSystemFilters = {}, canViewSecrets = true): Promise<{ data: IntegrationSystemResponse[]; total: number }> {
   const page = Math.max(1, filters.page ?? 1);
   const limit = Math.min(100, Math.max(1, filters.limit ?? 20));
   const offset = (page - 1) * limit;
@@ -97,12 +111,12 @@ export async function getAll(filters: IntegrationSystemFilters = {}): Promise<{ 
   );
 
   return {
-    data: rows.map(mapSystem),
+    data: rows.map((r) => mapSystem(r, canViewSecrets)),
     total,
   };
 }
 
-export async function getById(id: number): Promise<IntegrationSystemResponse | null> {
+export async function getById(id: number, canViewSecrets = true): Promise<IntegrationSystemResponse | null> {
   const row = await get<any>(
     `SELECT id, code, name, description, active, config, created_at, updated_at, secret_env_key
      FROM integration_systems
@@ -112,7 +126,7 @@ export async function getById(id: number): Promise<IntegrationSystemResponse | n
 
   if (!row) return null;
 
-  return mapSystem(row);
+  return mapSystem(row, canViewSecrets);
 }
 
 export async function create(data: z.infer<typeof integrationSystemSchema>, user: any): Promise<IntegrationSystemResponse> {
@@ -180,7 +194,11 @@ export async function update(id: number, data: z.infer<typeof updateIntegrationS
     throw new Error('Sistema não encontrado');
   }
 
-  const config = validateConfig(validated.config ?? existing.config);
+  const hasConfigField = validated.config !== undefined;
+  const submittedConfig = hasConfigField ? validateConfig(validated.config) : undefined;
+  const config = hasConfigField
+    ? mergeIntegrationConfig(existing.config, submittedConfig)
+    : (existing.config && typeof existing.config === 'object' && !Array.isArray(existing.config) ? existing.config as Record<string, unknown> : null);
 
   const result = await transaction(async (client) => {
     const updates: string[] = [];
@@ -195,7 +213,7 @@ export async function update(id: number, data: z.infer<typeof updateIntegrationS
       updates.push(`description = $${idx++}`);
       params.push(validated.description);
     }
-    if (config !== undefined) {
+    if (hasConfigField) {
       updates.push(`config = $${idx++}`);
       params.push(config ? JSON.stringify(config) : null);
     }

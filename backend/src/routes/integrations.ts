@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { authenticateToken, requirePermission } from '../middleware/auth.js';
 import { csrfProtection } from '../middleware/csrf.js';
-import { getAll, getById, create, update, setActive } from '../lib/integrationSystems.js';
+import { getAll, getById, create, update, setActive, canViewSensitiveConfig } from '../lib/integrationSystems.js';
 import { logger } from '../lib/logger.js';
 import { z } from 'zod';
 
@@ -50,7 +50,7 @@ router.get('/systems', authenticateToken, requirePermission('integrations.view')
     const search = req.query.search ? String(req.query.search) : undefined;
     const active = req.query.active !== undefined ? String(req.query.active) === 'true' : undefined;
 
-    const result = await getAll({ page, limit, search, active });
+    const result = await getAll({ page, limit, search, active }, canViewSensitiveConfig(req.user));
 
     res.json({
       data: result.data,
@@ -79,7 +79,7 @@ router.get('/systems/:id', authenticateToken, requirePermission('integrations.vi
       return res.status(400).json({ error: 'ID inválido' });
     }
 
-    const system = await getById(id);
+    const system = await getById(id, canViewSensitiveConfig(req.user));
 
     if (!system) {
       return res.status(404).json({ error: 'Sistema não encontrado' });

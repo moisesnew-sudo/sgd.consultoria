@@ -361,3 +361,52 @@ export interface IntegrationLogsResponse {
     totalPages: number;
   };
 }
+
+// ============================================================
+// Fase 3.1 — Administração de Sistemas de Integração (Fase C4)
+// ============================================================
+
+export interface IntegrationSystem {
+  id: number;
+  code: string;
+  name: string;
+  description: string | null;
+  active: boolean;
+  config: Record<string, unknown> | null;
+  created_at: string;
+  updated_at: string;
+  secretConfigured: boolean;
+}
+
+export interface IntegrationSystemsResponse {
+  data: IntegrationSystem[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  };
+}
+
+export interface IntegrationSystemFormData {
+  code: string;
+  name: string;
+  description: string;
+  secret_env_key: string;
+  config: Record<string, unknown> | null;
+  active: boolean;
+}
+
+export interface IntegrationSystemCreateData {
+  code: string;
+  name: string;
+  description: string;
+  secret_env_key: string;
+  config?: Record<string, unknown> | null;
+}
+
+export interface IntegrationSystemUpdateData {
+  name?: string;
+  description?: string;
+  config?: Record<string, unknown> | null;
+}

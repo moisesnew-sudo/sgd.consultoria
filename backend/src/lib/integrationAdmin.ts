@@ -2,6 +2,7 @@ import { get, run, all } from '../database.js';
 import { getAdapter } from './adapterRegistry.js';
 import { processWebhookEvent } from './integrationProcessor.js';
 import { logAudit, extractMeta } from './audit.js';
+import { sanitizeIntegrationConfig } from './redact.js';
 
 export { listAdapters } from './adapterRegistry.js';
 
@@ -73,18 +74,8 @@ function systemHealthStatus(row: any): SystemHealthStatus {
 }
 
 /** Redige valores sensíveis (segredos/tokens/senhas) de config antes de expor na API. */
-const SENSITIVE_KEY_RE = /(secret|token|password|passwd|apikey|api_key|authorization|credential)/i;
 function redactConfig(config: unknown): unknown {
-  if (!config || typeof config !== 'object') return config;
-  const out: Record<string, unknown> = {};
-  for (const [k, v] of Object.entries(config as Record<string, unknown>)) {
-    if (typeof v === 'object' && v !== null) {
-      out[k] = redactConfig(v);
-    } else {
-      out[k] = SENSITIVE_KEY_RE.test(k) ? '[REDACTED]' : v;
-    }
-  }
-  return out;
+  return sanitizeIntegrationConfig(config, false);
 }
 
 /** 1. Dashboard administrativo com o status geral das integrações. */
