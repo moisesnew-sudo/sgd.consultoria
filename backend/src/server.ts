@@ -230,11 +230,9 @@ app.use('/api/password-reset', passwordResetRoutes);
 
 // ✅ CORREÇÃO: CSRF ativado nos endpoints de escrita (cliente envia X-CSRF-Token)
 // /api/auth e /api/password-reset ficam fora da proteção: exigem fluxo sem cookie csrf preexistente
-// /api/health também fica fora: garantia explícita (além da ordem de registro) para o healthcheck
-app.use((req, res, next) => {
-  if (req.path === '/api/health') return next();
-  return csrfProtection(req, res, next);
-});
+// csrfProtection já isenta métodos seguros (GET/HEAD/OPTIONS) internamente (ver middleware/csrf.js),
+// e /api/health também é resolvida antes deste middleware por estar registrada no topo do arquivo.
+app.use(csrfProtection);
 
 app.use('/api/demands', demandsRoutes);
 app.use('/api/demands', commentsRoutes);
