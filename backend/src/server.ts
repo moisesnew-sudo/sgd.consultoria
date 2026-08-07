@@ -84,6 +84,15 @@ import { initDatabase, run } from './database.js';
 const app = express();
 const PORT = process.env.PORT || 3001;
 
+// Health check
+app.get('/api/health', (req, res) => {
+  res.json({
+    status: 'ok',
+    timestamp: new Date().toISOString(),
+    version: '2.0.0'
+  });
+});
+
 // Security middleware
 // ✅ CORREÇÃO: CSP sem 'unsafe-eval' em produção
 const cspDirectives = {
@@ -184,7 +193,7 @@ const apiLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   // Webhooks externos possuem limiter dedicado (máx. maior, para retries legítimos)
-  skip: (req) => req.path.startsWith('/integrations/webhooks')
+  skip: (req) => req.path.startsWith('/integrations/webhooks') || req.path === '/health'
 });
 
 // Limiter dedicado para webhooks (sistemas externos podem retryar eventos)
@@ -197,6 +206,7 @@ const webhookLimiter = rateLimit({
 });
 
 app.use('/api/auth/login', authLimiter);
+app.use('/api/password-reset/request', express.json({ limit: '10mb' }));
 app.use('/api/password-reset/request', passwordResetLimiter);
 app.use('/api/', apiLimiter);
 
@@ -220,7 +230,11 @@ app.use('/api/password-reset', passwordResetRoutes);
 
 // ✅ CORREÇÃO: CSRF ativado nos endpoints de escrita (cliente envia X-CSRF-Token)
 // /api/auth e /api/password-reset ficam fora da proteção: exigem fluxo sem cookie csrf preexistente
-app.use(csrfProtection);
+// /api/health também fica fora: garantia explícita (além da ordem de registro) para o healthcheck
+app.use((req, res, next) => {
+  if (req.path === '/api/health') return next();
+  return csrfProtection(req, res, next);
+});
 
 app.use('/api/demands', demandsRoutes);
 app.use('/api/demands', commentsRoutes);
@@ -236,15 +250,6 @@ app.use('/api/backups', backupsRoutes);
 app.use('/api/monitoring', monitoringRoutes);
 app.use('/api/lgpd', lgpdRoutes);
 app.use('/api', uploadRoutes);
-
-// Health check
-app.get('/api/health', (req, res) => {
-  res.json({
-    status: 'ok',
-    timestamp: new Date().toISOString(),
-    version: '2.0.0'
-  });
-});
 
 // Serve static files in production
 if (process.env.NODE_ENV === 'production' && process.env.SERVE_FRONTEND === 'true') {
