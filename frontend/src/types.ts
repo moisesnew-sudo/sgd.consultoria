@@ -274,3 +274,90 @@ export interface LgpdDashboard {
   exports_30d: number;
   consent_rate: number;
 }
+
+// ============================================================
+// Fase 3.1 — Administração de Integrações (Fase C1 - Frontend)
+// ============================================================
+
+export interface IntegrationDashboard {
+  total: number;
+  active: number;
+  inactive: number;
+  lastSync: string | null;
+  lastError: string | null;
+  failures24h: number;
+  status: 'healthy' | 'warning' | 'critical';
+}
+
+export interface IntegrationHealth {
+  id: number;
+  name: string;
+  status: 'operational' | 'attention' | 'failure';
+  lastSync: string | null;
+  lastError: string | null;
+  httpStatus: number | null;
+  responseTime: number | null;
+  failures: number;
+}
+
+export interface IntegrationLogEntry {
+  id: number;
+  system: { id: number; code: string };
+  action: string;
+  direction: 'in' | 'out';
+  status: 'success' | 'warning' | 'error';
+  duration_ms: number | null;
+  http_status: number | null;
+  message: string | null;
+  response_summary: string | null;
+  error_message: string | null;
+  triggered_by: string | null;
+  created_at: string;
+}
+
+export interface IntegrationSystemDetail {
+  id: number;
+  code: string;
+  name: string;
+  description: string | null;
+  active: boolean;
+  config: Record<string, unknown> | null;
+  created_at: string;
+  updated_at: string;
+  health: {
+    status: 'operational' | 'attention' | 'failure';
+    lastSync: string | null;
+    lastError: string | null;
+    lastErrorMessage: string | null;
+    httpStatus: number | null;
+    responseTime: number | null;
+    errorCount24h: number;
+    consecutiveErrors: number;
+  };
+  recentLogs: IntegrationLogEntry[];
+}
+
+export interface IntegrationAdapter {
+  code: string;
+  name: string;
+}
+
+export interface IntegrationSyncResult {
+  success: boolean;
+  status: 'success' | 'warning' | 'error';
+  durationMs: number;
+  httpStatus: number | null;
+  message: string;
+  errorMessage: string | null;
+  eventId?: number;
+}
+
+export interface IntegrationLogsResponse {
+  data: IntegrationLogEntry[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  };
+}

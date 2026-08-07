@@ -3,7 +3,8 @@ import {
   LayoutDashboard, FilePlus2, FolderKanban, FileBarChart,
   Calendar, Settings, Users, ScrollText,
   ShieldCheck, LogOut, Sun, Moon, MonitorSmartphone,
-  Activity, Shield, LogIn, HardDrive, FileSearch, BarChart3
+  Activity, Shield, LogIn, HardDrive, FileSearch, BarChart3,
+  Plug
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useTheme, ThemeMode } from '../../contexts/ThemeContext';
@@ -70,6 +71,9 @@ export default function Sidebar({ activeTab, setActiveTab, isOpen, setIsOpen, pe
         ...(isAuthenticated && hasPermission('audit.view') ? [
           { id: 'audit-dashboard', label: 'Auditoria', icon: Activity },
           { id: 'audit', label: 'Logs', icon: ScrollText },
+        ] : []),
+        ...(isAuthenticated && hasPermission('integrations.view') ? [
+          { id: 'integration-admin', label: 'Integrações', icon: Plug },
         ] : []),
         ...(isAuthenticated && (user?.role === 'admin') ? [
           { id: 'sessions', label: 'Sessões', icon: LogIn },

@@ -23,6 +23,7 @@ const CalendarView = lazy(() => import('./components/views/CalendarView'));
 const AuditView = lazy(() => import('./components/views/AuditView'));
 const AuditDashboardView = lazy(() => import('./components/views/AuditDashboardView'));
 const IntegrationView = lazy(() => import('./components/views/IntegrationView'));
+const IntegrationAdminView = lazy(() => import('./components/views/IntegrationAdminView'));
 const SessionsView = lazy(() => import('./components/views/SessionsView'));
 const BackupManagementView = lazy(() => import('./components/views/BackupManagementView'));
 const MonitoringView = lazy(() => import('./components/views/MonitoringView'));
@@ -292,6 +293,12 @@ function AppContent() {
           {activeTab === 'integrations' && (
             <ErrorBoundary><Suspense fallback={<ViewFallback />}>
               <IntegrationView />
+            </Suspense></ErrorBoundary>
+          )}
+
+          {activeTab === 'integration-admin' && (
+            <ErrorBoundary><Suspense fallback={<ViewFallback />}>
+              <IntegrationAdminView />
             </Suspense></ErrorBoundary>
           )}
 

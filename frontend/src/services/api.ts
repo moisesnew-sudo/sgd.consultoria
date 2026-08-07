@@ -23,6 +23,12 @@ import {
   IntegrationInfo,
   LgpdDashboard,
   DemandVersion,
+  IntegrationDashboard,
+  IntegrationHealth,
+  IntegrationLogsResponse,
+  IntegrationSystemDetail,
+  IntegrationAdapter,
+  IntegrationSyncResult,
 } from '../types';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'https://api.gruposgd.com.br';
@@ -443,6 +449,45 @@ export const demandVersionsApi = {
 // Integration API
 export const integrationsApi = {
   getInfo: () => request<IntegrationInfo>('/integrations'),
+};
+
+// Integration Admin API (Fase 3.1 — Fase C1)
+export const integrationAdminApi = {
+  getDashboard: () => request<IntegrationDashboard>('/integrations/admin/dashboard'),
+
+  getHealth: () => request<IntegrationHealth[]>('/integrations/admin/health'),
+
+  getLogs: (params?: {
+    page?: number;
+    limit?: number;
+    system?: number;
+    systemCode?: string;
+    status?: string;
+    direction?: string;
+    from?: string;
+    to?: string;
+    error?: boolean;
+    search?: string;
+  }) => {
+    const qs = new URLSearchParams();
+    if (params) {
+      Object.entries(params).forEach(([key, value]) => {
+        if (value !== undefined && value !== '' && value !== null) qs.append(key, String(value));
+      });
+    }
+    const q = qs.toString();
+    return request<IntegrationLogsResponse>(`/integrations/admin/logs${q ? '?' + q : ''}`);
+  },
+
+  getSystemDetails: (id: number) => request<IntegrationSystemDetail>(`/integrations/admin/systems/${id}`),
+
+  getAdapters: () => request<{ data: IntegrationAdapter[] }>('/integrations/admin/adapters'),
+
+  syncSystem: (id: number, payload?: Record<string, unknown>) =>
+    request<IntegrationSyncResult>(`/integrations/admin/systems/${id}/sync`, {
+      method: 'POST',
+      body: JSON.stringify(payload ? { payload } : {}),
+    }),
 };
 
 // Municipalities API
