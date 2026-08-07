@@ -465,6 +465,29 @@ export async function initDatabase() {
     CREATE INDEX IF NOT EXISTS idx_integration_status_mapping_system ON integration_status_mapping(system_id);
     CREATE INDEX IF NOT EXISTS idx_integration_status_mapping_external ON integration_status_mapping(external_status);
     CREATE INDEX IF NOT EXISTS idx_integration_status_mapping_active ON integration_status_mapping(active);
+
+    -- Fase 3.1 — Administração de Integrações
+    -- P8: integration_systems.description (backend já aceitava, coluna faltava).
+    -- P2: colunas de saúde das integrações para o futuro dashboard de monitoramento.
+    ALTER TABLE integration_systems ADD COLUMN IF NOT EXISTS description TEXT;
+    ALTER TABLE integration_systems ADD COLUMN IF NOT EXISTS last_sync_at TIMESTAMPTZ;
+    ALTER TABLE integration_systems ADD COLUMN IF NOT EXISTS last_error_at TIMESTAMPTZ;
+    ALTER TABLE integration_systems ADD COLUMN IF NOT EXISTS last_error_message TEXT;
+    ALTER TABLE integration_systems ADD COLUMN IF NOT EXISTS last_http_status INTEGER;
+    ALTER TABLE integration_systems ADD COLUMN IF NOT EXISTS last_response_ms INTEGER;
+    ALTER TABLE integration_systems ADD COLUMN IF NOT EXISTS error_count_24h INTEGER DEFAULT 0;
+    ALTER TABLE integration_systems ADD COLUMN IF NOT EXISTS consecutive_errors INTEGER DEFAULT 0;
+    CREATE INDEX IF NOT EXISTS idx_integration_systems_active ON integration_systems(active);
+    CREATE INDEX IF NOT EXISTS idx_integration_systems_last_sync ON integration_systems(last_sync_at);
+
+    -- P5: campos de histórico de execução em integration_logs (tabela de histórico da Fase 3.1).
+    ALTER TABLE integration_logs ADD COLUMN IF NOT EXISTS duration_ms INTEGER;
+    ALTER TABLE integration_logs ADD COLUMN IF NOT EXISTS http_status INTEGER;
+    ALTER TABLE integration_logs ADD COLUMN IF NOT EXISTS response_summary TEXT;
+    ALTER TABLE integration_logs ADD COLUMN IF NOT EXISTS triggered_by TEXT;
+    ALTER TABLE integration_logs ADD COLUMN IF NOT EXISTS error_message TEXT;
+    CREATE INDEX IF NOT EXISTS idx_integration_logs_status ON integration_logs(status);
+    CREATE INDEX IF NOT EXISTS idx_integration_logs_direction ON integration_logs(direction);
   `);
 
   // Migração: unificar role 'administrador' → 'admin'

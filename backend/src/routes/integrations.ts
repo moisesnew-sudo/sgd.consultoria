@@ -1,5 +1,5 @@
 import { Router, Request, Response } from 'express';
-import { authenticateToken, requireRole } from '../middleware/auth.js';
+import { authenticateToken, requirePermission } from '../middleware/auth.js';
 import { csrfProtection } from '../middleware/csrf.js';
 import { getAll, getById, create, update, setActive } from '../lib/integrationSystems.js';
 import { logger } from '../lib/logger.js';
@@ -23,7 +23,7 @@ const ENDPOINTS = [
   { method: 'GET', path: '/api/health', auth: false, desc: 'Status do serviço' },
 ];
 
-router.get('/', authenticateToken, requireRole('admin'), (req: Request, res: Response) => {
+router.get('/', authenticateToken, requirePermission('integrations.view'), (req: Request, res: Response) => {
   const baseUrl = process.env.PUBLIC_API_URL || (req.get('host') ? `${req.protocol}://${req.get('host')}/api` : 'https://api.gruposgd.com.br/api');
   res.json({
     baseUrl,
@@ -43,7 +43,7 @@ router.get('/', authenticateToken, requireRole('admin'), (req: Request, res: Res
  * Permissão: admin
  * Query params: page, limit, search, active
  */
-router.get('/systems', authenticateToken, requireRole('admin'), async (req: Request, res: Response) => {
+router.get('/systems', authenticateToken, requirePermission('integrations.view'), async (req: Request, res: Response) => {
   try {
     const page = req.query.page ? parseInt(String(req.query.page), 10) : undefined;
     const limit = req.query.limit ? parseInt(String(req.query.limit), 10) : undefined;
@@ -72,7 +72,7 @@ router.get('/systems', authenticateToken, requireRole('admin'), async (req: Requ
  * Detalhar sistema de integração
  * Permissão: admin
  */
-router.get('/systems/:id', authenticateToken, requireRole('admin'), async (req: Request, res: Response) => {
+router.get('/systems/:id', authenticateToken, requirePermission('integrations.view'), async (req: Request, res: Response) => {
   try {
     const id = parseInt(String(req.params.id), 10);
     if (isNaN(id)) {
@@ -97,7 +97,7 @@ router.get('/systems/:id', authenticateToken, requireRole('admin'), async (req: 
  * Criar sistema de integração
  * Permissão: admin + CSRF
  */
-router.post('/systems', authenticateToken, requireRole('admin'), csrfProtection, async (req: Request, res: Response) => {
+router.post('/systems', authenticateToken, requirePermission('integrations.manage'), csrfProtection, async (req: Request, res: Response) => {
   try {
     const system = await create(req.body, req.user);
 
@@ -124,7 +124,7 @@ router.post('/systems', authenticateToken, requireRole('admin'), csrfProtection,
  * Atualizar sistema de integração
  * Permissão: admin + CSRF
  */
-router.put('/systems/:id', authenticateToken, requireRole('admin'), csrfProtection, async (req: Request, res: Response) => {
+router.put('/systems/:id', authenticateToken, requirePermission('integrations.manage'), csrfProtection, async (req: Request, res: Response) => {
   try {
     const id = parseInt(String(req.params.id), 10);
     if (isNaN(id)) {
@@ -159,7 +159,7 @@ router.put('/systems/:id', authenticateToken, requireRole('admin'), csrfProtecti
  * Ativar sistema de integração
  * Permissão: admin + CSRF
  */
-router.patch('/systems/:id/activate', authenticateToken, requireRole('admin'), csrfProtection, async (req: Request, res: Response) => {
+router.patch('/systems/:id/activate', authenticateToken, requirePermission('integrations.manage'), csrfProtection, async (req: Request, res: Response) => {
   try {
     const id = parseInt(String(req.params.id), 10);
     if (isNaN(id)) {
@@ -186,7 +186,7 @@ router.patch('/systems/:id/activate', authenticateToken, requireRole('admin'), c
  * Desativar sistema de integração
  * Permissão: admin + CSRF
  */
-router.patch('/systems/:id/deactivate', authenticateToken, requireRole('admin'), csrfProtection, async (req: Request, res: Response) => {
+router.patch('/systems/:id/deactivate', authenticateToken, requirePermission('integrations.manage'), csrfProtection, async (req: Request, res: Response) => {
   try {
     const id = parseInt(String(req.params.id), 10);
     if (isNaN(id)) {

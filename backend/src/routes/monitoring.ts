@@ -21,7 +21,7 @@ router.get('/health', authenticateToken, async (req: Request, res: Response) => 
         "SELECT created_at FROM backups WHERE status = 'completed' ORDER BY created_at DESC LIMIT 1"
       ),
       get<{ count: string }>(
-        `SELECT COUNT(*) as count FROM audit_logs WHERE entity_type = 'integration' AND created_at > NOW() - INTERVAL '24 hours'`
+        `SELECT COUNT(*) as count FROM audit_logs WHERE entity_type IN ('integration', 'integration_system') AND created_at > NOW() - INTERVAL '24 hours'`
       )
     ]);
 

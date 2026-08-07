@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import bcrypt from 'bcryptjs';
 import request from 'supertest';
 import app from '../server.js';
 import { get, run, all } from '../database.js';
@@ -10,8 +11,11 @@ let adminAgent: SuperAgentTest;
 let adminCsrfToken: string;
 let gestorAgent: SuperAgentTest;
 let gestorCsrfToken: string;
+let noPermAgent: SuperAgentTest;
 
 const testSystems: number[] = [];
+const NO_PERM_EMAIL = 'noperm-integration@sgd.gov.br';
+const NO_PERM_PASSWORD = 'NoPerm@2026!';
 
 function uniqueCode(prefix: string) {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -25,6 +29,8 @@ function withCsrf(agent: SuperAgentTest, csrfToken: string, method: 'post' | 'pu
 }
 
 beforeAll(async () => {
+  process.env.TEST_SECRET = 'test-secret-value';
+
   const adminLogin = await loginAsWithCsrf('admin@sgd.gov.br', 'Admin2026!');
   adminAgent = adminLogin.agent;
   adminCsrfToken = adminLogin.csrfToken;
@@ -32,6 +38,18 @@ beforeAll(async () => {
   const gestorLogin = await loginAsWithCsrf('gestor@sgd.gov.br', 'Gestor2026!');
   gestorAgent = gestorLogin.agent;
   gestorCsrfToken = gestorLogin.csrfToken;
+
+  // Usuário sem nenhuma permissão de integração — valida acesso negado na leitura.
+  const existingNoPerm = await get('SELECT id FROM users WHERE email = $1', [NO_PERM_EMAIL]);
+  if (!existingNoPerm) {
+    const hash = await bcrypt.hash(NO_PERM_PASSWORD, 10);
+    await run(
+      "INSERT INTO users (email, password_hash, name, role) VALUES ($1, $2, $3, 'consulta')",
+      [NO_PERM_EMAIL, hash, 'Sem Permissão Integração']
+    );
+  }
+  const noPermLogin = await loginAsWithCsrf(NO_PERM_EMAIL, NO_PERM_PASSWORD);
+  noPermAgent = noPermLogin.agent;
 });
 
 afterAll(async () => {
@@ -40,6 +58,8 @@ afterAll(async () => {
     await run('DELETE FROM audit_logs WHERE entity_type = $1 AND entity_id = ANY($2::text[])', ['integration_system', testSystems.map(String)]);
     await run('DELETE FROM integration_systems WHERE id = ANY($1::int[])', [testSystems]);
   }
+  await run('DELETE FROM audit_logs WHERE user_id = (SELECT id FROM users WHERE email = $1)', [NO_PERM_EMAIL]);
+  await run('DELETE FROM users WHERE email = $1', [NO_PERM_EMAIL]);
 });
 
 describe('Integrações - Administração de Sistemas (Fase 3.1)', () => {
@@ -58,8 +78,14 @@ describe('Integrações - Administração de Sistemas (Fase 3.1)', () => {
       }
     });
 
-    it('deve rejeitar usuário sem permissão admin', async () => {
+    it('deve permitir usuário com permissão integrations.view listar (gestor)', async () => {
       const res = await gestorAgent.get('/api/integrations/systems');
+      expect(res.status).toBe(200);
+      expect(Array.isArray(res.body.data)).toBe(true);
+    });
+
+    it('deve rejeitar usuário sem permissão integrations.view', async () => {
+      const res = await noPermAgent.get('/api/integrations/systems');
       expect(res.status).toBe(403);
     });
 
@@ -112,12 +138,13 @@ describe('Integrações - Administração de Sistemas (Fase 3.1)', () => {
       expect(res.status).toBe(400);
     });
 
-    it('deve rejeitar usuário sem permissão', async () => {
+    it('deve permitir usuário com permissão integrations.view acessar detalhe (gestor)', async () => {
       const listRes = await adminAgent.get('/api/integrations/systems');
       const system = listRes.body.data[0];
 
       const res = await gestorAgent.get(`/api/integrations/systems/${system.id}`);
-      expect(res.status).toBe(403);
+      expect(res.status).toBe(200);
+      expect(res.body.id).toBe(system.id);
     });
   });
 
@@ -135,12 +162,45 @@ describe('Integrações - Administração de Sistemas (Fase 3.1)', () => {
       expect(res.status).toBe(201);
       expect(res.body.code).toBe(code);
       expect(res.body.name).toBe('Sistema Teste');
+      expect(res.body.description).toBe('Descrição do sistema de teste');
       expect(res.body.secretConfigured).toBe(true);
       expect(res.body).not.toHaveProperty('secret_env_key');
       expect(res.body.active).toBe(true);
       expect(res.body.config).toEqual({ endpoint: 'https://api.test.com' });
 
       testSystems.push(res.body.id);
+    });
+
+    it('deve retornar secretConfigured false quando a env do secret não existe', async () => {
+      const res = await withCsrf(adminAgent, adminCsrfToken, 'post', '/api/integrations/systems', {
+        code: uniqueCode('nosecret'),
+        name: 'Sistema Sem Secret',
+        secret_env_key: 'ENV_VAR_NAO_EXISTENTE_XYZ',
+      });
+
+      expect(res.status).toBe(201);
+      expect(res.body.secretConfigured).toBe(false);
+
+      testSystems.push(res.body.id);
+    });
+
+    it('deve persistir description na criação e leitura', async () => {
+      const code = uniqueCode('desc');
+      const res = await withCsrf(adminAgent, adminCsrfToken, 'post', '/api/integrations/systems', {
+        code,
+        name: 'Sistema Desc',
+        description: 'Minha descrição',
+        secret_env_key: 'DESC_SECRET',
+      });
+
+      expect(res.status).toBe(201);
+      expect(res.body.description).toBe('Minha descrição');
+
+      testSystems.push(res.body.id);
+
+      const detail = await adminAgent.get(`/api/integrations/systems/${res.body.id}`);
+      expect(detail.status).toBe(200);
+      expect(detail.body.description).toBe('Minha descrição');
     });
 
     it('deve rejeitar code duplicado', async () => {
@@ -255,6 +315,15 @@ describe('Integrações - Administração de Sistemas (Fase 3.1)', () => {
 
       expect(res.status).toBe(200);
       expect(res.body.config).toEqual({ new: 'config', another: 'value' });
+    });
+
+    it('deve atualizar description', async () => {
+      const res = await withCsrf(adminAgent, adminCsrfToken, 'put', `/api/integrations/systems/${systemId}`, {
+        description: 'Descrição atualizada',
+      });
+
+      expect(res.status).toBe(200);
+      expect(res.body.description).toBe('Descrição atualizada');
     });
 
     it('deve rejeitar alteração de code', async () => {

@@ -46,7 +46,7 @@ function mapSystem(row: any): IntegrationSystemResponse {
     config: row.config,
     created_at: row.created_at,
     updated_at: row.updated_at,
-    secretConfigured: !!row.secret_env_key,
+    secretConfigured: !!row.secret_env_key && !!process.env[row.secret_env_key],
   };
 }
 
@@ -88,7 +88,7 @@ export async function getAll(filters: IntegrationSystemFilters = {}): Promise<{ 
   const offsetParam = params.length;
 
   const rows = await all<any>(
-    `SELECT id, code, name, active, config, created_at, updated_at, secret_env_key
+    `SELECT id, code, name, description, active, config, created_at, updated_at, secret_env_key
      FROM integration_systems
      ${whereClause}
      ORDER BY name ASC
@@ -104,7 +104,7 @@ export async function getAll(filters: IntegrationSystemFilters = {}): Promise<{ 
 
 export async function getById(id: number): Promise<IntegrationSystemResponse | null> {
   const row = await get<any>(
-    `SELECT id, code, name, active, config, created_at, updated_at, secret_env_key
+    `SELECT id, code, name, description, active, config, created_at, updated_at, secret_env_key
      FROM integration_systems
      WHERE id = $1`,
     [id]
@@ -131,10 +131,10 @@ export async function create(data: z.infer<typeof integrationSystemSchema>, user
 
   const result = await transaction(async (client) => {
     const insertResult = await client.query<any>(
-      `INSERT INTO integration_systems (code, name, secret_env_key, config)
-       VALUES ($1, $2, $3, $4)
-       RETURNING id, code, name, active, config, created_at, updated_at, secret_env_key`,
-      [validated.code, validated.name, validated.secret_env_key, config ? JSON.stringify(config) : null]
+      `INSERT INTO integration_systems (code, name, description, secret_env_key, config)
+       VALUES ($1, $2, $3, $4, $5)
+       RETURNING id, code, name, description, active, config, created_at, updated_at, secret_env_key`,
+      [validated.code, validated.name, validated.description ?? null, validated.secret_env_key, config ? JSON.stringify(config) : null]
     );
 
     const system = insertResult.rows[0];
@@ -170,7 +170,7 @@ export async function update(id: number, data: z.infer<typeof updateIntegrationS
   const validated = updateIntegrationSystemSchema.parse(data);
 
   const existing = await get<any>(
-    `SELECT id, code, name, active, config, created_at, updated_at, secret_env_key
+    `SELECT id, code, name, description, active, config, created_at, updated_at, secret_env_key
      FROM integration_systems
      WHERE id = $1`,
     [id]
@@ -191,6 +191,10 @@ export async function update(id: number, data: z.infer<typeof updateIntegrationS
       updates.push(`name = $${idx++}`);
       params.push(validated.name);
     }
+    if (validated.description !== undefined) {
+      updates.push(`description = $${idx++}`);
+      params.push(validated.description);
+    }
     if (config !== undefined) {
       updates.push(`config = $${idx++}`);
       params.push(config ? JSON.stringify(config) : null);
@@ -207,7 +211,7 @@ export async function update(id: number, data: z.infer<typeof updateIntegrationS
       `UPDATE integration_systems
        SET ${updates.join(', ')}
        WHERE id = $${idx}
-       RETURNING id, code, name, active, config, created_at, updated_at, secret_env_key`,
+       RETURNING id, code, name, description, active, config, created_at, updated_at, secret_env_key`,
       params
     );
 
@@ -243,7 +247,7 @@ export async function update(id: number, data: z.infer<typeof updateIntegrationS
 
 export async function setActive(id: number, active: boolean, user: any): Promise<IntegrationSystemResponse> {
   const existing = await get<any>(
-    `SELECT id, code, name, active, config, created_at, updated_at, secret_env_key
+    `SELECT id, code, name, description, active, config, created_at, updated_at, secret_env_key
      FROM integration_systems
      WHERE id = $1`,
     [id]
@@ -265,7 +269,7 @@ export async function setActive(id: number, active: boolean, user: any): Promise
       `UPDATE integration_systems
        SET active = $1, updated_at = NOW()
        WHERE id = $2
-       RETURNING id, code, name, active, config, created_at, updated_at, secret_env_key`,
+       RETURNING id, code, name, description, active, config, created_at, updated_at, secret_env_key`,
       [active, id]
     );
 
