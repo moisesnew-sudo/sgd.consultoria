@@ -191,4 +191,33 @@
 
 ---
 
+## 9. Fechamento — F2.2 Módulo de Integrações Governamentais
+
+**Data:** Agosto 2026 | **Status:** Concluído
+
+### 9.1 Referência
+
+| Campo | Valor |
+|-------|-------|
+| Status | ✅ Concluído |
+| Versão de referência | `vF2.2` |
+| Data | Agosto 2026 |
+
+### 9.2 Validação Realizada
+
+| # | Item de validação | Status |
+|---|-------------------|--------|
+| 1 | 651/651 testes automatizados aprovados | ✅ |
+| 2 | `tsc --noEmit` validado sem erros | ✅ |
+| 3 | RBAC de integrações validado | ✅ |
+| 4 | Webhooks outbound protegidos por permissões | ✅ |
+| 5 | Seed de permissões com reconciliação idempotente implementado | ✅ |
+| 6 | Revogação de permissões obsoletas realizada sem remover concessões individuais | ✅ |
+| 7 | Validação funcional manual concluída | ✅ |
+| 8 | Documentação técnica atualizada | ✅ |
+
+**Resultado:** 8/8 itens de validação atendidos.
+
+---
+
 *Documento gerado automaticamente pelo SGD. Para dúvidas, contactar a equipe de desenvolvimento.*
