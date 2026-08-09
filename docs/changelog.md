@@ -4,9 +4,20 @@ Linha evolutiva do Sistema de Gestão de Demandas.
 
 ---
 
-## F2.2 — Performance, Escalabilidade e Alta Disponibilidade Institucional
+## F2.2 — Módulo de Integrações Governamentais
 
 **Data:** Agosto 2026 | **Status:** Concluído
+
+### Validação
+- 651/651 testes automatizados aprovados.
+- TypeScript validado com `tsc --noEmit`.
+- Implementado controle de permissões RBAC para integrações.
+- Removida permissão `integrations.admin` dos perfis gestor e diretor.
+- Seed atualizado com reconciliação idempotente de permissões.
+- Revogação automática de permissões obsoletas em roles e grants materializados.
+- Preservadas concessões individuais de usuários.
+- Webhooks outbound validados com controle de acesso.
+- Validação funcional manual realizada em usuários de teste.
 
 ### Objetivo
 Garantir performance sustentável, escalabilidade horizontal e resiliência
