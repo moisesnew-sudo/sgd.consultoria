@@ -6,7 +6,10 @@ import {
   getHealthList,
   getLogs,
   getSystemDetail,
-  runManualSync,
+  getSyncStatus,
+  runManualSyncWithLock,
+  testConnection,
+  getOverview,
   listAdapters,
 } from '../lib/integrationAdmin.js';
 import { logger } from '../lib/logger.js';
@@ -98,6 +101,50 @@ router.get('/admin/adapters', authenticateToken, requirePermission('integrations
   }
 });
 
+/** GET /api/integrations/admin/sync-status */
+router.get('/admin/sync-status', authenticateToken, requirePermission('integrations.view'), async (_req: Request, res: Response) => {
+  try {
+    res.json(await getSyncStatus());
+  } catch (error) {
+    logger.error('Erro ao buscar status de sincronização', { error: error instanceof Error ? error.message : error });
+    res.status(500).json({ error: 'Erro ao buscar status de sincronização' });
+  }
+});
+
+/** GET /api/integrations/admin/overview */
+router.get('/admin/overview', authenticateToken, requirePermission('integrations.view'), async (_req: Request, res: Response) => {
+  try {
+    res.json(await getOverview());
+  } catch (error) {
+    logger.error('Erro ao buscar visão operacional de integrações', { error: error instanceof Error ? error.message : error });
+    res.status(500).json({ error: 'Erro ao buscar visão operacional de integrações' });
+  }
+});
+
+/** POST /api/integrations/admin/systems/:id/test-connection */
+router.post('/admin/systems/:id/test-connection', authenticateToken, requirePermission('integrations.sync'), csrfProtection, async (req: Request, res: Response) => {
+  try {
+    const id = parseIntParam(req.params.id);
+    if (id === undefined || Number.isNaN(id)) {
+      return res.status(400).json({ error: 'ID inválido' });
+    }
+
+    const result = await testConnection(id, req.user, req);
+    res.json(result);
+  } catch (error) {
+    if (error instanceof Error) {
+      if (error.message === 'Sistema não encontrado') {
+        return res.status(404).json({ error: error.message });
+      }
+      if (error.message.includes('inativo')) {
+        return res.status(400).json({ error: error.message });
+      }
+    }
+    logger.error('Erro no teste de conexão', { error: error instanceof Error ? error.message : error });
+    res.status(500).json({ error: 'Erro no teste de conexão' });
+  }
+});
+
 /** POST /api/integrations/admin/systems/:id/sync */
 router.post('/admin/systems/:id/sync', authenticateToken, requirePermission('integrations.sync'), csrfProtection, async (req: Request, res: Response) => {
   try {
@@ -107,7 +154,7 @@ router.post('/admin/systems/:id/sync', authenticateToken, requirePermission('int
     }
 
     const payload = req.body?.payload;
-    const result = await runManualSync(id, req.user, payload, req);
+    const result = await runManualSyncWithLock(id, req.user, payload, req);
     res.json(result);
   } catch (error) {
     if (error instanceof Error) {

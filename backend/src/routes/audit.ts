@@ -2,13 +2,14 @@ import { Router, Request, Response } from 'express';
 import { get, all } from '../database.js';
 import { authenticateToken, requirePermission } from '../middleware/auth.js';
 import { extractMeta, logExport } from '../lib/audit.js';
+import { parsePagination, buildPaginationMeta } from '../lib/pagination.js';
 import { logger } from '../lib/logger.js';
 
 const router = Router();
 
 router.get('/', authenticateToken, requirePermission('audit.view'), async (req: Request, res: Response) => {
   try {
-    const { entity_type, entity_id, action, user_id, start_date, end_date, search, page = '1', limit = '100' } = req.query;
+    const { entity_type, entity_id, action, user_id, start_date, end_date, search } = req.query;
     let sql = 'SELECT * FROM audit_logs WHERE 1=1';
     const params: any[] = [];
     if (entity_type) { sql += ` AND entity_type = $${params.length + 1}`; params.push(entity_type); }
@@ -27,14 +28,12 @@ router.get('/', authenticateToken, requirePermission('audit.view'), async (req: 
       sql.replace(/SELECT \* FROM/, 'SELECT COUNT(*) as count FROM'), params
     );
     const total = parseInt(countResult?.count || '0');
-    const p = Math.max(1, parseInt(page as string));
-    const l = Math.min(parseInt(limit as string), 500);
-    const offset = (p - 1) * l;
+    const { page: p, limit: l, offset } = parsePagination(req.query);
     sql += ' ORDER BY created_at DESC LIMIT $' + (params.length + 1) + ' OFFSET $' + (params.length + 2);
     params.push(l, offset);
 
     const logs = await all(sql, params);
-    res.json({ data: logs, pagination: { page: p, limit: l, total, pages: Math.ceil(total / l) } });
+    res.json({ data: logs, pagination: buildPaginationMeta(total, { page: p, limit: l, offset }) });
   } catch (e) {
     logger.error('Audit list error:', e);
     res.status(500).json({ error: 'Erro ao listar logs' });

@@ -4,7 +4,7 @@ import {
   Calendar, Settings, Users, ScrollText,
   ShieldCheck, LogOut, Sun, Moon, MonitorSmartphone,
   Activity, Shield, LogIn, HardDrive, FileSearch, BarChart3,
-  Plug
+  Plug, HeartPulse
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useTheme, ThemeMode } from '../../contexts/ThemeContext';
@@ -77,6 +77,7 @@ export default function Sidebar({ activeTab, setActiveTab, isOpen, setIsOpen, pe
         ] : []),
         ...(isAuthenticated && (user?.role === 'admin') ? [
           { id: 'sessions', label: 'Sessões', icon: LogIn },
+          { id: 'system-health', label: 'Saúde do Sistema', icon: HeartPulse },
           { id: 'monitoring', label: 'Monitoramento', icon: Shield },
           { id: 'lgpd', label: 'LGPD', icon: FileSearch },
         ] : []),

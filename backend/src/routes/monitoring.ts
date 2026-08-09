@@ -3,6 +3,7 @@ import os from 'os';
 import { get, all, run, pool } from '../database.js';
 import { authenticateToken, requireRole } from '../middleware/auth.js';
 import { logger } from '../lib/logger.js';
+import { getHealthReport } from '../lib/healthStatus.js';
 
 const router = Router();
 
@@ -117,8 +118,62 @@ router.get('/history', authenticateToken, requireRole('admin'), async (req: Requ
     );
     res.json(logs);
   } catch (error) {
-    logger.error('Monitoring history error:', error);
+    logger.error('Monitoring history error:', { error: error instanceof Error ? error.message : error });
     res.status(500).json({ error: 'Erro ao buscar histórico' });
+  }
+});
+
+/**
+ * D2.3 — Dashboard Operacional de Saúde.
+ * Retorna o HealthReport completo (D2.1) + alertas ativos (D2.2).
+ * Protegido: requer JWT + role admin.
+ * NÃO expõe: connection strings, passwords, tokens, secrets.
+ */
+router.get('/system-health', authenticateToken, requireRole('admin'), async (_req: Request, res: Response) => {
+  try {
+    const report = getHealthReport();
+
+    const activeAlerts = await all<{
+      id: number;
+      system_id: number;
+      severity: string;
+      type: string;
+      message: string | null;
+      details: unknown;
+      status: string;
+      created_at: string;
+      updated_at: string;
+    }>(
+      `SELECT id, system_id, severity, type, message, details, status, created_at, updated_at
+       FROM integration_alerts
+       WHERE status IN ('open', 'acknowledged')
+       ORDER BY
+         CASE severity WHEN 'critical' THEN 0 WHEN 'warning' THEN 1 ELSE 2 END,
+         created_at DESC
+       LIMIT 50`
+    );
+
+    const alerts = activeAlerts.map((a) => ({
+      id: a.id,
+      severity: a.severity,
+      type: a.type,
+      message: a.message,
+      status: a.status,
+      createdAt: a.created_at,
+      updatedAt: a.updated_at,
+      durationMs: Date.now() - new Date(a.created_at).getTime(),
+    }));
+
+    const openCount = activeAlerts.filter((a) => a.status === 'open').length;
+    const acknowledgedCount = activeAlerts.filter((a) => a.status === 'acknowledged').length;
+
+    res.json({
+      ...report,
+      alerts: { items: alerts, openCount, acknowledgedCount, total: activeAlerts.length },
+    });
+  } catch (error) {
+    logger.error('System health error', { error: error instanceof Error ? error.message : error });
+    res.status(500).json({ error: 'Erro ao buscar saúde do sistema' });
   }
 });
 

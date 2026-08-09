@@ -7,8 +7,10 @@ import { authenticateToken, requirePermission } from '../middleware/auth.js';
 import { logAudit, extractMeta } from '../lib/audit.js';
 import { logger } from '../lib/logger.js';
 import { getCached, setCache, clearCache } from '../lib/cache.js';
+import { parsePagination, buildPaginationMeta } from '../lib/pagination.js';
 import { addTimelineEvent, buildUpdateQuery } from '../lib/helpers.js';
 import { canonicalMunicipality } from '../lib/text.js';
+import { publishEvent } from '../lib/eventBus.js';
 
 const router = Router();
 
@@ -109,7 +111,7 @@ router.get('/', authenticateToken, requirePermission('demands.view'), async (req
       status, priority, municipality, uf, category, search,
       organ, proposal_number, object, responsible,
       valueMin, valueMax, dateFrom, dateTo, updatedFrom, updatedTo,
-      ano, sortBy, include_deleted, page = '1', limit = '50',
+      ano, sortBy, include_deleted,
     } = req.query;
     // ✅ CORREÇÃO: Lógica correta de include_deleted
     let sql = 'SELECT * FROM demands';
@@ -167,9 +169,7 @@ router.get('/', authenticateToken, requirePermission('demands.view'), async (req
     const countSql = `SELECT COUNT(*) as count FROM demands ${conditions.length > 0 ? 'WHERE ' + conditions.join(' AND ') : ''}`;
     const countResult = await get<{ count: string }>(countSql, [...params]);
     const total = parseInt(countResult?.count || '0');
-    const safeLimit = Math.min(Math.max(Number(limit) || 50, 1), 2000);
-    const safePage = Math.max(Number(page) || 1, 1);
-    const offset = (safePage - 1) * safeLimit;
+    const { page: safePage, limit: safeLimit, offset } = parsePagination(req.query);
     const ORDER_MAP: Record<string, string> = {
       newest: 'created_at DESC',
       oldest: 'created_at ASC',
@@ -213,7 +213,7 @@ router.get('/', authenticateToken, requirePermission('demands.view'), async (req
 
     res.json({
       data: demandsWithDetails,
-      pagination: { page: safePage, limit: safeLimit, total, pages: Math.ceil(total / safeLimit) }
+      pagination: buildPaginationMeta(total, { page: safePage, limit: safeLimit, offset }),
     });
   } catch (error) {
     logger.error('Get demands error', { error });
@@ -467,6 +467,13 @@ router.post('/', authenticateToken, requirePermission('demands.create'), async (
       ip_address, user_agent
     });
     clearCache('dashboard-stats');
+    publishEvent('demand:created', {
+      demandId: id,
+      title: data.title,
+      status: data.status || 'pendente',
+      municipality: data.municipality,
+      uf: data.uf,
+    });
     res.status(201).json(newDemand);
   } catch (error) {
     if (error instanceof z.ZodError) {
@@ -511,6 +518,12 @@ router.put('/:id', authenticateToken, requirePermission('demands.edit'), async (
       const changedFields = Object.keys(data).filter(k => k !== 'status');
       if (data.status && data.status !== existing.status) {
         await logStatusChange(req.params.id as string, existing.status, data.status, req.user!.name);
+        publishEvent('demand:status_changed', {
+          demandId: req.params.id as string,
+          title: existing.title,
+          from: existing.status,
+          to: data.status,
+        });
       }
       if (changedFields.length > 0) {
         await addTimelineEvent(req.params.id as string, 'Demanda Editada',
@@ -519,6 +532,11 @@ router.put('/:id', authenticateToken, requirePermission('demands.edit'), async (
           'updated', { changed: changedFields });
       }
     }
+    publishEvent('demand:updated', {
+      demandId: req.params.id as string,
+      title: existing.title,
+      changes: Object.keys(data),
+    });
     const updated = await get('SELECT * FROM demands WHERE id = $1 AND deleted_at IS NULL', [req.params.id as string]);
     await logAudit({
       entity_type: 'demand', entity_id: req.params.id as string, action: 'update',
@@ -569,6 +587,10 @@ router.delete('/:id', authenticateToken, requirePermission('demands.delete'), as
       ip_address, user_agent
     });
     clearCache('dashboard-stats');
+    publishEvent('demand:deleted', {
+      demandId: req.params.id as string,
+      title: demand.title,
+    });
     res.json({ message: 'Demanda removida com sucesso' });
   } catch (error) {
     logger.error('Delete demand error', { error });
@@ -618,12 +640,23 @@ router.post('/:id/timeline', authenticateToken, requirePermission('demands.edit'
       data.status_changed_to ? { from: demand.status, to: data.status_changed_to } : null);
     if (data.status_changed_to) {
       await run('UPDATE demands SET status = $1, updated_at = NOW() WHERE id = $2', [data.status_changed_to, req.params.id as string]);
+      publishEvent('demand:status_changed', {
+        demandId: req.params.id as string,
+        title: demand.title,
+        from: demand.status,
+        to: data.status_changed_to,
+      });
       if (data.status_changed_to === 'concluido') {
         await addTimelineEvent(req.params.id as string, 'Demanda Concluída',
           `Demanda concluída por ${req.user!.name}`,
           req.user!.name, 'concluido', 'concluded', { from: demand.status, to: 'concluido' });
       }
     }
+    publishEvent('demand:updated', {
+      demandId: req.params.id as string,
+      title: demand.title,
+      changes: data.status_changed_to ? ['status'] : ['timeline'],
+    });
     const event = await get('SELECT * FROM timeline_events WHERE id = $1', [eventId]);
     res.status(201).json(event);
   } catch (error) {

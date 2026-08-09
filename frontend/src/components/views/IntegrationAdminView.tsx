@@ -16,6 +16,8 @@ import IntegrationSystemsTable from './integrationAdmin/IntegrationSystemsTable'
 import IntegrationSystemDrawer from './integrationAdmin/IntegrationSystemDrawer';
 import IntegrationSystemForm from './integrationAdmin/IntegrationSystemForm';
 import SyncResultModal from './integrationAdmin/SyncResultModal';
+import IntegrationSyncView from './integrationAdmin/IntegrationSyncView';
+import IntegrationOperationsView from './IntegrationOperationsView';
 
 const STATUS_LABELS: Record<IntegrationDashboard['status'], { label: string; variant: 'success' | 'warning' | 'danger' }> = {
   healthy: { label: 'Saudável', variant: 'success' },
@@ -25,7 +27,9 @@ const STATUS_LABELS: Record<IntegrationDashboard['status'], { label: string; var
 
 const TABS = [
   { id: 'dashboard', label: 'Dashboard', icon: <Activity size={16} /> },
+  { id: 'operations', label: 'Operações', icon: <RefreshCw size={16} /> },
   { id: 'health', label: 'Saúde dos Sistemas', icon: <Database size={16} /> },
+  { id: 'sync', label: 'Sincronização', icon: <RefreshCw size={16} /> },
   { id: 'logs', label: 'Histórico de Integrações', icon: <List size={16} /> },
   { id: 'systems', label: 'Sistemas', icon: <Cog size={16} /> },
 ] as const;
@@ -65,7 +69,7 @@ function LastUpdateRow({ label, value }: { label: string; value: string | null }
 
 export default function IntegrationAdminView() {
   const { hasPermission } = useAuth();
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'health' | 'logs' | 'systems'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'health' | 'logs' | 'systems' | 'sync' | 'operations'>('dashboard');
   const [dashboard, setDashboard] = useState<IntegrationDashboard | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -237,8 +241,12 @@ export default function IntegrationAdminView() {
     switch (activeTab) {
       case 'dashboard':
         return renderDashboard();
+      case 'operations':
+        return <IntegrationOperationsView />;
       case 'health':
         return <IntegrationHealthTable onRefresh={handleSystemRefresh} />;
+      case 'sync':
+        return <IntegrationSyncView onRefresh={handleSystemRefresh} />;
       case 'logs':
         return <IntegrationLogsTable onRefresh={handleSystemRefresh} />;
       case 'systems':

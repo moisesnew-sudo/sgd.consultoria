@@ -1,7 +1,12 @@
 /**
  * Contratos da camada de adapters de integração (Transferegov, SEI, CGLOG).
- * Adapters são funções síncronas puras: transformam o payload bruto do webhook
- * em um evento normalizado, pronto para consumo pelo integrationSync (Fase 2.2).
+ *
+ * Dois níveis de contrato coexistem:
+ * 1. IntegrationAdapter — funções síncronas puras para normalização de webhooks (Fase 2.2);
+ * 2. GovernmentIntegrationAdapter — extensão ativa com autenticação, fetch, validação e
+ *    sincronização para comunicação real com APIs governamentais (Fase E1.1).
+ *
+ * A interface original é preservada para retrocompatibilidade.
  */
 
 /** Evento normalizado e padronizado para os três sistemas. */
@@ -28,6 +33,110 @@ export interface IntegrationAdapter {
   system: string;
   /** Normaliza um payload bruto de webhook em um NormalizedIntegrationEvent. */
   normalize(payload: unknown): NormalizedIntegrationEvent;
+}
+
+// ---------------------------------------------------------------------------
+// Fase E1.1 — Contratos para integrações governamentais reais
+// ---------------------------------------------------------------------------
+
+/** Configuração carregada de integration_systems.config + environment variables. */
+export interface AdapterConfig {
+  /** URL base da API externa (ex.: https://api.transferegov.gov.br). */
+  baseUrl?: string;
+  /** Chave de ambiente que armazena o segredo/token (ex.: TRANSFEREGOV_API_KEY). */
+  secretEnvKey?: string;
+  /** Timeout em milissegundos para requisições HTTP (padrão: 30000). */
+  timeoutMs?: number;
+  /** Número máximo de tentativas em caso de falha transitória (padrão: 3). */
+  maxRetries?: number;
+  /** Intervalo base em ms para backoff exponencial (padrão: 1000). */
+  retryBaseDelayMs?: number;
+  /** Configurações adicionais específicas do sistema. */
+  extra?: Record<string, unknown>;
+}
+
+/** Resultado de uma requisição HTTP externa padronizada. */
+export interface ExternalApiResponse {
+  /** HTTP status code da resposta. */
+  status: number;
+  /** Corpo da resposta parsed como JSON (ou null se não for JSON). */
+  data: unknown;
+  /** Headers de resposta relevantes. */
+  headers?: Record<string, string>;
+  /** Duração da requisição em milissegundos. */
+  durationMs: number;
+}
+
+/** Resultado de uma operação de sincronização ativa (pull). */
+export interface SyncPullResult {
+  /** Se a operação foi bem-sucedida. */
+  success: boolean;
+  /** Eventos normalizados resultantes da sincronização. */
+  events: NormalizedIntegrationEvent[];
+  /** Quantidade de registros obtidos do sistema externo. */
+  fetchedCount: number;
+  /** Quantidade de eventos normalizados com sucesso. */
+  normalizedCount: number;
+  /** Mensagem descritiva do resultado. */
+  message?: string;
+  /** Erro ocorrido (quando success = false). */
+  error?: string;
+  /** Último status HTTP obtido na consulta (0 = erro de rede/baseUrl; null = sem HTTP). */
+  httpStatus?: number | null;
+  /** Se o erro foi de autenticação (401/403). */
+  authError?: boolean;
+  /** Duração total da operação em ms. */
+  durationMs: number;
+}
+
+/**
+ * Contrato estendido para adapters de integrações governamentais reais.
+ *
+ * Complementa o IntegrationAdapter com operações ativas de comunicação:
+ * autenticação, busca de dados, validação de payload e sincronização.
+ *
+ * Cada sistema (Transferegov, SEI, CGLOG) implementa este contrato com
+ * suas especificidades de API.
+ *
+ * IMPORTANTE: Não armazenamos tokens em banco. A autenticação utiliza
+ * environment variables e secrets gerenciados pelo deployment.
+ */
+export interface GovernmentIntegrationAdapter extends IntegrationAdapter {
+  /** Código canônico do sistema. */
+  readonly system: string;
+
+  /**
+   * Realiza autenticação com o sistema externo e retorna o token/credencial.
+   * Utiliza variáveis de ambiente para secrets (nunca armazenados em banco).
+   * @param config Configuração do sistema (integration_systems.config).
+   * @returns Credencial autenticada (token, sessão, etc.) ou null se não requer auth.
+   */
+  authenticate(config: AdapterConfig): Promise<string | null>;
+
+  /**
+   * Busca dados no sistema externo (pull de propostas, processos, eventos).
+   * @param config Configuração do sistema.
+   * @param credential Credencial obtida via authenticate().
+   * @param params Parâmetros de busca (proposta, período, status, etc.).
+   * @returns Resposta HTTP padronizada.
+   */
+  fetch(config: AdapterConfig, credential: string | null, params: Record<string, unknown>): Promise<ExternalApiResponse>;
+
+  /**
+   * Valida se um payload recebido (via webhook ou manual) está dentro do contrato esperado.
+   * @param payload Payload bruto recebido.
+   * @returns true se válido, ou string com descrição do erro.
+   */
+  validate(payload: unknown): true | string;
+
+  /**
+   * Executa uma sincronização completa: autentica, busca, normaliza e retorna eventos.
+   * Método principal para operações de pull ativo.
+   * @param config Configuração do sistema.
+   * @param params Parâmetros da sincronização.
+   * @returns Resultado da sincronização com eventos normalizados.
+   */
+  sync(config: AdapterConfig, params: Record<string, unknown>): Promise<SyncPullResult>;
 }
 
 /**

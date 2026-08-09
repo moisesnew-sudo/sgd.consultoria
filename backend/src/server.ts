@@ -8,6 +8,7 @@ import dotenv from 'dotenv';
 import { fileURLToPath } from 'url';
 import path from 'path';
 import fs from 'fs';
+import type { Server } from 'http';
 import { logger } from './lib/logger.js';
 
 // Load environment variables
@@ -78,20 +79,70 @@ import backupsRoutes from './routes/backups.js';
 import monitoringRoutes from './routes/monitoring.js';
 import lgpdRoutes from './routes/lgpd.js';
 import uploadRoutes from './routes/upload.js';
+import sseRoutes from './routes/sse.js';
+import webhookAdminRoutes from './routes/webhookAdmin.js';
 import { csrfProtection } from './middleware/csrf.js';
+import { createInstitutionalRateLimit } from './middleware/rateLimit.js';
+import { recordApiRequest } from './lib/healthStatus.js';
+import { registerCacheInvalidation } from './lib/cache.js';
 import { runSeed } from './seed.js';
 import { initDatabase, run } from './database.js';
+import { startAlertScheduler, stopAlertScheduler } from './lib/alertScheduler.js';
+import { startIntegrationScheduler, stopIntegrationScheduler } from './lib/integrationScheduler.js';
+import { startWebhookDispatcher, stopWebhookDispatcher } from './lib/webhookDispatcher.js';
+import { startJobWorker, stopJobWorker } from './lib/jobQueue.js';
+import { startPostgresListener, stopPostgresListener } from './lib/eventBusPostgres.js';
+import { getHealthReport } from './lib/healthStatus.js';
+import { pool } from './database.js';
+import { closeAllSSEClients } from './routes/sse.js';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
 
-// Health check
-app.get('/api/health', (req, res) => {
-  res.json({
-    status: 'ok',
-    timestamp: new Date().toISOString(),
-    version: '2.0.0'
-  });
+// F2.1 — Referência ao servidor HTTP para graceful shutdown.
+let server: Server | null = null;
+let shuttingDown = false;
+const SHUTDOWN_TIMEOUT_MS = parseInt(process.env.SHUTDOWN_TIMEOUT_MS || '15000', 10);
+
+// Trust proxy — required for correct req.ip behind Render/load balancers.
+// Prevents all requests from sharing the same rate limit bucket.
+app.set('trust proxy', 1);
+
+// Health check (liveness) — registered BEFORE all middleware.
+// No auth, no CSRF, no rate limit. Always returns 200 if the process is alive.
+app.get('/api/health', (_req, res) => {
+  res.json({ status: 'ok', timestamp: new Date().toISOString(), version: '2.0.0' });
+});
+
+// Readiness check — checks database connectivity and component state.
+// Returns 203 if ready, 503 if not. No auth required (used by orchestrators).
+app.get('/api/health/ready', async (_req, res) => {
+  try {
+    const start = Date.now();
+    await pool.query('SELECT 1');
+    const dbMs = Date.now() - start;
+
+    const report = getHealthReport();
+
+    const ready = report.database.status !== 'down';
+    res.status(ready ? 200 : 503).json({
+      status: ready ? 'ready' : 'not_ready',
+      timestamp: report.timestamp,
+      uptime: report.uptime,
+      version: report.version,
+      database: { ...report.database, responseTimeMs: dbMs },
+      postgresListener: report.postgresListener,
+      eventBus: report.eventBus,
+      sse: report.sse,
+      scheduler: report.scheduler,
+    });
+  } catch (err) {
+    res.status(503).json({
+      status: 'not_ready',
+      timestamp: new Date().toISOString(),
+      error: 'database_unreachable',
+    });
+  }
 });
 
 // Security middleware
@@ -119,8 +170,13 @@ app.use(helmet({
   referrerPolicy: { policy: 'strict-origin-when-cross-origin' }
 }));
 
-// Compression
-app.use(compression());
+// Compression — skip for SSE endpoints (text/event-stream must not be buffered)
+app.use(compression({
+  filter: (req, res) => {
+    if (req.path === '/events/integrations') return false;
+    return compression.filter(req, res);
+  },
+}));
 
 // ✅ CORREÇÃO: CORS com validação estrita de origens
 const allowedOrigins = (process.env.CORS_ORIGIN || 'http://localhost:3000')
@@ -192,10 +248,15 @@ const apiLimiter = rateLimit({
   max: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS || '200'),
   message: { error: 'Muitas requisições. Por favor, tente novamente mais tarde.' },
   standardHeaders: true,
-  legacyHeaders: false,
+  legacyHeaders: true,
   // Webhooks externos possuem limiter dedicado (máx. maior, para retries legítimos)
-  skip: (req) => req.path.startsWith('/integrations/webhooks') || req.path === '/health'
+  skip: (req) => req.path.startsWith('/integrations/webhooks') || req.path.startsWith('/health')
 });
+
+// F2.2 — Limiter institucional por usuário autenticado (anônimo por IP,
+// autenticado por usuário, admin com limite superior). Rodado após o
+// cookieParser para poder ler o JWT; registra bloqueios no healthStatus.
+const apiLimiterInstitutional = createInstitutionalRateLimit();
 
 // Limiter dedicado para webhooks (sistemas externos podem retryar eventos)
 const webhookLimiter = rateLimit({
@@ -214,6 +275,12 @@ app.use('/api/', apiLimiter);
 // Cookies
 app.use(cookieParser());
 
+// F2.2 — Limiter institucional (por usuário/IP/admin), após cookies.
+app.use('/api/', (req, res, next) => {
+  if (req.path.startsWith('/health') || req.path.startsWith('/integrations/webhooks')) return next();
+  return apiLimiterInstitutional(req, res, next);
+});
+
 // ✅ Webhooks externos: autenticados por HMAC (sem cookie/JWT), montados ANTES do CSRF.
 // express.raw captura o body como Buffer — assinatura HMAC sobre bytes exatos.
 // Precisa vir ANTES do express.json global para que o body chegue cru ao middleware.
@@ -224,6 +291,17 @@ app.use('/api/integrations/webhooks', webhookRoutes);
 // Body parsing
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
+// F2.2 — Métricas de performance da API (requisições, 4xx/5xx, latência).
+app.use('/api/', (req, res, next) => {
+  const start = Date.now();
+  res.on('finish', () => {
+    try {
+      recordApiRequest(res.statusCode, Date.now() - start);
+    } catch { /* métricas nunca derrubam o request */ }
+  });
+  next();
+});
 
 // API Routes
 app.use('/api/auth', authRoutes);
@@ -244,12 +322,14 @@ app.use('/api/settings', settingsRoutes);
 app.use('/api/audit', auditRoutes);
 app.use('/api/integrations', integrationsRoutes);
 app.use('/api/integrations', integrationAdminRoutes);
+app.use('/api/admin/outbound-webhooks', webhookAdminRoutes);
 app.use('/api/permissions', permissionsRoutes);
 app.use('/api/sessions', sessionsRoutes);
 app.use('/api/backups', backupsRoutes);
 app.use('/api/monitoring', monitoringRoutes);
 app.use('/api/lgpd', lgpdRoutes);
 app.use('/api', uploadRoutes);
+app.use('/api', sseRoutes);
 
 // Serve static files in production
 if (process.env.NODE_ENV === 'production' && process.env.SERVE_FRONTEND === 'true') {
@@ -273,6 +353,21 @@ app.use((err: any, req: express.Request, res: express.Response, next: express.Ne
   });
 });
 
+// Política de retenção. Executada no boot; idempotente e não-crítica.
+// A retenção de integration_alerts remove APENAS alertas 'resolved' com mais de 90 dias;
+// alertas open/acknowledged nunca são apagados (política Fase D1.2).
+export async function runCleanup(): Promise<void> {
+  await run("DELETE FROM active_sessions WHERE active = FALSE AND last_activity < NOW() - INTERVAL '24 hours'");
+  await run("DELETE FROM login_attempts WHERE attempted_at < NOW() - INTERVAL '48 hours'");
+  await run("DELETE FROM token_blacklist WHERE expires_at < NOW()");
+  await run("DELETE FROM refresh_tokens WHERE expires_at < NOW() OR (revoked = TRUE AND created_at < NOW() - INTERVAL '24 hours')");
+  await run("UPDATE active_sessions SET active = FALSE WHERE active = TRUE AND last_activity < NOW() - INTERVAL '24 hours'");
+  await run("DELETE FROM audit_logs WHERE created_at < NOW() - INTERVAL '180 days'");
+  await run("DELETE FROM monitoring_logs WHERE recorded_at < NOW() - INTERVAL '30 days'");
+  await run("DELETE FROM export_logs WHERE created_at < NOW() - INTERVAL '90 days'");
+  await run("DELETE FROM integration_alerts WHERE status = 'resolved' AND updated_at < NOW() - INTERVAL '90 days'");
+}
+
 // Start server
 async function start() {
   try {
@@ -284,22 +379,99 @@ async function start() {
   }
 
   try {
-    await run("DELETE FROM active_sessions WHERE active = FALSE AND last_activity < NOW() - INTERVAL '24 hours'");
-    await run("DELETE FROM login_attempts WHERE attempted_at < NOW() - INTERVAL '48 hours'");
-    await run("DELETE FROM token_blacklist WHERE expires_at < NOW()");
-    await run("DELETE FROM refresh_tokens WHERE expires_at < NOW() OR (revoked = TRUE AND created_at < NOW() - INTERVAL '24 hours')");
-    await run("UPDATE active_sessions SET active = FALSE WHERE active = TRUE AND last_activity < NOW() - INTERVAL '24 hours'");
-    await run("DELETE FROM audit_logs WHERE created_at < NOW() - INTERVAL '180 days'");
-    await run("DELETE FROM monitoring_logs WHERE recorded_at < NOW() - INTERVAL '30 days'");
-    await run("DELETE FROM export_logs WHERE created_at < NOW() - INTERVAL '90 days'");
+    await runCleanup();
   } catch (err) {
     logger.warn('Cleanup executado com erros (não crítico)', { error: err instanceof Error ? err.message : err });
   }
 
-  app.listen(PORT, () => {
+  // D1.4 — Agendar avaliação periódica de alertas (após init+cleanup, antes de listen).
+  startAlertScheduler();
+
+  // E1.2 — Agendar sincronização periódica de integrações governamentais.
+  startIntegrationScheduler();
+
+  // D1.7 — Iniciar listener PostgreSQL LISTEN/NOTIFY para SSE multi-instância.
+  startPostgresListener().catch((err) => {
+    logger.warn('Listener PostgreSQL falhou ao iniciar (não crítico)', {
+      error: err instanceof Error ? err.message : String(err),
+    });
+  });
+
+  // D3.1 — Iniciar webhook dispatcher (entrega assíncrona de eventos para endpoints externos).
+  startWebhookDispatcher();
+
+  // F2.2 — Invalidação de cache por evento (demand:updated etc.).
+  registerCacheInvalidation();
+
+  // F2.2 — Worker da fila assíncrona (jobs com retry/backoff).
+  startJobWorker();
+
+  server = app.listen(PORT, () => {
     logger.info('SGD Backend Server Running', { port: PORT, env: process.env.NODE_ENV || 'development' });
   });
+
+  // F2.1 — Falha explícita de listen (porta em uso, permissão, etc.) não fica silenciosa.
+  server.on('error', (err: NodeJS.ErrnoException) => {
+    logger.error('Falha ao iniciar o servidor HTTP', { error: err.message, code: err.code });
+    process.exit(1);
+  });
 }
+
+// F2.1 — Graceful shutdown completo com timeout máximo e log por etapa.
+// Fluxo: SIGTERM/SIGINT → parar novas requisições → encerrar SSE → parar
+// schedulers → fechar listener PostgreSQL → fechar pool → finalizar processo.
+async function gracefulShutdown(signal: string) {
+  if (shuttingDown) return;
+  shuttingDown = true;
+  logger.info(`Recebido ${signal} — iniciando graceful shutdown`);
+
+  const forceExitTimer = setTimeout(() => {
+    logger.error(`Graceful shutdown excedeu o timeout de ${SHUTDOWN_TIMEOUT_MS}ms — forçando saída`);
+    process.exit(1);
+  }, SHUTDOWN_TIMEOUT_MS);
+  forceExitTimer.unref();
+
+  try {
+    // 1. Parar de receber novas requisições.
+    if (server) {
+      await new Promise<void>((resolve) => server!.close(() => resolve()));
+    }
+    logger.info('Shutdown: servidor HTTP parado (novas requisições rejeitadas)');
+
+    // 2. Encerrar conexões SSE ativas (cliente é instruído a reconectar).
+    closeAllSSEClients('server_shutdown');
+    logger.info('Shutdown: conexões SSE encerradas');
+
+    // 3. Parar schedulers e webhook dispatcher.
+    stopAlertScheduler();
+    stopIntegrationScheduler();
+    stopWebhookDispatcher();
+    stopJobWorker();
+    logger.info('Shutdown: schedulers e webhook dispatcher parados');
+
+    // 4. Fechar listener PostgreSQL LISTEN/NOTIFY.
+    await stopPostgresListener();
+    logger.info('Shutdown: listener PostgreSQL fechado');
+
+    // 5. Fechar pool de banco de dados.
+    try {
+      await pool.end();
+    } catch { /* pool já encerrado */ }
+    logger.info('Shutdown: pool de banco de dados fechado');
+
+    clearTimeout(forceExitTimer);
+    logger.info('Graceful shutdown concluído');
+    process.exit(0);
+  } catch (err) {
+    logger.error('Erro durante graceful shutdown', {
+      error: err instanceof Error ? err.message : String(err),
+    });
+    process.exit(1);
+  }
+}
+
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+process.on('SIGINT',  () => gracefulShutdown('SIGINT'));
 
 if (process.env.NODE_ENV !== 'test') {
   start();

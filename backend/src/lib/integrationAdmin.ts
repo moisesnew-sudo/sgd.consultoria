@@ -1,8 +1,10 @@
 import { get, run, all } from '../database.js';
-import { getAdapter } from './adapterRegistry.js';
+import { parsePagination, buildPaginationMeta } from './pagination.js';
+import { getAdapter, getGovAdapter } from './adapterRegistry.js';
 import { processWebhookEvent } from './integrationProcessor.js';
 import { logAudit, extractMeta } from './audit.js';
 import { sanitizeIntegrationConfig } from './redact.js';
+import { lastSyncBySystem, consecutiveErrorsBySystem, parseSystemSyncConfig } from './integrationScheduler.js';
 
 export { listAdapters } from './adapterRegistry.js';
 
@@ -65,6 +67,340 @@ export interface ManualSyncResult {
   message: string;
   errorMessage: string | null;
   eventId?: number;
+}
+
+export interface SyncStatusSystem {
+  id: number;
+  code: string;
+  name: string;
+  active: boolean;
+  syncEnabled: boolean;
+  syncIntervalMinutes: number;
+  lastSyncAt: string | null;
+  nextSyncAt: string | null;
+  consecutiveErrors: number;
+  lastResponseMs: number | null;
+  lastHttpStatus: number | null;
+  errorCount24h: number;
+  healthStatus: SystemHealthStatus;
+}
+
+export interface SyncStatusData {
+  systems: SyncStatusSystem[];
+  summary: {
+    total: number;
+    syncEnabled: number;
+    healthy: number;
+    warning: number;
+    failed: number;
+  };
+  scheduler: {
+    running: boolean;
+    lastCycleAt: string | null;
+  };
+}
+
+/* -------------------------------------------------------------------------- */
+/* Fase E3.1 — Gestão Operacional                                              */
+/* -------------------------------------------------------------------------- */
+
+export interface OverviewAlert {
+  id: number;
+  systemId: number;
+  systemCode: string;
+  systemName: string;
+  type: string;
+  severity: 'critical' | 'warning' | 'info';
+  status: 'open' | 'acknowledged';
+  message: string | null;
+  createdAt: string;
+}
+
+export interface OverviewSystemRow {
+  id: number;
+  code: string;
+  name: string;
+  active: boolean;
+  syncEnabled: boolean;
+  syncIntervalMinutes: number;
+  healthStatus: SystemHealthStatus;
+  lastSyncAt: string | null;
+  nextSyncAt: string | null;
+  lastErrorAt: string | null;
+  lastErrorMessage: string | null;
+  httpStatus: number | null;
+  responseTime: number | null;
+  errorCount24h: number;
+  consecutiveErrors: number;
+  alerts: OverviewAlert[];
+}
+
+export interface OverviewData {
+  summary: {
+    total: number;
+    active: number;
+    inactive: number;
+    healthy: number;
+    attention: number;
+    failure: number;
+    failures24h: number;
+    openAlerts: number;
+    avgLatencyMs: number | null;
+    lastSync: string | null;
+  };
+  systems: OverviewSystemRow[];
+  alerts: OverviewAlert[];
+  scheduler: {
+    running: boolean;
+    lastCycleAt: string | null;
+  };
+}
+
+const ACTIVE_ALERT_STATUSES = ['open', 'acknowledged'];
+
+/** 7. Overview operacional (Fase E3.1): status atual, sincronização, alertas e latência. */
+export async function getOverview(): Promise<OverviewData> {
+  const systems = await all<any>(
+    `SELECT id, code, name, active, config, last_sync_at, last_error_at, last_error_message,
+            last_http_status, last_response_ms, error_count_24h, consecutive_errors
+     FROM integration_systems
+     ORDER BY name ASC`
+  );
+
+  const activeAlerts = await all<OverviewAlert>(
+    `SELECT a.id, a.system_id, s.code AS system_code, s.name AS system_name,
+            a.type, a.severity, a.status, a.message, a.created_at
+     FROM integration_alerts a
+     JOIN integration_systems s ON s.id = a.system_id
+     WHERE a.status = ANY($1::text[])
+     ORDER BY a.updated_at DESC`,
+    [ACTIVE_ALERT_STATUSES]
+  );
+
+  const avgLat = await get<{ avg: string | null }>(
+    `SELECT AVG(last_response_ms)::int AS avg FROM integration_systems WHERE last_response_ms IS NOT NULL`
+  );
+
+  const rows: OverviewSystemRow[] = systems.map((r) => {
+    const syncConfig = parseSystemSyncConfig(r.config);
+    const lastSyncAt = r.last_sync_at ?? null;
+    let nextSyncAt: string | null = null;
+    if (syncConfig.enabled && lastSyncAt) {
+      nextSyncAt = new Date(new Date(lastSyncAt).getTime() + syncConfig.intervalMinutes * 60_000).toISOString();
+    }
+    return {
+      id: r.id,
+      code: r.code,
+      name: r.name,
+      active: r.active,
+      syncEnabled: syncConfig.enabled,
+      syncIntervalMinutes: syncConfig.intervalMinutes,
+      healthStatus: systemHealthStatus(r),
+      lastSyncAt,
+      nextSyncAt,
+      lastErrorAt: r.last_error_at ?? null,
+      lastErrorMessage: r.last_error_message ?? null,
+      httpStatus: r.last_http_status ?? null,
+      responseTime: r.last_response_ms ?? null,
+      errorCount24h: r.error_count_24h ?? 0,
+      consecutiveErrors: r.consecutive_errors ?? 0,
+      alerts: activeAlerts.filter((a) => a.systemId === r.id),
+    };
+  });
+
+  const alerts = activeAlerts.map((a) => ({ ...a }));
+
+  const full = (n: number) => systems.length > 0 ? n : 0;
+  const healthy = systems.filter((x) => systemHealthStatus(x) === 'operational').length;
+  const attention = systems.filter((x) => systemHealthStatus(x) === 'attention').length;
+  const failure = systems.filter((x) => systemHealthStatus(x) === 'failure').length;
+
+  return {
+    summary: {
+      total: systems.length,
+      active: systems.filter((s) => s.active).length,
+      inactive: systems.filter((s) => !s.active).length,
+      healthy: full(healthy),
+      attention: full(attention),
+      failure: full(failure),
+      failures24h: systems.reduce((acc, s) => acc + (s.error_count_24h ?? 0), 0),
+      openAlerts: alerts.length,
+      avgLatencyMs: avgLat?.avg != null ? parseInt(avgLat.avg) : null,
+      lastSync: systems.reduce((acc, s) => {
+        const t = s.last_sync_at ? new Date(s.last_sync_at).getTime() : 0;
+        return t > (acc ? new Date(acc).getTime() : 0) ? s.last_sync_at : acc;
+      }, null as string | null),
+    },
+    systems: rows,
+    alerts,
+    scheduler: {
+      running: lastSyncBySystem.size > 0,
+      lastCycleAt: lastSyncBySystem.size > 0 ? new Date(Math.max(...lastSyncBySystem.values())).toISOString() : null,
+    },
+  };
+}
+
+export interface TestConnectionResult {
+  success: boolean;
+  status: 'success' | 'error';
+  httpStatus: number | null;
+  durationMs: number;
+  authenticated: boolean | null;
+  message: string;
+  errorMessage: string | null;
+}
+
+/** 8. Teste de conexão com um sistema externo (Fase E3): valida auth/endpoint/timeout/resposta. */
+export async function testConnection(systemId: number, user: any, req?: any): Promise<TestConnectionResult> {
+  const system = await get<any>(
+    `SELECT id, code, name, active, config FROM integration_systems WHERE id = $1`,
+    [systemId]
+  );
+  if (!system) throw new Error('Sistema não encontrado');
+  if (!system.active) throw new Error('Sistema inativo. Ative o sistema antes de testar a conexão.');
+
+  const startedAt = Date.now();
+  const adapter = getGovAdapter(system.code);
+
+  if (!adapter) {
+    const durationMs = Date.now() - startedAt;
+    const result: TestConnectionResult = {
+      success: false,
+      status: 'error',
+      httpStatus: null,
+      durationMs,
+      authenticated: null,
+      message: `Nenhum adapter governamental registrado para ${system.code}`,
+      errorMessage: `Nenhum adapter governamental registrado para ${system.code}`,
+    };
+    await recordTestResult(system, result, user, req);
+    return result;
+  }
+
+  const adapterConfig: any = {
+    baseUrl: system.config?.baseUrl ? String(system.config.baseUrl) : undefined,
+    secretEnvKey: system.config?.secretEnvKey ? String(system.config.secretEnvKey) : undefined,
+    timeoutMs: typeof system.config?.timeoutMs === 'number' ? system.config.timeoutMs : 10_000,
+    maxRetries: typeof system.config?.maxRetries === 'number' ? system.config.maxRetries : 1,
+    extra: system.config?.extra ? system.config.extra : undefined,
+  };
+
+  if (system.config?.baseUrl) adapterConfig.baseUrl = String(system.config.baseUrl);
+
+  let result: TestConnectionResult;
+  let authenticated: boolean | null = null;
+  let httpStatus: number | null = null;
+
+  try {
+    const controller = new AbortController();
+    const timeoutMs = adapterConfig.timeoutMs ?? 10_000;
+    const timeout = setTimeout(() => controller.abort(), timeoutMs);
+
+    // 1. Autenticação (se houver secret configurado)
+    if (adapterConfig.secretEnvKey) {
+      const credential = await adapter.authenticate(adapterConfig);
+      authenticated = credential !== null;
+    }
+
+    // 2. Requisição de teste ao endpoint
+    const probe = await adapter.fetch(adapterConfig, authenticated ? ({} as any) : null, {});
+    clearTimeout(timeout);
+    httpStatus = probe.status;
+    result = {
+      success: httpStatus !== 0 && httpStatus >= 200 && httpStatus < 300,
+      status: httpStatus !== 0 && httpStatus >= 200 && httpStatus < 300 ? 'success' : 'error',
+      httpStatus,
+      durationMs: Date.now() - startedAt,
+      authenticated,
+      message: httpStatus === 0
+        ? 'Endpoint indisponível (baseUrl não configurada ou conexão recusada)'
+        : `Conexão respondida com HTTP ${httpStatus}`,
+      errorMessage: httpStatus === 0
+        ? 'Endpoint indisponível (baseUrl não configurada ou conexão recusada)'
+        : httpStatus >= 200 && httpStatus < 300 ? null : `HTTP ${httpStatus}`,
+    };
+  } catch (error) {
+    const durationMs = Date.now() - startedAt;
+    const message = error instanceof Error ? error.message : String(error);
+    result = {
+      success: false,
+      status: 'error',
+      httpStatus: httpStatus,
+      durationMs,
+      authenticated,
+      message: 'Teste de conexão falhou (timeout ou erro de rede)',
+      errorMessage: message,
+    };
+  }
+
+  await recordTestResult(system, result, user, req);
+  return result;
+}
+
+async function recordTestResult(system: any, result: TestConnectionResult, user: any, req?: any): Promise<void> {
+  const ip = req ? extractMeta(req).ip_address : 'unknown';
+
+  await run(
+    `INSERT INTO integration_logs (system_id, system_code, direction, action, status, message, duration_ms, http_status, triggered_by, error_message)
+     VALUES ($1, $2, 'out', 'integration.test-connection', $3, $4, $5, $6, 'manual', $7)`,
+    [system.id, system.code, result.status, result.message, result.durationMs, result.httpStatus, result.errorMessage]
+  );
+
+  await run(
+    `UPDATE integration_systems SET
+       last_http_status = $2, last_response_ms = $3,
+       error_count_24h = (SELECT COUNT(*) FROM integration_logs WHERE system_id = $1 AND status = 'error' AND created_at > NOW() - INTERVAL '24 hours'),
+       updated_at = NOW()
+     WHERE id = $1`,
+    [system.id, result.httpStatus, result.durationMs]
+  );
+
+  await logAudit(
+    {
+      entity_type: 'integration_system',
+      entity_id: String(system.id),
+      action: 'integration.test-connection',
+      user_id: user.id,
+      user_name: user.name,
+      details: {
+        system: system.code,
+        status: result.status,
+        http_status: result.httpStatus,
+        duration_ms: result.durationMs,
+        authenticated: result.authenticated,
+        message: result.message,
+        ...(result.errorMessage ? { error_message: result.errorMessage } : {}),
+      },
+      ...extractMeta(req),
+    },
+  );
+}
+
+/* ---------------- Lock de sincronização manual (E2.1+E3.1) ---------------- */
+
+const manualSyncLocks = new Set<number>();
+
+export function isSyncLocked(systemId: number): boolean {
+  return manualSyncLocks.has(systemId);
+}
+
+export async function runManualSyncWithLock(systemId: number, user: any, payload: unknown, req?: any): Promise<ManualSyncResult> {
+  if (manualSyncLocks.has(systemId)) {
+    return {
+      success: false,
+      status: 'error',
+      durationMs: 0,
+      httpStatus: null,
+      message: 'Sincronização já em andamento para este sistema (lock ativo).',
+      errorMessage: 'Lock impediu sincronização duplicada.',
+    };
+  }
+  manualSyncLocks.add(systemId);
+  try {
+    return await runManualSync(systemId, user, payload, req);
+  } finally {
+    manualSyncLocks.delete(systemId);
+  }
 }
 
 function systemHealthStatus(row: any): SystemHealthStatus {
@@ -131,9 +467,10 @@ export async function getHealthList(): Promise<HealthStatusRow[]> {
 
 /** 3. Histórico de execuções com paginação, filtros e busca. */
 export async function getLogs(filters: LogFilters = {}): Promise<LogsResult> {
-  const page = Math.max(1, filters.page ?? 1);
-  const limit = Math.min(200, Math.max(1, filters.limit ?? 20));
-  const offset = (page - 1) * limit;
+  const { page, limit, offset } = parsePagination(
+    { page: filters.page, limit: filters.limit },
+    { limit: 20 },
+  );
 
   const conditions: string[] = [];
   const params: any[] = [];
@@ -199,7 +536,7 @@ export async function getLogs(filters: LogFilters = {}): Promise<LogsResult> {
     created_at: r.created_at,
   }));
 
-  return { data, pagination: { page, limit, total, totalPages: Math.ceil(total / limit) } };
+  return { data, pagination: buildPaginationMeta(total, { page, limit, offset }) };
 }
 
 /** 5. Detalhes de um sistema (nunca expõe secret_env_key/segredos). */
@@ -242,6 +579,65 @@ export async function getSystemDetail(id: number): Promise<any | null> {
       consecutiveErrors: row.consecutive_errors ?? 0,
     },
     recentLogs,
+  };
+}
+
+/** 6. Status de sincronização de todos os sistemas (para dashboard de sync). */
+export async function getSyncStatus(): Promise<SyncStatusData> {
+  const rows = await all<any>(
+    `SELECT id, code, name, active, config, last_sync_at, last_error_at,
+            last_http_status, last_response_ms, error_count_24h, consecutive_errors
+     FROM integration_systems
+     ORDER BY name ASC`
+  );
+
+  const systems: SyncStatusSystem[] = rows.map((r) => {
+    const syncConfig = parseSystemSyncConfig(r.config);
+    const lastSyncAt = r.last_sync_at ?? null;
+    
+    // Calculate next sync time
+    let nextSyncAt: string | null = null;
+    if (syncConfig.enabled && lastSyncAt) {
+      const lastSyncMs = new Date(lastSyncAt).getTime();
+      const intervalMs = syncConfig.intervalMinutes * 60_000;
+      nextSyncAt = new Date(lastSyncMs + intervalMs).toISOString();
+    }
+
+    return {
+      id: r.id,
+      code: r.code,
+      name: r.name,
+      active: r.active,
+      syncEnabled: syncConfig.enabled,
+      syncIntervalMinutes: syncConfig.intervalMinutes,
+      lastSyncAt,
+      nextSyncAt,
+      consecutiveErrors: r.consecutive_errors ?? 0,
+      lastResponseMs: r.last_response_ms ?? null,
+      lastHttpStatus: r.last_http_status ?? null,
+      errorCount24h: r.error_count_24h ?? 0,
+      healthStatus: systemHealthStatus(r),
+    };
+  });
+
+  const syncEnabled = systems.filter((s) => s.syncEnabled).length;
+  const healthy = systems.filter((s) => s.healthStatus === 'operational').length;
+  const warning = systems.filter((s) => s.healthStatus === 'attention').length;
+  const failed = systems.filter((s) => s.healthStatus === 'failure').length;
+
+  return {
+    systems,
+    summary: {
+      total: systems.length,
+      syncEnabled,
+      healthy,
+      warning,
+      failed,
+    },
+    scheduler: {
+      running: lastSyncBySystem.size > 0,
+      lastCycleAt: lastSyncBySystem.size > 0 ? new Date(Math.max(...lastSyncBySystem.values())).toISOString() : null,
+    },
   };
 }
 

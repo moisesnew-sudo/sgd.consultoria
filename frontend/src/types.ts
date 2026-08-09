@@ -352,6 +352,41 @@ export interface IntegrationSyncResult {
   eventId?: number;
 }
 
+// ============================================================
+// Fase E1.3 — Dashboard de Sincronização
+// ============================================================
+
+export interface SyncStatusSystem {
+  id: number;
+  code: string;
+  name: string;
+  active: boolean;
+  syncEnabled: boolean;
+  syncIntervalMinutes: number;
+  lastSyncAt: string | null;
+  nextSyncAt: string | null;
+  consecutiveErrors: number;
+  lastResponseMs: number | null;
+  lastHttpStatus: number | null;
+  errorCount24h: number;
+  healthStatus: 'operational' | 'attention' | 'failure';
+}
+
+export interface SyncStatusData {
+  systems: SyncStatusSystem[];
+  summary: {
+    total: number;
+    syncEnabled: number;
+    healthy: number;
+    warning: number;
+    failed: number;
+  };
+  scheduler: {
+    running: boolean;
+    lastCycleAt: string | null;
+  };
+}
+
 export interface IntegrationLogsResponse {
   data: IntegrationLogEntry[];
   pagination: {
@@ -360,6 +395,80 @@ export interface IntegrationLogsResponse {
     total: number;
     totalPages: number;
   };
+}
+
+// ============================================================
+// Fase E3.1 — Gestão Operacional de Integrações
+// ============================================================
+
+export type IntegrationHealthStatus = 'operational' | 'attention' | 'failure';
+export type IntegrationOperationStatus = 'success' | 'warning' | 'error';
+
+export interface IntegrationAlert {
+  id: number;
+  systemId: number;
+  systemCode: string;
+  systemName: string;
+  type: string;
+  severity: 'critical' | 'warning' | 'info';
+  status: 'open' | 'acknowledged';
+  message: string | null;
+  createdAt: string;
+}
+
+export interface IntegrationSystemStatus {
+  id: number;
+  code: string;
+  name: string;
+  active: boolean;
+  syncEnabled: boolean;
+  syncIntervalMinutes: number;
+  healthStatus: IntegrationHealthStatus;
+  lastSyncAt: string | null;
+  nextSyncAt: string | null;
+  lastErrorAt: string | null;
+  lastErrorMessage: string | null;
+  httpStatus: number | null;
+  responseTime: number | null;
+  errorCount24h: number;
+  consecutiveErrors: number;
+  alerts: IntegrationAlert[];
+}
+
+export interface IntegrationHealthSummary {
+  total: number;
+  active: number;
+  inactive: number;
+  healthy: number;
+  attention: number;
+  failure: number;
+  failures24h: number;
+  openAlerts: number;
+  avgLatencyMs: number | null;
+  lastSync: string | null;
+}
+
+export interface IntegrationSchedulerStatus {
+  running: boolean;
+  lastCycleAt: string | null;
+}
+
+export interface IntegrationOverview {
+  summary: IntegrationHealthSummary;
+  systems: IntegrationSystemStatus[];
+  alerts: IntegrationAlert[];
+  scheduler: IntegrationSchedulerStatus;
+}
+
+export interface IntegrationOperationResult {
+  success: boolean;
+  status: IntegrationOperationStatus;
+  durationMs: number;
+  httpStatus: number | null;
+  message: string;
+  errorMessage: string | null;
+  authenticated?: boolean | null;
+  eventId?: number;
 }
 
 // ============================================================
@@ -409,4 +518,138 @@ export interface IntegrationSystemUpdateData {
   name?: string;
   description?: string;
   config?: Record<string, unknown> | null;
+}
+
+// ============================================================
+// D2.3 — Dashboard Operacional de Saúde
+// ============================================================
+
+export type ComponentStatus = 'ok' | 'degraded' | 'down';
+
+export interface DatabaseHealth {
+  status: ComponentStatus;
+  totalConnections: number;
+  idleConnections: number;
+  waitingClients: number;
+}
+
+export interface ListenerHealth {
+  status: ComponentStatus;
+  connected: boolean;
+  originId: string;
+  lastNotificationAt: string | null;
+  reconnectCount: number;
+}
+
+export interface EventBusHealth {
+  status: ComponentStatus;
+  eventsPublished: number;
+  eventsReceived: number;
+  errors: number;
+  lastEventAt: string | null;
+  activeListeners: number;
+}
+
+export interface SSEHealth {
+  status: ComponentStatus;
+  activeConnections: number;
+  totalConnectionsOpened: number;
+  totalConnectionsClosed: number;
+  eventsSent: number;
+  errors: number;
+  lastConnectAt: string | null;
+  lastDisconnectAt: string | null;
+}
+
+export interface SchedulerHealth {
+  status: ComponentStatus;
+  active: boolean;
+  lastRunAt: string | null;
+  lastDurationMs: number | null;
+  lastAlertsProcessed: number | null;
+  lastError: string | null;
+}
+
+export interface SystemHealthAlert {
+  id: number;
+  severity: string;
+  type: string;
+  message: string | null;
+  status: string;
+  createdAt: string;
+  updatedAt: string;
+  durationMs: number;
+}
+
+export interface SystemHealthResponse {
+  status: ComponentStatus;
+  timestamp: string;
+  uptime: number;
+  version: string;
+  database: DatabaseHealth;
+  postgresListener: ListenerHealth;
+  eventBus: EventBusHealth;
+  sse: SSEHealth;
+  scheduler: SchedulerHealth;
+  alerts: {
+    items: SystemHealthAlert[];
+    openCount: number;
+    acknowledgedCount: number;
+    total: number;
+  };
+}
+
+/* ------------------------------------------------------------------ */
+/* D3.2 — Outbound Webhooks                                           */
+/* ------------------------------------------------------------------ */
+
+export type WebhookDeliveryStatus = 'pending' | 'sending' | 'success' | 'failed' | 'retrying' | 'dead_letter';
+
+export interface OutboundWebhook {
+  id: number;
+  name: string;
+  url: string;
+  events: string[];
+  active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface WebhookDelivery {
+  id: number;
+  webhook_id: number;
+  webhook_name: string;
+  event_type: string;
+  url: string;
+  request_headers: Record<string, string> | null;
+  request_body: unknown;
+  response_status: number | null;
+  response_body: string | null;
+  duration_ms: number | null;
+  attempt: number;
+  max_attempts: number;
+  status: WebhookDeliveryStatus;
+  error: string | null;
+  delivery_id: string | null;
+  created_at: string;
+  updated_at: string;
+  resolved_at: string | null;
+}
+
+export interface WebhookStats {
+  totalWebhooks: number;
+  activeWebhooks: number;
+  last24h: {
+    total: number;
+    success: number;
+    failed: number;
+    dead_letter: number;
+  };
+  totalDeadLetter: number;
+  topDeadLetterWebhooks: {
+    webhookId: number;
+    webhookName: string;
+    deadLetterCount: number;
+    lastFailedAt: string | null;
+  }[];
 }

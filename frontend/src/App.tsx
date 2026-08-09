@@ -12,6 +12,7 @@ import { DemandsNavFilters } from './components/views/DemandsView';
 import { Skeleton } from './components/ui/Skeleton';
 import { Spinner } from './components/ui/Spinner';
 import ErrorBoundary from './components/ui/ErrorBoundary';
+import { useDemandSSE } from './hooks/useDemandSSE';
 
 const DashboardView = lazy(() => import('./components/views/DashboardView'));
 const NewDemandView = lazy(() => import('./components/views/NewDemandView'));
@@ -27,6 +28,7 @@ const IntegrationAdminView = lazy(() => import('./components/views/IntegrationAd
 const SessionsView = lazy(() => import('./components/views/SessionsView'));
 const BackupManagementView = lazy(() => import('./components/views/BackupManagementView'));
 const MonitoringView = lazy(() => import('./components/views/MonitoringView'));
+const SystemHealthView = lazy(() => import('./components/views/SystemHealthView'));
 const LgpdView = lazy(() => import('./components/views/LgpdView'));
 const ExecutivePanelView = lazy(() => import('./components/views/ExecutivePanelView'));
 const InactivityWrapper = lazy(() => import('./components/layout/InactivityWrapper'));
@@ -96,6 +98,16 @@ function AppContent() {
       loadData();
     }
   }, [isAuthenticated, loadData]);
+
+  // D1.6 — SSE: refetch demands quando eventos chegam em tempo real
+  useDemandSSE({
+    enabled: isAuthenticated,
+    onRefreshNeeded: () => {
+      demandsApi.getAll({ limit: 999 }).then((data) => {
+        setDemands(data.data);
+      }).catch(() => { /* ignore */ });
+    },
+  });
 
   const handleAddDemand = (newDemand: Demand) => {
     setDemands(prev => [newDemand, ...prev]);
@@ -317,6 +329,12 @@ function AppContent() {
           {activeTab === 'monitoring' && (
             <ErrorBoundary><Suspense fallback={<ViewFallback />}>
               <MonitoringView />
+            </Suspense></ErrorBoundary>
+          )}
+
+          {activeTab === 'system-health' && (
+            <ErrorBoundary><Suspense fallback={<ViewFallback />}>
+              <SystemHealthView />
             </Suspense></ErrorBoundary>
           )}
 

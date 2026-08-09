@@ -5,6 +5,7 @@ import { authenticateToken, requirePermission } from '../middleware/auth.js';
 import { logAudit } from '../lib/audit.js';
 import { addTimelineEvent } from '../lib/helpers.js';
 import { logger } from '../lib/logger.js';
+import { publishEvent } from '../lib/eventBus.js';
 
 const router = Router();
 
@@ -51,6 +52,11 @@ router.post('/:id/comments', authenticateToken, requirePermission('demands.edit'
     await logAudit({
       entity_type: 'demand', entity_id: req.params.id as string, action: 'comment',
       user_id: req.user!.id, user_name: req.user!.name, details: { entity_title: demand.title, body: body.substring(0, 80) }
+    });
+    publishEvent('comment:created', {
+      demandId: req.params.id as string,
+      commentId: comment.id,
+      userName: req.user!.name,
     });
     res.status(201).json(comment);
   } catch (e) {

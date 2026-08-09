@@ -105,6 +105,7 @@ export async function runSeed() {
     { key: 'integrations.view', name: 'Integrações - Visualizar', category: 'Integrações', description: 'Visualizar painel de integrações e eventos' },
     { key: 'integrations.manage', name: 'Integrações - Gerenciar', category: 'Integrações', description: 'Gerenciar sistemas de integração' },
     { key: 'integrations.sync', name: 'Integrações - Sincronizar', category: 'Integrações', description: 'Executar sincronização manual com sistemas externos' },
+    { key: 'integrations.admin', name: 'Integrações - Operar', category: 'Integrações', description: 'Operar integrações: overview, sincronização, teste de conexão e acompanhamento operacional' },
   ];
 
   for (const p of permissions) {
@@ -191,6 +192,32 @@ export async function runSeed() {
       await run(
         'INSERT INTO role_permissions (role, permission_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',
         [role, permId]
+      );
+    }
+  }
+
+  // Reconciliação idempotente: o seed é a fonte de verdade dos perfis.
+  // Revoga grants de role que deixaram de existir no seed (ex.: 'integrations.admin'
+  // removida do perfil gestor) e os respetivos grants materializados em
+  // user_permissions — preservando ajustes individuais que não vieram do perfil.
+  const allRolePerms: Record<string, number[]> = { ...rolePerms, ...newRolePerms };
+  const oldRolePermSets: Record<string, Set<number>> = {};
+  for (const role of Object.keys(allRolePerms)) {
+    const rows = await all<{ permission_id: number }>(
+      'SELECT permission_id FROM role_permissions WHERE role = $1', [role]
+    );
+    oldRolePermSets[role] = new Set(rows.map(r => r.permission_id));
+    await run(
+      'DELETE FROM role_permissions WHERE role = $1 AND NOT (permission_id = ANY($2::int[]))',
+      [role, allRolePerms[role]]
+    );
+  }
+  for (const [role, oldSet] of Object.entries(oldRolePermSets)) {
+    const removed = [...oldSet].filter(id => !allRolePerms[role].includes(id));
+    if (removed.length > 0) {
+      await run(
+        `DELETE FROM user_permissions WHERE user_id IN (SELECT id FROM users WHERE role = $1) AND permission_id = ANY($2::int[])`,
+        [role, removed]
       );
     }
   }

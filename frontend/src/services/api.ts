@@ -33,6 +33,13 @@ import {
   IntegrationSystemsResponse,
   IntegrationSystemCreateData,
   IntegrationSystemUpdateData,
+  SystemHealthResponse,
+  SyncStatusData,
+  OutboundWebhook,
+  WebhookDelivery,
+  WebhookStats,
+  IntegrationOverview,
+  IntegrationOperationResult,
 } from '../types';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'https://api.gruposgd.com.br';
@@ -438,6 +445,29 @@ export const monitoringApi = {
   health: () => request<HealthCheck>('/monitoring/health'),
   snapshot: () => request<{ message: string }>('/monitoring/snapshot', { method: 'POST' }),
   history: (limit?: number) => request<MonitoringSnapshot[]>(`/monitoring/history${limit ? '?limit=' + limit : ''}`),
+  systemHealth: () => request<SystemHealthResponse>('/monitoring/system-health'),
+};
+
+// D3.2 — Outbound Webhooks API
+export const webhooksApi = {
+  list: () => request<{ webhooks: OutboundWebhook[] }>('/admin/outbound-webhooks'),
+  get: (id: number) => request<OutboundWebhook>(`/admin/outbound-webhooks/${id}`),
+  create: (data: { name: string; url: string; secret: string; events: string[] }) =>
+    request<OutboundWebhook>('/admin/outbound-webhooks', { method: 'POST', body: JSON.stringify(data) }),
+  update: (id: number, data: Partial<{ name: string; url: string; secret: string; events: string[]; active: boolean }>) =>
+    request<OutboundWebhook>(`/admin/outbound-webhooks/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  delete: (id: number) =>
+    request<{ deleted: boolean }>(`/admin/outbound-webhooks/${id}`, { method: 'DELETE' }),
+  test: (id: number) =>
+    request<{ ok: boolean; status: number; durationMs: number; body: string }>(`/admin/outbound-webhooks/${id}/test`, { method: 'POST' }),
+  deliveries: (params?: { webhook_id?: string; status?: string; limit?: string }) => {
+    const qs = params ? '?' + new URLSearchParams(params as Record<string, string>).toString() : '';
+    return request<{ deliveries: WebhookDelivery[] }>(`/admin/outbound-webhooks/deliveries${qs}`);
+  },
+  getDelivery: (id: number) => request<WebhookDelivery>(`/admin/outbound-webhooks/deliveries/${id}`),
+  retryDelivery: (id: number) =>
+    request<WebhookDelivery>(`/admin/outbound-webhooks/deliveries/${id}/retry`, { method: 'POST' }),
+  stats: () => request<WebhookStats>('/admin/outbound-webhooks/stats'),
 };
 
 // LGPD API
@@ -491,6 +521,24 @@ export const integrationAdminApi = {
     request<IntegrationSyncResult>(`/integrations/admin/systems/${id}/sync`, {
       method: 'POST',
       body: JSON.stringify(payload ? { payload } : {}),
+    }),
+
+  // Sincronização Periódica (Fase E1.3)
+  getSyncStatus: () => request<SyncStatusData>('/integrations/admin/sync-status'),
+
+  // Gestão Operacional (Fase E3.1)
+  getOverview: () => request<IntegrationOverview>('/integrations/admin/overview'),
+
+  testConnection: (id: number) =>
+    request<IntegrationOperationResult>(`/integrations/admin/systems/${id}/test-connection`, {
+      method: 'POST',
+      body: JSON.stringify({}),
+    }),
+
+  manualSync: (id: number) =>
+    request<IntegrationOperationResult>(`/integrations/admin/systems/${id}/sync`, {
+      method: 'POST',
+      body: JSON.stringify({}),
     }),
 
   // Sistemas de Integração (Fase C4)

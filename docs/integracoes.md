@@ -507,12 +507,14 @@ Helpers frontend:
 # 11. Testes
 
 ## Backend
-- **196 testes automatizados aprovados** (18 arquivos, `npx vitest run`).
+- **626 testes automatizados aprovados** (34 arquivos, `npx vitest run`).
 - `npx tsc --noEmit`: sem erros.
-- Cobertura relevante: `integrationSystems.test.ts` (26+ testes),
+- Cobertura relevante: `integrationSystems.test.ts`,
   `integrationAdmin.test.ts`, `integrations.test.ts` (webhooks),
   `integrationProcessor.test.ts`, `integrationSync.test.ts`,
-  `integrationAdapters.test.ts`, `statusMapping.test.ts`.
+  `integrationAdapters.test.ts`, `statusMapping.test.ts`,
+  `transferegovHomologation.test.ts` (E2.2), `seiHomologation.test.ts` (E3.2)
+  e `cglogHomologation.test.ts` (E3.3).
 
 ## Frontend
 - `npx tsc --noEmit`: sem erros de tipo.
@@ -532,11 +534,8 @@ Helpers frontend:
 
 ## Fase D — Roadmap
 
-> Nenhuma funcionalidade abaixo foi implementada. Itens de planejamento.
-
-### Alertas inteligentes
-- Geração automática de alertas (email/web) em falhas consecutivas ou latência crítica.
-- Dashboard de alertas ativos/inativados.
+> Alertas inteligentes R1–R10 (alertEngine) e observabilidade já implementados
+> nas fases D1.3/E2.2 — veja `docs/homologacao.md` para o guia operacional.
 
 ### Dashboard executivo
 - Visão agregada multitenant.

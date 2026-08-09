@@ -1,6 +1,7 @@
 import pg, { PoolClient } from 'pg';
 import dotenv from 'dotenv';
 import { logger } from './lib/logger.js';
+import { recordDatabaseError, clearDatabaseError, recordQueryDuration } from './lib/healthStatus.js';
 
 dotenv.config();
 
@@ -27,21 +28,34 @@ export const pool = new pg.Pool({
 });
 
 pool.on('error', (err) => {
-  logger.error('Database pool error', { error: err instanceof Error ? err.message : err });
+  const msg = err instanceof Error ? err.message : String(err);
+  logger.error('Database pool error', { error: msg });
+  recordDatabaseError(msg);
+});
+
+// Periodic health check to clear stale errors when pool recovers.
+pool.on('connect', () => {
+  clearDatabaseError();
 });
 
 export async function get<T = any>(sql: string, params?: any[]): Promise<T | undefined> {
+  const start = Date.now();
   const result = await pool.query(sql, params);
+  recordQueryDuration(Date.now() - start);
   return result.rows[0] as T | undefined;
 }
 
 export async function all<T = any>(sql: string, params?: any[]): Promise<T[]> {
+  const start = Date.now();
   const result = await pool.query(sql, params);
+  recordQueryDuration(Date.now() - start);
   return result.rows as T[];
 }
 
 export async function run(sql: string, params?: any[]) {
+  const start = Date.now();
   const result = await pool.query(sql, params);
+  recordQueryDuration(Date.now() - start);
   return result;
 }
 
@@ -485,10 +499,141 @@ export async function initDatabase() {
     ALTER TABLE integration_logs ADD COLUMN IF NOT EXISTS http_status INTEGER;
     ALTER TABLE integration_logs ADD COLUMN IF NOT EXISTS response_summary TEXT;
     ALTER TABLE integration_logs ADD COLUMN IF NOT EXISTS triggered_by TEXT;
-    ALTER TABLE integration_logs ADD COLUMN IF NOT EXISTS error_message TEXT;
+    ALTER TABLE IF EXISTS integration_logs ADD COLUMN IF NOT EXISTS error_message TEXT;
     CREATE INDEX IF NOT EXISTS idx_integration_logs_status ON integration_logs(status);
     CREATE INDEX IF NOT EXISTS idx_integration_logs_direction ON integration_logs(direction);
+
+    -- Fase D1.2 — Central de Alertas Inteligentes
+    -- Persistência dos alertas gerados pelas regras R1-R8 (motor na Fase D1.3).
+    -- Segurança: details guarda apenas contexto operacional (nunca api_key/password/token/secret);
+    -- caso venha de config de integração, será redigido via lib/redact.ts antes da inserção.
+    CREATE TABLE IF NOT EXISTS integration_alerts (
+      id SERIAL PRIMARY KEY,
+      system_id INTEGER NOT NULL REFERENCES integration_systems(id) ON DELETE CASCADE,
+      severity TEXT NOT NULL DEFAULT 'warning' CHECK(severity IN ('critical', 'warning', 'info')),
+      type TEXT NOT NULL,
+      message TEXT,
+      details JSONB,
+      status TEXT NOT NULL DEFAULT 'open' CHECK(status IN ('open', 'acknowledged', 'resolved')),
+      acknowledged_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      acknowledged_at TIMESTAMPTZ,
+      resolved_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      resolved_at TIMESTAMPTZ,
+      created_at TIMESTAMPTZ DEFAULT NOW(),
+      updated_at TIMESTAMPTZ DEFAULT NOW(),
+      tenant_id INTEGER DEFAULT 1
+    );
+    CREATE INDEX IF NOT EXISTS idx_integration_alerts_system ON integration_alerts(system_id);
+    CREATE INDEX IF NOT EXISTS idx_integration_alerts_status ON integration_alerts(status);
+    CREATE INDEX IF NOT EXISTS idx_integration_alerts_severity ON integration_alerts(severity);
+    CREATE INDEX IF NOT EXISTS idx_integration_alerts_created ON integration_alerts(created_at);
+    CREATE INDEX IF NOT EXISTS idx_integration_alerts_updated ON integration_alerts(updated_at);
+    -- Deduplicação funcional: permite apenas UM alerta ativo (open/acknowledged) por (system_id, type).
+    -- Índice parcial UNIQUE: não impede múltiplos alertas RESOLVED do mesmo tipo (histórico preservado).
+    CREATE UNIQUE INDEX IF NOT EXISTS uq_integration_alerts_active ON integration_alerts(system_id, type) WHERE status IN ('open', 'acknowledged');
+
+    -- Fase D3.1 — Webhooks de Saída (outbound)
+    -- Configuração de endpoints externos que recebem notificações de eventos do SGD.
+    -- Segredo armazenado como hash SHA-256 (nunca em texto plano).
+    CREATE TABLE IF NOT EXISTS outbound_webhooks (
+      id SERIAL PRIMARY KEY,
+      name TEXT NOT NULL,
+      url TEXT NOT NULL,
+      secret_hash TEXT NOT NULL,
+      events TEXT[] NOT NULL DEFAULT '{}',
+      active BOOLEAN DEFAULT TRUE,
+      created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      created_at TIMESTAMPTZ DEFAULT NOW(),
+      updated_at TIMESTAMPTZ DEFAULT NOW(),
+      tenant_id INTEGER DEFAULT 1
+    );
+    CREATE INDEX IF NOT EXISTS idx_outbound_webhooks_active ON outbound_webhooks(active);
+    CREATE INDEX IF NOT EXISTS idx_outbound_webhooks_tenant ON outbound_webhooks(tenant_id);
+
+    -- Log de entregas de webhooks de saída.
+    -- Cada tentativa de envio é registrada (sucesso ou falha).
+    CREATE TABLE IF NOT EXISTS webhook_deliveries (
+      id SERIAL PRIMARY KEY,
+      webhook_id INTEGER NOT NULL REFERENCES outbound_webhooks(id) ON DELETE CASCADE,
+      event_type TEXT NOT NULL,
+      url TEXT NOT NULL,
+      request_headers JSONB,
+      request_body JSONB,
+      response_status INTEGER,
+      response_body TEXT,
+      duration_ms INTEGER,
+      attempt INTEGER NOT NULL DEFAULT 1,
+      status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending', 'success', 'failed', 'retrying')),
+      error TEXT,
+      created_at TIMESTAMPTZ DEFAULT NOW(),
+      tenant_id INTEGER DEFAULT 1
+    );
+    CREATE INDEX IF NOT EXISTS idx_webhook_deliveries_webhook ON webhook_deliveries(webhook_id);
+    CREATE INDEX IF NOT EXISTS idx_webhook_deliveries_status ON webhook_deliveries(status);
+    CREATE INDEX IF NOT EXISTS idx_webhook_deliveries_created ON webhook_deliveries(created_at);
+    CREATE INDEX IF NOT EXISTS idx_webhook_deliveries_event ON webhook_deliveries(event_type);
+
+    -- Fase F2.2 — Job Queue (fila assíncrona persistida em PostgreSQL).
+    -- Processamento agendado/assíncrono com retry e backoff controlado.
+    -- Compatibilidade com worker distribuído: claim via FOR UPDATE SKIP LOCKED,
+    -- colunas locked_by/locked_at para ownership explícita de cada worker.
+    CREATE TABLE IF NOT EXISTS background_jobs (
+      id SERIAL PRIMARY KEY,
+      queue TEXT NOT NULL DEFAULT 'default',
+      type TEXT NOT NULL,
+      payload JSONB NOT NULL DEFAULT '{}'::jsonb,
+      status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending', 'running', 'retrying', 'succeeded', 'failed', 'cancelled')),
+      attempts INTEGER NOT NULL DEFAULT 0,
+      max_attempts INTEGER NOT NULL DEFAULT 3,
+      next_run_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      last_error TEXT,
+      last_error_at TIMESTAMPTZ,
+      locked_by TEXT,
+      locked_at TIMESTAMPTZ,
+      run_at TIMESTAMPTZ,
+      finished_at TIMESTAMPTZ,
+      created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      created_at TIMESTAMPTZ DEFAULT NOW(),
+      updated_at TIMESTAMPTZ DEFAULT NOW(),
+      tenant_id INTEGER DEFAULT 1
+    );
+    CREATE INDEX IF NOT EXISTS idx_background_jobs_pickup ON background_jobs(status, next_run_at) WHERE status IN ('pending', 'retrying');
+    CREATE INDEX IF NOT EXISTS idx_background_jobs_queue ON background_jobs(queue);
+    CREATE INDEX IF NOT EXISTS idx_background_jobs_type ON background_jobs(type);
+    CREATE INDEX IF NOT EXISTS idx_background_jobs_created ON background_jobs(created_at);
   `);
+
+  // D3.2 — Migration: adicionar colunas e estados para gestão avançada de entregas.
+  // Idempotente: verifica existence antes de alterar.
+  const deliveryCols = await all<{ column_name: string }>(
+    `SELECT column_name FROM information_schema.columns WHERE table_name = 'webhook_deliveries'`
+  );
+  const colNames = new Set(deliveryCols.map((c) => c.column_name));
+
+  if (!colNames.has('max_attempts')) {
+    await run(`ALTER TABLE webhook_deliveries ADD COLUMN max_attempts INTEGER NOT NULL DEFAULT 3`);
+  }
+  if (!colNames.has('updated_at')) {
+    await run(`ALTER TABLE webhook_deliveries ADD COLUMN updated_at TIMESTAMPTZ DEFAULT NOW()`);
+  }
+  if (!colNames.has('resolved_at')) {
+    await run(`ALTER TABLE webhook_deliveries ADD COLUMN resolved_at TIMESTAMPTZ`);
+  }
+  if (!colNames.has('delivery_id')) {
+    await run(`ALTER TABLE webhook_deliveries ADD COLUMN delivery_id TEXT`);
+  }
+  // Atualizar CHECK constraint para incluir 'dead_letter'
+  await run(`
+    DO $$ BEGIN
+      ALTER TABLE webhook_deliveries DROP CONSTRAINT IF EXISTS webhook_deliveries_status_check;
+      ALTER TABLE webhook_deliveries ADD CONSTRAINT webhook_deliveries_status_check
+        CHECK(status IN ('pending', 'sending', 'success', 'failed', 'retrying', 'dead_letter'));
+    EXCEPTION WHEN duplicate_object THEN NULL;
+    END $$;
+  `);
+  // Índices adicionais para D3.2
+  await run(`CREATE INDEX IF NOT EXISTS idx_webhook_deliveries_delivery_id ON webhook_deliveries(delivery_id)`);
+  await run(`CREATE INDEX IF NOT EXISTS idx_webhook_deliveries_dead_letter ON webhook_deliveries(status) WHERE status = 'dead_letter'`);
 
   // Migração: unificar role 'administrador' → 'admin'
   await run("UPDATE users SET role = 'admin' WHERE role = 'administrador'");

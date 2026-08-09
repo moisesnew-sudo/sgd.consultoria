@@ -85,6 +85,8 @@ afterAll(async () => {
   }
   await run(`DELETE FROM audit_logs WHERE action = 'integration.sync.manual' AND entity_id = ANY($1::text[])`, [testSystems.map(String)]);
   await run("DELETE FROM audit_logs WHERE action = 'integration.sync.manual' AND entity_id = $1", [String(transferegovId)]);
+  await run("DELETE FROM audit_logs WHERE action = 'integration.test-connection' AND entity_id = $1", [String(transferegovId)]);
+  await run("DELETE FROM integration_logs WHERE system_id = $1 AND action = 'integration.test-connection'", [transferegovId]);
   if (testSystems.length > 0) {
     await run('DELETE FROM integration_logs WHERE system_id = ANY($1::int[])', [testSystems]);
     await run('DELETE FROM audit_logs WHERE entity_type = $1 AND entity_id = ANY($2::text[])', ['integration_system', testSystems.map(String)]);
@@ -347,6 +349,104 @@ describe('Integrações - Backend Administrativo (Fase 3.1 - Fase B)', () => {
       });
       expect(res.status).toBe(400);
       expect(res.body.error).toContain('Payload');
+    });
+  });
+
+  describe('GET /api/integrations/admin/overview (visão operacional E3.1)', () => {
+    it('deve retornar resumo, sistemas, alertas e scheduler (gestor)', async () => {
+      const res = await gestorAgent.get('/api/integrations/admin/overview');
+      expect(res.status).toBe(200);
+      expect(res.body.summary).toBeDefined();
+      expect(res.body.summary).toHaveProperty('total');
+      expect(res.body.summary).toHaveProperty('active');
+      expect(res.body.summary).toHaveProperty('inactive');
+      expect(res.body.summary).toHaveProperty('healthy');
+      expect(res.body.summary).toHaveProperty('attention');
+      expect(res.body.summary).toHaveProperty('failure');
+      expect(res.body.summary).toHaveProperty('failures24h');
+      expect(res.body.summary).toHaveProperty('openAlerts');
+      expect(res.body.summary).toHaveProperty('avgLatencyMs');
+      expect(res.body.summary).toHaveProperty('lastSync');
+      expect(Array.isArray(res.body.systems)).toBe(true);
+      expect(Array.isArray(res.body.alerts)).toBe(true);
+      expect(res.body.scheduler).toHaveProperty('running');
+      expect(res.body.scheduler).toHaveProperty('lastCycleAt');
+
+      const tf = res.body.systems.find((s: any) => s.code === 'transferegov');
+      expect(tf).toBeDefined();
+      expect(tf).toHaveProperty('healthStatus');
+      expect(tf).toHaveProperty('lastSyncAt');
+      expect(tf).toHaveProperty('nextSyncAt');
+      expect(tf).toHaveProperty('responseTime');
+      expect(tf).toHaveProperty('consecutiveErrors');
+      expect(Array.isArray(tf.alerts)).toBe(true);
+    });
+
+    it('deve respeitar permissão integrations.view', async () => {
+      const res = await noPermAgent.get('/api/integrations/admin/overview');
+      expect(res.status).toBe(403);
+    });
+
+    it('deve rejeitar sem autenticação', async () => {
+      const res = await request(app).get('/api/integrations/admin/overview');
+      expect(res.status).toBe(401);
+    });
+  });
+
+  describe('POST /api/integrations/admin/systems/:id/test-connection (E3.1)', () => {
+    it('deve testar conexão e retornar resultado com latência (admin)', async () => {
+      const res = await withCsrf(adminAgent, adminCsrfToken, 'post', `/api/integrations/admin/systems/${transferegovId}/test-connection`);
+      expect(res.status).toBe(200);
+      expect(res.body).toHaveProperty('success');
+      expect(res.body).toHaveProperty('status');
+      expect(['success', 'error']).toContain(res.body.status);
+      expect(res.body).toHaveProperty('httpStatus');
+      expect(res.body).toHaveProperty('durationMs');
+      expect(res.body.durationMs).toBeGreaterThanOrEqual(0);
+
+      const log = await get(
+        `SELECT * FROM integration_logs WHERE system_id = $1 AND action = 'integration.test-connection' ORDER BY id DESC LIMIT 1`,
+        [transferegovId]
+      );
+      expect(log).toBeTruthy();
+      expect(log.direction).toBe('out');
+      expect(log.triggered_by).toBe('manual');
+      expect(log.duration_ms).toBeGreaterThanOrEqual(0);
+
+      const audit = await get(
+        `SELECT * FROM audit_logs WHERE action = 'integration.test-connection' AND entity_id = $1`,
+        [String(transferegovId)]
+      );
+      expect(audit).toBeTruthy();
+    });
+
+    it('deve rejeitar gestor (sem integrations.sync)', async () => {
+      const res = await withCsrf(gestorAgent, gestorCsrfToken, 'post', `/api/integrations/admin/systems/${transferegovId}/test-connection`);
+      expect(res.status).toBe(403);
+    });
+
+    it('deve rejeitar usuário sem permissão', async () => {
+      const res = await withCsrf(noPermAgent, noPermCsrfToken, 'post', `/api/integrations/admin/systems/${transferegovId}/test-connection`);
+      expect(res.status).toBe(403);
+    });
+
+    it('deve retornar 404 para sistema inexistente', async () => {
+      const res = await withCsrf(adminAgent, adminCsrfToken, 'post', '/api/integrations/admin/systems/999999/test-connection');
+      expect(res.status).toBe(404);
+    });
+
+    it('deve rejeitar sistema inativo', async () => {
+      const system = await createTestSystem(uniqueCode('inactive-tc'));
+      await withCsrf(adminAgent, adminCsrfToken, 'patch', `/api/integrations/systems/${system.id}/deactivate`);
+
+      const res = await withCsrf(adminAgent, adminCsrfToken, 'post', `/api/integrations/admin/systems/${system.id}/test-connection`);
+      expect(res.status).toBe(400);
+      expect(res.body.error).toContain('inativo');
+    });
+
+    it('deve rejeitar sem CSRF', async () => {
+      const res = await adminAgent.post(`/api/integrations/admin/systems/${transferegovId}/test-connection`);
+      expect(res.status).toBe(403);
     });
   });
 });
