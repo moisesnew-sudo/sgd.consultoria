@@ -221,3 +221,75 @@
 ---
 
 *Documento gerado automaticamente pelo SGD. Para dúvidas, contactar a equipe de desenvolvimento.*
+
+---
+
+## Hardening de Segurança — v2.0-security-hardening
+
+**Data:** Agosto 2026 | **Status:** Concluído e validado em produção
+
+Esta versão representa uma etapa de fortalecimento de segurança, estabilidade e governança do SGD.
+
+### Segurança de credenciais de inicialização
+
+- Remoção de senhas padrão fixas no processo de seed.
+- Obrigatoriedade de configuração explícita das variáveis `SEED_*_PASSWORD` em ambiente de produção.
+- Aplicação de política mínima de complexidade:
+  - mínimo de 12 caracteres;
+  - letras maiúsculas;
+  - letras minúsculas;
+  - números;
+  - caracteres especiais;
+  - bloqueio de senhas previsíveis.
+
+**Usuários contemplados:**
+
+- Admin
+- Viewer
+- Gestor
+- Analista
+- Diretor
+- Técnico
+- Parceiro
+- Cliente
+- Visitante
+
+**Variáveis protegidas:**
+
+- `SEED_ADMIN_PASSWORD`
+- `SEED_VIEWER_PASSWORD`
+- `SEED_GESTOR_PASSWORD`
+- `SEED_ANALISTA_PASSWORD`
+- `SEED_DIRETOR_PASSWORD`
+- `SEED_TECNICO_PASSWORD`
+- `SEED_PARCEIRO_PASSWORD`
+- `SEED_CLIENTE_PASSWORD`
+- `SEED_VISITANTE_PASSWORD`
+
+### Saneamento do repositório
+
+Remoção definitiva de artefatos sensíveis:
+
+- `backend/backups/`
+- `BACKUP_security_2026-07-26_11-10/`
+- `BACKUP_INFO.md`
+- `CGASI_SE_Backup_2026-07-23_22-36.zip`
+
+A remoção foi realizada também no histórico Git utilizando processo controlado de reescrita.
+
+### Estabilidade da aplicação
+
+- Correção do encerramento limpo dos testes Vitest.
+- Ajuste de timers internos para não impedir finalização do processo.
+- Ajuste da configuração Express `trust proxy` para ambiente com proxy/load balancer.
+
+### Validação de produção
+
+- Deploy realizado com sucesso no Render.
+- Seed executado corretamente.
+- Backend iniciado em ambiente production.
+- Serviços internos (scheduler, integração, fila e eventos) validados.
+
+**Status:**
+
+✅ Versão v2.0-security-hardening concluída e validada em produção.
