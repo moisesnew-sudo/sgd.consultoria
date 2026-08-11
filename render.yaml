@@ -18,6 +18,14 @@ services:
           property: connectionString
       - key: JWT_SECRET
         sync: false
+      - key: SEED_ADMIN_PASSWORD
+        sync: false
+      - key: SEED_VIEWER_PASSWORD
+        sync: false
+      - key: SEED_GESTOR_PASSWORD
+        sync: false
+      - key: SEED_ANALISTA_PASSWORD
+        sync: false
       - key: COOKIE_DOMAIN
         value: gruposgd.com.br
       - key: CORS_ORIGIN

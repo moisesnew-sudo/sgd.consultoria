@@ -3,11 +3,59 @@ import { get, run, all } from './database.js';
 import { logger } from './lib/logger.js';
 import { DEMAND_STATUSES } from './types.js';
 
+const isProduction = process.env.NODE_ENV === 'production';
+
+/** Senhas proibidas mesmo se definidas via env var (nunca usar em seed). */
+const BLOCKED_SEED_PASSWORDS = new Set<string>([
+  'sgd@2026!',
+  'admin2026!',
+  'senha123',
+  'senha@123',
+  'password',
+  'password1',
+  'admin',
+  'admin123',
+  'changeme',
+  '12345678',
+  'trocar-depois',
+]);
+
+const MIN_SEED_PASSWORD_LENGTH = 12;
+
+/** true somente se a senha atende aos requisitos mínimos de robustez. */
+function isStrongSeedPassword(password: string): boolean {
+  if (password.length < MIN_SEED_PASSWORD_LENGTH) return false;
+  if (!/[A-Z]/.test(password)) return false;
+  if (!/[a-z]/.test(password)) return false;
+  if (!/[0-9]/.test(password)) return false;
+  if (!/[^A-Za-z0-9]/.test(password)) return false;
+  if (BLOCKED_SEED_PASSWORDS.has(password.toLowerCase())) return false;
+  return true;
+}
+
+/**
+ * Resolve a senha de um usuário seedado.
+ * Em produção a env var é obrigatória e precisa ser forte; fora de produção
+ * há um fallback de conveniência (nunca reutilizando 'Sgd@2026!').
+ */
+function resolveSeedPassword(envVar: string, label: string): string {
+  const value = process.env[envVar];
+  if (isProduction) {
+    if (!value) {
+      throw new Error(`Seed: a variável de ambiente ${envVar} é obrigatória em produção (usuário ${label}). Defina-a antes de iniciar o servidor.`);
+    }
+    if (!isStrongSeedPassword(value)) {
+      throw new Error(`Seed: a variável ${envVar} (usuário ${label}) não atende aos requisitos mínimos: mínimo de ${MIN_SEED_PASSWORD_LENGTH} caracteres, com letra maiúscula, letra minúscula, número, caractere especial e sem usar senha comum/bloqueada.`);
+    }
+    return value;
+  }
+  return value || process.env.SEED_DEFAULT_PASSWORD || `Dev-${label}-Local#1`;
+}
+
 export async function runSeed() {
   logger.info('🌱 Verificando dados iniciais...');
 
-  const defaultPwd = () => process.env.SEED_DEFAULT_PASSWORD || 'Sgd@2026!';
-  const adminPassword = await bcrypt.hash(process.env.SEED_ADMIN_PASSWORD || defaultPwd(), 10);
+  const adminPassword = await bcrypt.hash(resolveSeedPassword('SEED_ADMIN_PASSWORD', 'Admin'), 10);
   const existingAdmin = await get('SELECT id FROM users WHERE email = $1', ['admin@sgd.gov.br']);
 
   if (!existingAdmin) {
@@ -18,7 +66,7 @@ export async function runSeed() {
     logger.info('✅ Usuário admin criado: admin@sgd.gov.br');
   }
 
-  const viewerPassword = await bcrypt.hash(process.env.SEED_VIEWER_PASSWORD || defaultPwd(), 10);
+  const viewerPassword = await bcrypt.hash(resolveSeedPassword('SEED_VIEWER_PASSWORD', 'Viewer'), 10);
   const existingViewer = await get('SELECT id FROM users WHERE email = $1', ['consulta@sgd.gov.br']);
 
   if (!existingViewer) {
@@ -29,7 +77,7 @@ export async function runSeed() {
     logger.info('✅ Usuário consulta criado: consulta@sgd.gov.br');
   }
 
-  const gestorPassword = await bcrypt.hash(process.env.SEED_GESTOR_PASSWORD || defaultPwd(), 10);
+  const gestorPassword = await bcrypt.hash(resolveSeedPassword('SEED_GESTOR_PASSWORD', 'Gestor'), 10);
   const existingGestor = await get('SELECT id FROM users WHERE email = $1', ['gestor@sgd.gov.br']);
 
   if (!existingGestor) {
@@ -40,7 +88,7 @@ export async function runSeed() {
     logger.info('✅ Usuário gestor criado: gestor@sgd.gov.br');
   }
 
-  const analistaPassword = await bcrypt.hash(process.env.SEED_ANALISTA_PASSWORD || defaultPwd(), 10);
+  const analistaPassword = await bcrypt.hash(resolveSeedPassword('SEED_ANALISTA_PASSWORD', 'Analista'), 10);
   const existingAnalista = await get('SELECT id FROM users WHERE email = $1', ['analista@sgd.gov.br']);
 
   if (!existingAnalista) {
@@ -161,11 +209,11 @@ export async function runSeed() {
 
   // Seed new roles (idempotent)
   const NEW_USERS: { email: string; password: string; name: string; role: string }[] = [
-    { email: 'diretor@sgd.gov.br', password: process.env.SEED_DIRETOR_PASSWORD || defaultPwd(), name: 'Diretor SGD', role: 'diretor' },
-    { email: 'tecnico@sgd.gov.br', password: process.env.SEED_TECNICO_PASSWORD || defaultPwd(), name: 'Técnico SGD', role: 'tecnico' },
-    { email: 'parceiro@sgd.gov.br', password: process.env.SEED_PARCEIRO_PASSWORD || defaultPwd(), name: 'Parceiro SGD', role: 'parceiro' },
-    { email: 'cliente@sgd.gov.br', password: process.env.SEED_CLIENTE_PASSWORD || defaultPwd(), name: 'Cliente SGD', role: 'cliente' },
-    { email: 'visitante@sgd.gov.br', password: process.env.SEED_VISITANTE_PASSWORD || defaultPwd(), name: 'Visitante', role: 'visitante' },
+    { email: 'diretor@sgd.gov.br', password: resolveSeedPassword('SEED_DIRETOR_PASSWORD', 'Diretor'), name: 'Diretor SGD', role: 'diretor' },
+    { email: 'tecnico@sgd.gov.br', password: resolveSeedPassword('SEED_TECNICO_PASSWORD', 'Tecnico'), name: 'Técnico SGD', role: 'tecnico' },
+    { email: 'parceiro@sgd.gov.br', password: resolveSeedPassword('SEED_PARCEIRO_PASSWORD', 'Parceiro'), name: 'Parceiro SGD', role: 'parceiro' },
+    { email: 'cliente@sgd.gov.br', password: resolveSeedPassword('SEED_CLIENTE_PASSWORD', 'Cliente'), name: 'Cliente SGD', role: 'cliente' },
+    { email: 'visitante@sgd.gov.br', password: resolveSeedPassword('SEED_VISITANTE_PASSWORD', 'Visitante'), name: 'Visitante', role: 'visitante' },
   ];
 
   for (const nu of NEW_USERS) {
