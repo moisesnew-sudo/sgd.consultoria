@@ -11,10 +11,6 @@ export default defineConfig({
     exclude: ['node_modules/**', 'dist/**'],
     fileParallelism: false,
     pool: 'forks',
-    poolOptions: {
-      forks: {
-        singleFork: true,
-      },
-    },
+    maxWorkers: 1,
   },
 });

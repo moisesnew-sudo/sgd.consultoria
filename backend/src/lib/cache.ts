@@ -182,4 +182,4 @@ setInterval(() => {
   for (const [key, entry] of store.entries()) {
     if (now > entry.expiresAt) store.delete(key);
   }
-}, DEFAULT_TTL_MS);
+}, DEFAULT_TTL_MS).unref();

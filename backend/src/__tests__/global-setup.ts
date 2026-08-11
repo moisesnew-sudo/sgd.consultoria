@@ -1,4 +1,4 @@
-import { initDatabase, run } from '../database.js';
+import { initDatabase, run, pool } from '../database.js';
 import { runSeed } from '../seed.js';
 
 export async function setup() {
@@ -18,4 +18,8 @@ export async function setup() {
   await run('DELETE FROM active_sessions');
   await run('DELETE FROM token_blacklist');
   await run('DELETE FROM password_reset_tokens');
+}
+
+export async function teardown() {
+  await pool.end();
 }

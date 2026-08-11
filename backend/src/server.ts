@@ -97,16 +97,17 @@ import { pool } from './database.js';
 import { closeAllSSEClients } from './routes/sse.js';
 
 const app = express();
+
+// Trust proxy — required for correct req.ip behind Render/load balancers.
+// Prevents all requests from sharing the same rate limit bucket.
+app.set('trust proxy', 1);
+
 const PORT = process.env.PORT || 3001;
 
 // F2.1 — Referência ao servidor HTTP para graceful shutdown.
 let server: Server | null = null;
 let shuttingDown = false;
 const SHUTDOWN_TIMEOUT_MS = parseInt(process.env.SHUTDOWN_TIMEOUT_MS || '15000', 10);
-
-// Trust proxy — required for correct req.ip behind Render/load balancers.
-// Prevents all requests from sharing the same rate limit bucket.
-app.set('trust proxy', 1);
 
 // Health check (liveness) — registered BEFORE all middleware.
 // No auth, no CSRF, no rate limit. Always returns 200 if the process is alive.
