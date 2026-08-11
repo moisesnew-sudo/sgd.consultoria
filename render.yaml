@@ -26,6 +26,16 @@ services:
         sync: false
       - key: SEED_ANALISTA_PASSWORD
         sync: false
+      - key: SEED_DIRETOR_PASSWORD
+        sync: false
+      - key: SEED_TECNICO_PASSWORD
+        sync: false
+      - key: SEED_PARCEIRO_PASSWORD
+        sync: false
+      - key: SEED_CLIENTE_PASSWORD
+        sync: false
+      - key: SEED_VISITANTE_PASSWORD
+        sync: false
       - key: COOKIE_DOMAIN
         value: gruposgd.com.br
       - key: CORS_ORIGIN
