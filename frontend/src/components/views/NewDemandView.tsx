@@ -137,6 +137,7 @@ export default function NewDemandView({ municipalities, onAddDemand, onNavigateT
   const [priority, setPriority] = useState<DemandPriority>('media');
   const [notes, setNotes] = useState('');
   const [attachments, setAttachments] = useState<LocalAttachment[]>([]);
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [isDragging, setIsDragging] = useState(false);
   const [createdProtocol, setCreatedProtocol] = useState<Demand | null>(null);
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
@@ -318,6 +319,7 @@ export default function NewDemandView({ municipalities, onAddDemand, onNavigateT
 
   const addSimulatedFiles = (fileList: FileList) => {
     const newFiles: LocalAttachment[] = [];
+    const raw: File[] = [];
     for (let i = 0; i < fileList.length; i++) {
       const file = fileList[i];
       const sizeMB = (file.size / (1024 * 1024)).toFixed(1);
@@ -328,12 +330,15 @@ export default function NewDemandView({ municipalities, onAddDemand, onNavigateT
         type: file.type || 'application/pdf',
         addedAt: new Date().toLocaleDateString('pt-BR')
       });
+      raw.push(file);
     }
-    setAttachments([...attachments, ...newFiles]);
+    setAttachments(prev => [...prev, ...newFiles]);
+    setSelectedFiles(prev => [...prev, ...raw]);
   };
 
   const removeAttachment = (index: number) => {
-    setAttachments(attachments.filter((_, i) => i !== index));
+    setAttachments(prev => prev.filter((_, i) => i !== index));
+    setSelectedFiles(prev => prev.filter((_, i) => i !== index));
   };
 
   // ---- Draft (localStorage) ----
@@ -398,9 +403,15 @@ export default function NewDemandView({ municipalities, onAddDemand, onNavigateT
         ano: Number(ano) || undefined
       });
 
+      let savedDemand = newDemand;
+      if (selectedFiles.length > 0) {
+        const uploaded = await demandsApi.uploadAttachments(newDemand.id, selectedFiles);
+        savedDemand = { ...newDemand, attachments: uploaded };
+      }
+
       localStorage.removeItem(DRAFT_KEY);
-      onAddDemand(newDemand);
-      setCreatedProtocol(newDemand);
+      onAddDemand(savedDemand);
+      setCreatedProtocol(savedDemand);
     } catch (error: any) {
       console.error('Error creating demand:', error);
       toast('error', 'Erro ao criar demanda', error?.message || 'Tente novamente');
@@ -425,6 +436,7 @@ export default function NewDemandView({ municipalities, onAddDemand, onNavigateT
     setNotes('');
     setResponsiblePhone('');
     setAttachments([]);
+    setSelectedFiles([]);
     setErrors({});
     setHasDraft(false);
     setLastEdited(null);

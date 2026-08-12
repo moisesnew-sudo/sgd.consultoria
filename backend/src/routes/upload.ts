@@ -68,7 +68,7 @@ const upload = multer({
 
 const router = Router();
 
-async function cleanupOrphanedFiles(): Promise<void> {
+export async function cleanupOrphanedFiles(): Promise<void> {
   try {
     const deletedAttachments = await all<{ file_path: string }>(
       "SELECT file_path FROM attachments WHERE deleted_at IS NOT NULL AND deleted_at < NOW() - INTERVAL '7 days'"
