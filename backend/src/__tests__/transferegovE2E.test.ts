@@ -130,23 +130,25 @@ describe('E2E 1. Autenticação', () => {
   });
 
   it('autenticação OAuth2 retorna token via mock', async () => {
-    // Mock do fetch para simular resposta OAuth2
-    const mockFetch = vi.fn().mockResolvedValue({
-      status: 200,
-      data: { access_token: 'mock-oauth-token-xyz' },
-      durationMs: 150,
-    });
+    // O httpClient usa o fetch global; mockamos a resposta do token OAuth2
+    // de forma determinística (sem chamada de rede real).
+    const mockFetch = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(JSON.stringify({ access_token: 'mock-oauth-token-xyz' }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      })
+    );
 
-    // Não é possível mockar diretamente o httpClient internamente,
-    // mas testamos que a estrutura está correta
     const credential = await transferegovGovAdapter.authenticate({
       secretEnvKey: 'TRANSFEREGOV_E2E_TEST_SECRET',
       extra: { authType: 'oauth2', tokenUrl: 'https://mock.example.gov.br/oauth/token', clientId: 'test-client' },
     });
 
-    // Com OAuth2 e secret disponível, tenta fazer a requisição
-    // Em ambiente de teste sem servidor real, retorna null
-    expect(credential === null || typeof credential === 'string').toBe(true);
+    expect(credential).toBe('mock-oauth-token-xyz');
+    const [url] = mockFetch.mock.calls[0];
+    expect(String(url)).toBe('https://mock.example.gov.br/oauth/token');
+
+    mockFetch.mockRestore();
   });
 
   it('autenticação sem secret retorna null (modo degradado)', async () => {
@@ -175,25 +177,37 @@ describe('E2E 2. Fetch de Recurso', () => {
   });
 
   it('fetch com proposalNumber constrói URL correta', async () => {
-    // Mock do httpClient para interceptar a chamada
-    const originalHttpClient = httpClient;
-    let capturedUrl = '';
+    // Mock determinístico do fetch — sem chamada de rede real.
+    const mockFetch = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(JSON.stringify([{ proposal_number: 'PROP-TEST-001', status: 'PENDENTE' }]), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      })
+    );
 
-    // Não podemos mockar facilmente, mas testamos a lógica de construção de URL
     const config: AdapterConfig = {
       baseUrl: 'https://api.transferegov.gov.br',
     };
 
-    // O fetch real falhará (URL não existe), mas isso valida a construção
     const result = await transferegovGovAdapter.fetch(config, null, {
       proposalNumber: 'PROP-TEST-001',
     });
 
-    // HTTP real retornará erro de conexão ou timeout
-    expect(result.status).not.toBe(200);
+    expect(result.status).toBe(200);
+    const [url] = mockFetch.mock.calls[0];
+    expect(String(url)).toBe('https://api.transferegov.gov.br/api/propostas/PROP-TEST-001');
+
+    mockFetch.mockRestore();
   });
 
   it('fetch com contractNumber constrói URL de convênio', async () => {
+    const mockFetch = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(JSON.stringify([{ numero_convenio: 'CONV-TEST-001', status: 'PENDENTE' }]), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      })
+    );
+
     const config: AdapterConfig = {
       baseUrl: 'https://api.transferegov.gov.br',
     };
@@ -202,10 +216,21 @@ describe('E2E 2. Fetch de Recurso', () => {
       contractNumber: 'CONV-TEST-001',
     });
 
-    expect(result.status).not.toBe(200);
+    expect(result.status).toBe(200);
+    const [url] = mockFetch.mock.calls[0];
+    expect(String(url)).toBe('https://api.transferegov.gov.br/api/convenios/CONV-TEST-001');
+
+    mockFetch.mockRestore();
   });
 
   it('fetch com status filtrado constrói URL com query param', async () => {
+    const mockFetch = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(JSON.stringify([{ proposal_number: 'PROP-TEST-001', status: 'APROVADO' }]), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      })
+    );
+
     const config: AdapterConfig = {
       baseUrl: 'https://api.transferegov.gov.br',
     };
@@ -214,7 +239,11 @@ describe('E2E 2. Fetch de Recurso', () => {
       status: 'APROVADO',
     });
 
-    expect(result.status).not.toBe(200);
+    expect(result.status).toBe(200);
+    const [url] = mockFetch.mock.calls[0];
+    expect(String(url)).toBe('https://api.transferegov.gov.br/api/propostas?situacao=APROVADO');
+
+    mockFetch.mockRestore();
   });
 });
 
@@ -482,10 +511,17 @@ describe('E2E 6. Duplicação Ignorada', () => {
 // ---------------------------------------------------------------------------
 describe('E2E 7. Erro Externo', () => {
   it('sync com baseUrl inválida retorna erro estruturado', async () => {
+    // Mock determinístico de falha de rede — sem chamada real à API externa.
+    const mockFetch = vi.spyOn(globalThis, 'fetch').mockRejectedValue(
+      new Error('ENOTFOUND invalid.example.gov.br')
+    );
+
     const result = await transferegovGovAdapter.sync(
       { baseUrl: 'https://invalid.example.gov.br' },
       { proposalNumber: 'PROP-001' }
     );
+
+    mockFetch.mockRestore();
 
     expect(result.success).toBe(false);
     expect(result.error).toBeDefined();

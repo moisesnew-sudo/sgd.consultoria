@@ -513,10 +513,18 @@ describe('Sincronização de Adapters Governamentais', () => {
   });
 
   it('sync com parâmetros não quebra', async () => {
+    // Mock determinístico de falha de rede — sem chamada real à API externa.
+    const mockFetch = vi.spyOn(globalThis, 'fetch').mockRejectedValue(
+      new Error('ENOTFOUND invalid.example.gov.br')
+    );
+
     const result = await transferegovGovAdapter.sync(
       { baseUrl: 'https://invalid.example.gov.br' },
       { proposalNumber: 'PROP-001' }
     );
+
+    mockFetch.mockRestore();
+
     expect(result.success).toBe(false);
     expect(result.durationMs).toBeGreaterThanOrEqual(0);
   });
