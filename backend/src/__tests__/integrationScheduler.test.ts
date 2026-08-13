@@ -439,6 +439,7 @@ describe('Fail-fast de configuração no scheduler (Fase 2.1)', () => {
     lastSyncBySystem.clear();
     consecutiveErrorsBySystem.clear();
     delete process.env.TRANSFEREGOV_API_KEY;
+    delete process.env.SEI_API_TOKEN;
 
     mockPoolConnect.mockResolvedValue({
       query: vi.fn().mockResolvedValue({ rows: [{ pg_try_advisory_lock: true }] }),
@@ -450,6 +451,7 @@ describe('Fail-fast de configuração no scheduler (Fase 2.1)', () => {
   afterEach(() => {
     stopIntegrationScheduler();
     delete process.env.TRANSFEREGOV_API_KEY;
+    delete process.env.SEI_API_TOKEN;
     vi.clearAllMocks();
   });
 
@@ -475,10 +477,126 @@ describe('Fail-fast de configuração no scheduler (Fase 2.1)', () => {
     expect(summary!.systemsEvaluated).toBe(1);
     expect(summary!.errors).toBe(1);
     expect(adapterSync).not.toHaveBeenCalled();
-    expect(consecutiveErrorsBySystem.get('transferegov')).toBe(1);
+    expect(consecutiveErrorsBySystem.get('transferegov')).toBeUndefined();
+    // Observabilidade preservada: log de configuração inválida escrito.
     expect(run).toHaveBeenCalledWith(
       expect.stringContaining('integration_logs'),
-      expect.arrayContaining([expect.any(Number), 'transferegov'])
+      expect.arrayContaining([expect.stringContaining('Configuração inválida')])
+    );
+    // Diagnóstico preservado na coluna last_error_message.
+    expect(run).toHaveBeenCalledWith(
+      expect.stringContaining('last_error_message'),
+      expect.anything()
+    );
+    // NÃO trata como falha transitória: UPDATE não toca last_error_at nem consecutive_errors.
+    for (const call of (run as any).mock.calls) {
+      const sql = String(call[0] ?? '');
+      if (sql.includes('integration_systems') && sql.includes('last_error_message')) {
+        expect(sql).not.toContain('last_error_at');
+        expect(sql).not.toContain('consecutive_errors');
+        expect(sql).not.toContain('error_count_24h');
+      }
+    }
+  });
+
+  it('erro transitório externo continua incrementando consecutive_errors e last_error_at', async () => {
+    const { all, run } = await import('../database.js');
+    const { getGovAdapter } = await import('../lib/adapterRegistry.js');
+    process.env.TRANSFEREGOV_API_KEY = 'chave-valida-123';
+    (all as any).mockResolvedValue([
+      {
+        id: 1,
+        code: 'transferegov',
+        name: 'Transferegov',
+        active: true,
+        secret_env_key: 'TRANSFEREGOV_WEBHOOK_SECRET',
+        config: {
+          syncEnabled: true,
+          syncIntervalMinutes: 1,
+          baseUrl: 'https://api.transferegov.gov.br',
+          secretEnvKey: 'TRANSFEREGOV_API_KEY',
+        },
+      },
+    ]);
+    adapterSync.mockResolvedValue({
+      success: false,
+      fetchedCount: 0,
+      normalizedCount: 0,
+      syncedCount: 0,
+      httpStatus: 500,
+      authError: false,
+      error: 'HTTP 500 na consulta ao Transferegov',
+      events: [],
+    });
+    (getGovAdapter as any).mockReturnValue({ sync: adapterSync });
+    (run as any).mockClear();
+
+    const summary = await runScheduledSyncCycle();
+
+    expect(summary).not.toBeNull();
+    expect(summary!.errors).toBe(1);
+    expect(consecutiveErrorsBySystem.get('transferegov')).toBe(1);
+    // Falha transitória mantém o UPDATE com last_error_at e incremento de consecutive_errors.
+    const sqls = (run as any).mock.calls.map((c: any[]) => String(c[0] ?? ''));
+    expect(sqls.some((sql: string) => sql.includes('last_error_at') && sql.includes('consecutive_errors'))).toBe(true);
+  });
+
+  it('erro de configuração em um sistema não impede o scheduler de processar os demais', async () => {
+    const { all, run } = await import('../database.js');
+    const { getGovAdapter } = await import('../lib/adapterRegistry.js');
+    process.env.SEI_API_TOKEN = 'sei-token-valido';
+    (all as any).mockResolvedValue([
+      {
+        id: 1,
+        code: 'transferegov',
+        name: 'Transferegov',
+        active: true,
+        secret_env_key: 'TRANSFEREGOV_WEBHOOK_SECRET',
+        config: { syncEnabled: true, syncIntervalMinutes: 1, baseUrl: 'https://api.transferegov.gov.br' },
+      },
+      {
+        id: 2,
+        code: 'sei',
+        name: 'SEI',
+        active: true,
+        secret_env_key: 'SEI_WEBHOOK_SECRET',
+        config: {
+          syncEnabled: true,
+          syncIntervalMinutes: 1,
+          baseUrl: 'https://api.sei.gov.br',
+          secretEnvKey: 'SEI_API_TOKEN',
+        },
+      },
+    ]);
+    adapterSync.mockResolvedValue({
+      success: true,
+      fetchedCount: 0,
+      normalizedCount: 0,
+      syncedCount: 0,
+      httpStatus: 200,
+      authError: false,
+      error: null,
+      events: [],
+    });
+    (getGovAdapter as any).mockReturnValue({ sync: adapterSync });
+    (run as any).mockClear();
+
+    const summary = await runScheduledSyncCycle();
+
+    expect(summary).not.toBeNull();
+    expect(summary!.systemsEvaluated).toBe(2);
+    expect(summary!.systemsSynced).toBe(1);
+    expect(summary!.errors).toBe(1);
+    // Apenas o sistema válido (SEI) executou sync.
+    expect(adapterSync).toHaveBeenCalledTimes(1);
+    expect(adapterSync.mock.calls[0][0]).toMatchObject({
+      baseUrl: 'https://api.sei.gov.br',
+      secretEnvKey: 'SEI_API_TOKEN',
+    });
+    expect(consecutiveErrorsBySystem.get('transferegov')).toBeUndefined();
+    expect(run).toHaveBeenCalledWith(
+      expect.stringContaining('integration_logs'),
+      expect.arrayContaining([expect.stringContaining('Configuração inválida')])
     );
   });
 

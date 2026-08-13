@@ -233,13 +233,15 @@ async function syncSingleSystem(
     }
 
     // Fail-fast (Fase 2.1): configuração mínima inválida → não executar HTTP.
+    // P2.1: erro de configuração é permanente, não falha transitória de comunicação
+    // → registrado por recordConfigurationError (sem consecutive_errors/last_error_at).
     const validation = validateIntegrationConfiguration(system);
     if (!validation.valid) {
       result.status = 'failed';
       result.code = CONFIGURATION_ERROR_CODE;
       result.error = `Configuração inválida: ${validation.errors.join('; ')}`;
       result.durationMs = Date.now() - startedAt;
-      await recordSyncFailure(system, result);
+      await recordConfigurationError(system, result);
       return result;
     }
 
@@ -610,6 +612,47 @@ async function recordSyncFailure(
       consecutiveErrors: errors,
     });
   }
+}
+
+/**
+ * P2.1 — Registra falha PERMANENTE de configuração sem tratá-la como falha
+ * transitória de comunicação:
+ * - NÃO incrementa consecutive_errors (nem em memória, nem na coluna);
+ * - NÃO atualiza last_error_at;
+ * - NÃO recomputa error_count_24h;
+ * - Log em integration_logs usa status 'warning' (não entra em contagens de erro);
+ * - Preserva o diagnóstico via last_error_message + integration_logs.message.
+ */
+async function recordConfigurationError(
+  system: { id: number; code: string },
+  result: SyncRunResult
+): Promise<void> {
+  const httpStatus = result.httpStatus ?? null;
+  const message = `Sync periódica bloqueada: configuração inválida (${result.error})`;
+
+  await run(
+    `UPDATE integration_systems SET
+       last_sync_at = NOW(),
+       last_error_message = $2,
+       last_http_status = $3,
+       last_response_ms = $4,
+       updated_at = NOW()
+     WHERE id = $1`,
+    [system.id, result.error ?? 'Configuração inválida', httpStatus, result.durationMs]
+  );
+
+  await run(
+    `INSERT INTO integration_logs (system_id, system_code, direction, action, status, message, duration_ms, http_status, triggered_by, error_message)
+     VALUES ($1, $2, 'out', 'integration.sync.periodic', 'warning', $3, $4, $5, 'scheduler', $6)`,
+    [
+      system.id,
+      system.code,
+      message,
+      result.durationMs,
+      httpStatus,
+      result.error,
+    ]
+  );
 }
 
 /* ------------------------------------------------------------------ */
