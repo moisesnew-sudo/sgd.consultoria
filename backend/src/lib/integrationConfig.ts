@@ -8,8 +8,17 @@
  * - Nunca revela segredos em mensagens de erro (sem valores de token/api_key/senha);
  * - Não inventa contratos: valida apenas o que a arquitetura já consome
  *   (config.baseUrl, config.secretEnvKey e config.extra.authType);
+ * - Suporta integrações públicas sem autenticação via authType = 'none'
+ *   (A7.1): sem exigir secret e exigindo HTTPS;
  * - Função pura e pequena, com responsabilidade única.
  */
+
+/**
+ * authType que representa uma integração pública sem autenticação.
+ * Válido de forma genérica para qualquer sistema (não é exceção do Transferegov):
+ * dispensa secretEnvKey/secret e exige baseUrl HTTPS.
+ */
+export const PUBLIC_AUTH_TYPE = 'none';
 
 export const CONFIGURATION_ERROR_CODE = 'CONFIGURATION_ERROR';
 
@@ -78,20 +87,37 @@ export function validateIntegrationConfiguration(
     errors.push('baseUrl inválida');
   }
 
-  const secretEnvKey = secretEnvKeyFrom(system);
-  if (!secretEnvKey) {
-    errors.push('credencial não configurada (secret_env_key ausente)');
-  } else {
-    const secret = process.env[secretEnvKey];
-    if (!secret || secret.trim() === '') {
-      errors.push('credencial não configurada (variável de ambiente ausente ou vazia)');
+  const extra = (system.config?.extra ?? {}) as Record<string, unknown>;
+  const authType = typeof extra.authType === 'string' ? extra.authType.trim() : undefined;
+  const isPublic = authType === PUBLIC_AUTH_TYPE;
+
+  // Integração pública (authType=none): baseUrl deve ser HTTPS.
+  if (isPublic && baseUrl) {
+    try {
+      const protocol = new URL(baseUrl).protocol;
+      if (protocol !== 'https:') {
+        errors.push('baseUrl inválida (integrações públicas exigem HTTPS)');
+      }
+    } catch {
+      // baseUrl inválida já reportada acima.
     }
   }
 
-  const extra = (system.config?.extra ?? {}) as Record<string, unknown>;
-  const authType = typeof extra.authType === 'string' ? extra.authType.trim() : undefined;
+  // Somente integrações autenticadas exigem secretEnvKey e secret.
+  if (!isPublic) {
+    const secretEnvKey = secretEnvKeyFrom(system);
+    if (!secretEnvKey) {
+      errors.push('credencial não configurada (secret_env_key ausente)');
+    } else {
+      const secret = process.env[secretEnvKey];
+      if (!secret || secret.trim() === '') {
+        errors.push('credencial não configurada (variável de ambiente ausente ou vazia)');
+      }
+    }
+  }
+
   const allowed = SUPPORTED_AUTH_TYPES[system.code?.toLowerCase() ?? ''];
-  if (allowed && authType && !allowed.includes(authType)) {
+  if (allowed && authType && authType !== PUBLIC_AUTH_TYPE && !allowed.includes(authType)) {
     errors.push('configuração de autenticação inválida');
   }
 

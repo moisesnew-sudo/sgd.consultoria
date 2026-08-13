@@ -145,6 +145,42 @@ describe('Autenticação de Adapters Governamentais', () => {
     });
     expect(result).toBe('test-cglog-token-789');
   });
+
+  // -------------------------------------------------------------------------
+  // Segurança (A7.1 — integração pública sem autenticação)
+  // -------------------------------------------------------------------------
+  it('Transferegov: authType=none sem secret → authenticate retorna null', async () => {
+    delete process.env.TRANSFEREGOV_API_KEY;
+    const result = await transferegovGovAdapter.authenticate({
+      baseUrl: 'https://api-publica.transferegov.gestao.gov.br',
+      extra: { authType: 'none' },
+    });
+    expect(result).toBeNull();
+  });
+
+  it('Transferegov: authType=none → nenhum header de autorização é produzido', async () => {
+    const mockFetch = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(JSON.stringify([]), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      })
+    );
+
+    const result = await transferegovGovAdapter.fetch(
+      { baseUrl: 'https://api-publica.transferegov.gestao.gov.br', extra: { authType: 'none' } },
+      null,
+      {}
+    );
+
+    expect(result.status).toBe(200);
+    const [, init] = mockFetch.mock.calls[0];
+    const headers = (init?.headers ?? {}) as Record<string, string>;
+    expect(headers['Authorization']).toBeUndefined();
+    expect(headers['X-API-Key']).toBeUndefined();
+    expect(headers['X-Api-Key']).toBeUndefined();
+
+    mockFetch.mockRestore();
+  });
 });
 
 // ---------------------------------------------------------------------------

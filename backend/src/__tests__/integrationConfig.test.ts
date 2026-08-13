@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import {
   CONFIGURATION_ERROR_CODE,
+  PUBLIC_AUTH_TYPE,
   validateIntegrationConfiguration,
   type IntegrationSystemLike,
 } from '../lib/integrationConfig.js';
@@ -144,6 +145,152 @@ describe('validateIntegrationConfiguration (Fase 2.1 — fail-fast)', () => {
     it('config ausente (null/undefined) → inválido', () => {
       expect(validateIntegrationConfiguration(system({ config: null })).valid).toBe(false);
       expect(validateIntegrationConfiguration(system({ config: undefined })).valid).toBe(false);
+    });
+  });
+
+  describe('Integrações públicas (A7.1 — authType=none)', () => {
+    it('authType=none + HTTPS + sem secret → configuração válida', () => {
+      const result = validateIntegrationConfiguration(system({
+        config: {
+          baseUrl: 'https://api-publica.transferegov.gestao.gov.br/parcerias',
+          extra: { authType: PUBLIC_AUTH_TYPE },
+        },
+      }));
+      expect(result.valid).toBe(true);
+      expect(result.code).toBe('OK');
+      expect(result.errors).toEqual([]);
+    });
+
+    it('authType=none é genérico (não é exceção do Transferegov) → válido para qualquer sistema', () => {
+      for (const code of ['transferegov', 'sei', 'cglog']) {
+        const result = validateIntegrationConfiguration(system({
+          code,
+          config: {
+            baseUrl: 'https://api-publica.gov.br',
+            extra: { authType: PUBLIC_AUTH_TYPE },
+          },
+        }));
+        expect(result.valid).toBe(true);
+      }
+    });
+
+    it('authType=none + HTTP → inválida (integrações públicas exigem HTTPS)', () => {
+      const result = validateIntegrationConfiguration(system({
+        config: {
+          baseUrl: 'http://api-publica.transferegov.gestao.gov.br/parcerias',
+          extra: { authType: PUBLIC_AUTH_TYPE },
+        },
+      }));
+      expect(result.valid).toBe(false);
+      expect(result.errors).toContain('baseUrl inválida (integrações públicas exigem HTTPS)');
+    });
+
+    it('authType=none + baseUrl ausente → inválida (não aceita configuração incompleta)', () => {
+      const result = validateIntegrationConfiguration(system({
+        config: { extra: { authType: PUBLIC_AUTH_TYPE } },
+      }));
+      expect(result.valid).toBe(false);
+      expect(result.errors).toContain('baseUrl ausente');
+    });
+
+    it('authType=none + sistema inativo → inválida', () => {
+      const result = validateIntegrationConfiguration(system({
+        active: false,
+        config: {
+          baseUrl: 'https://api-publica.gov.br',
+          extra: { authType: PUBLIC_AUTH_TYPE },
+        },
+      }));
+      expect(result.valid).toBe(false);
+      expect(result.errors).toContain('Sistema inativo');
+    });
+
+    it('authType=none não exige secretEnvKey nem variável de ambiente', () => {
+      const result = validateIntegrationConfiguration(system({
+        config: {
+          baseUrl: 'https://api-publica.transferegov.gestao.gov.br/parcerias',
+          extra: { authType: PUBLIC_AUTH_TYPE },
+        },
+      }));
+      expect(result.valid).toBe(true);
+      expect(result.errors.join(' | ')).not.toContain('credencial');
+    });
+
+    it('authType=none não procura secret mesmo se secretEnvKey apontar para variável inexistente', () => {
+      const result = validateIntegrationConfiguration(system({
+        config: {
+          baseUrl: 'https://api-publica.gov.br',
+          secretEnvKey: 'CHAVE_QUE_NAO_EXISTE',
+          extra: { authType: PUBLIC_AUTH_TYPE },
+        },
+      }));
+      expect(result.valid).toBe(true);
+    });
+  });
+
+  describe('Autenticado (regressão — comportamento preservado)', () => {
+    it('authType=api_key sem secretEnvKey → continua inválido', () => {
+      const result = validateIntegrationConfiguration(system({
+        config: {
+          baseUrl: 'https://api.transferegov.gov.br',
+          extra: { authType: 'api_key' },
+        },
+      }));
+      expect(result.valid).toBe(false);
+      expect(result.errors).toContain('credencial não configurada (secret_env_key ausente)');
+    });
+
+    it('authType=oauth2 sem secretEnvKey → continua inválido (secret continua obrigatório)', () => {
+      const result = validateIntegrationConfiguration(system({
+        config: {
+          baseUrl: 'https://api.transferegov.gov.br',
+          extra: { authType: 'oauth2', clientId: 'sgd-client' },
+        },
+      }));
+      expect(result.valid).toBe(false);
+      expect(result.errors).toContain('credencial não configurada (secret_env_key ausente)');
+    });
+
+    it('authType=bearer não suportado → continua inválido', () => {
+      const result = validateIntegrationConfiguration(system({
+        config: {
+          baseUrl: 'https://api.transferegov.gov.br',
+          secretEnvKey: 'TRANSFEREGOV_API_KEY',
+          extra: { authType: 'bearer' },
+        },
+      }));
+      expect(result.valid).toBe(false);
+      expect(result.errors).toContain('configuração de autenticação inválida');
+    });
+
+    it('authType=token com variável de ambiente ausente → continua inválido', () => {
+      const result = validateIntegrationConfiguration(system({
+        code: 'sei',
+        config: {
+          baseUrl: 'https://api.sei.gov.br',
+          secretEnvKey: 'SEI_API_TOKEN_QUE_NAO_EXISTE',
+          extra: { authType: 'token' },
+        },
+      }));
+      expect(result.valid).toBe(false);
+      expect(result.errors).toContain('credencial não configurada (variável de ambiente ausente ou vazia)');
+    });
+
+    it('authType=none + secretEnvKey setado → secret não é lido, configuração permanece válida', () => {
+      process.env.SECRET_DE_TESTE_QUE_EXISTE = 'valor-sensivel-que-nao-deve-ser-lido';
+      try {
+        const result = validateIntegrationConfiguration(system({
+          config: {
+            baseUrl: 'https://api-publica.gov.br',
+            secretEnvKey: 'SECRET_DE_TESTE_QUE_EXISTE',
+            extra: { authType: PUBLIC_AUTH_TYPE },
+          },
+        }));
+        expect(result.valid).toBe(true);
+        expect(JSON.stringify(result)).not.toContain('valor-sensivel-que-nao-deve-ser-lido');
+      } finally {
+        delete process.env.SECRET_DE_TESTE_QUE_EXISTE;
+      }
     });
   });
 
