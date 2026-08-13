@@ -39,10 +39,9 @@ JWT_REFRESH_SECRET=<diferente do acima>
 WEBAPP_URL=https://sgd.homologacao.exemplo.gov.br
 
 # --- Integrações: Transferegov -------------------------------------------------
-# Base URL da API do Transferegov (produção X homologação):
-#   Produção:      https://api.transferegov.gov.br
-#   Homologação:   https://api-homolog.transferegov.gov.br
-TRANSFEREGOV_BASE_URL=https://api-homolog.transferegov.gov.br
+# Base URL da API Pública de Gestão de Parcerias (pública, sem autenticação):
+#   https://api-publica.transferegov.gestao.gov.br/parcerias
+TRANSFEREGOV_BASE_URL=https://api-publica.transferegov.gestao.gov.br/parcerias
 
 # Secret da integração. A chave DEFINE o nome, o VALOR fica nesta env var.
 # O backend referencia por secret_env_key (nunca armazena o segredo no banco).
@@ -73,7 +72,7 @@ INTEGRATION_SYNC_INTERVAL_MS=60000
 
 | Aspecto           | Homologação                       | Produção                          |
 |-------------------|-----------------------------------|-----------------------------------|
-| `TRANSFEREGOV_BASE_URL` | API de teste do Transferegov | API oficial (`api.transferegov.gov.br`) |
+| `TRANSFEREGOV_BASE_URL` | API Pública de Parcerias (`api-publica.transferegov.gestao.gov.br/parcerias`) | API Pública de Parcerias (`api-publica.transferegov.gestao.gov.br/parcerias`) |
 | `SEI_BASE_URL`     | Ambiente SEI de teste do órgão     | Ambiente SEI de produção          |
 | `CGLOG_BASE_URL`   | Ambiente CGLOG de teste do órgão   | Ambiente CGLOG de produção        |
 | Key/secret        | Chave de sandbox                 | Chave de produção (rotação regular) |
@@ -100,9 +99,8 @@ A rotina `integrationScheduler.ts` roda `runScheduledSyncCycle()`:
   "syncEnabled": true,
   "syncIntervalMinutes": 60,
   "maxRecordsPerSync": 100,
-  "baseUrl": "https://api.transferegov.gov.br",
-  "secretEnvKey": "TRANSFEREGOV_API_KEY",
-  "authType": "api_key",
+  "baseUrl": "https://api-publica.transferegov.gestao.gov.br/parcerias",
+  "authType": "none",
   "timeoutMs": 30000,
   "maxRetries": 3
 }

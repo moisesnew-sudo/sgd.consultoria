@@ -23,6 +23,7 @@ import { get, run, all } from '../database.js';
 import {
   transferegovAdapter,
   transferegovGovAdapter,
+  PARTNERSHIP_BASE_URL,
 } from '../integrations/transferegov.adapter.js';
 import { getGovAdapter } from '../lib/adapterRegistry.js';
 import { syncIntegrationEvent, findDemandByProposalNumber } from '../lib/integrationSync.js';
@@ -176,72 +177,69 @@ describe('E2E 2. Fetch de Recurso', () => {
     expect(result.data).toBeNull();
   });
 
-  it('fetch com proposalNumber constrói URL correta', async () => {
+  it('fetch com base oficial constrói URL do endpoint de parcerias', async () => {
     // Mock determinístico do fetch — sem chamada de rede real.
     const mockFetch = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
-      new Response(JSON.stringify([{ proposal_number: 'PROP-TEST-001', status: 'PENDENTE' }]), {
-        status: 200,
-        headers: { 'Content-Type': 'application/json' },
-      })
+      new Response(
+        JSON.stringify({
+          data: [{ id_parceria: 1, cd_parceria: '202600000001' }],
+          total_pages: 1,
+          total_items: 1,
+          page_number: 1,
+          page_size: 200,
+        }),
+        {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        }
+      )
     );
 
     const config: AdapterConfig = {
-      baseUrl: 'https://api.transferegov.gov.br',
+      baseUrl: PARTNERSHIP_BASE_URL,
     };
 
-    const result = await transferegovGovAdapter.fetch(config, null, {
-      proposalNumber: 'PROP-TEST-001',
-    });
+    const result = await transferegovGovAdapter.fetch(config, null, {});
 
     expect(result.status).toBe(200);
     const [url] = mockFetch.mock.calls[0];
-    expect(String(url)).toBe('https://api.transferegov.gov.br/api/propostas/PROP-TEST-001');
+    expect(String(url)).toBe(
+      'https://api-publica.transferegov.gestao.gov.br/parcerias/parceria?pagina=1&tamanho_da_pagina=200'
+    );
 
     mockFetch.mockRestore();
   });
 
-  it('fetch com contractNumber constrói URL de convênio', async () => {
+  it('fetch respeita pagina e tamanho_da_pagina (limitado a 200)', async () => {
     const mockFetch = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
-      new Response(JSON.stringify([{ numero_convenio: 'CONV-TEST-001', status: 'PENDENTE' }]), {
-        status: 200,
-        headers: { 'Content-Type': 'application/json' },
-      })
+      new Response(
+        JSON.stringify({
+          data: [],
+          total_pages: 1,
+          total_items: 0,
+          page_number: 3,
+          page_size: 200,
+        }),
+        {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        }
+      )
     );
 
     const config: AdapterConfig = {
-      baseUrl: 'https://api.transferegov.gov.br',
+      baseUrl: PARTNERSHIP_BASE_URL,
     };
 
     const result = await transferegovGovAdapter.fetch(config, null, {
-      contractNumber: 'CONV-TEST-001',
+      pagina: 3,
+      tamanho_da_pagina: 500,
     });
 
     expect(result.status).toBe(200);
     const [url] = mockFetch.mock.calls[0];
-    expect(String(url)).toBe('https://api.transferegov.gov.br/api/convenios/CONV-TEST-001');
-
-    mockFetch.mockRestore();
-  });
-
-  it('fetch com status filtrado constrói URL com query param', async () => {
-    const mockFetch = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
-      new Response(JSON.stringify([{ proposal_number: 'PROP-TEST-001', status: 'APROVADO' }]), {
-        status: 200,
-        headers: { 'Content-Type': 'application/json' },
-      })
-    );
-
-    const config: AdapterConfig = {
-      baseUrl: 'https://api.transferegov.gov.br',
-    };
-
-    const result = await transferegovGovAdapter.fetch(config, null, {
-      status: 'APROVADO',
-    });
-
-    expect(result.status).toBe(200);
-    const [url] = mockFetch.mock.calls[0];
-    expect(String(url)).toBe('https://api.transferegov.gov.br/api/propostas?situacao=APROVADO');
+    expect(String(url)).toContain('pagina=3');
+    expect(String(url)).toContain('tamanho_da_pagina=200');
 
     mockFetch.mockRestore();
   });
@@ -563,7 +561,7 @@ describe('E2E 7. Erro Externo', () => {
 describe('E2E 8. Timeout', () => {
   it('AdapterConfig aceita timeoutMs personalizado', () => {
     const config: AdapterConfig = {
-      baseUrl: 'https://api.transferegov.gov.br',
+      baseUrl: PARTNERSHIP_BASE_URL,
       timeoutMs: 5000,
     };
     expect(config.timeoutMs).toBe(5000);
@@ -571,7 +569,7 @@ describe('E2E 8. Timeout', () => {
 
   it('AdapterConfig aceita maxRetries personalizado', () => {
     const config: AdapterConfig = {
-      baseUrl: 'https://api.transferegov.gov.br',
+      baseUrl: PARTNERSHIP_BASE_URL,
       maxRetries: 5,
     };
     expect(config.maxRetries).toBe(5);

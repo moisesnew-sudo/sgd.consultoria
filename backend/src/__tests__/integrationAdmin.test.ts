@@ -491,7 +491,11 @@ describe('Integrações - Backend Administrativo (Fase 3.1 - Fase B)', () => {
       process.env.TRANSFEREGOV_API_KEY = 'chave-valida-123';
       await run('UPDATE integration_systems SET config = $2 WHERE id = $1', [
         transferegovId,
-        JSON.stringify({ baseUrl: 'https://api.transferegov.gov.br', secretEnvKey: 'TRANSFEREGOV_API_KEY' }),
+        JSON.stringify({
+          baseUrl: 'https://api.transferegov.gov.br',
+          secretEnvKey: 'TRANSFEREGOV_API_KEY',
+          extra: { authType: 'api_key' },
+        }),
       ]);
       const fetchSpy = vi.fn().mockResolvedValue(
         new Response(JSON.stringify({ propostas: [] }), { status: 200, headers: { 'content-type': 'application/json' } })

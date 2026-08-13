@@ -19,6 +19,7 @@ import { describe, it, expect, vi, beforeEach, afterEach, afterAll } from 'vites
 import { get, run } from '../database.js';
 import {
   transferegovGovAdapter,
+  PARTNERSHIP_BASE_URL,
 } from '../integrations/transferegov.adapter.js';
 import type { AdapterConfig } from '../integrations/types.js';
 import {
@@ -127,24 +128,37 @@ describe('E2.2 — Configuração de produção/homologação', () => {
     expect(result.data).toBeNull();
   });
 
-  it('authType padrão é api_key e usa header X-API-Key', async () => {
+  it('authType padrão é none e usa o endpoint real de parcerias (sem header de autenticação)', async () => {
     const mockFetch = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
-      new Response(JSON.stringify([{ proposal_number: 'PROP-PROD-1', status: 'PENDENTE' }]), {
-        status: 200,
-        headers: { 'Content-Type': 'application/json' },
-      })
+      new Response(
+        JSON.stringify({
+          data: [{ id_parceria: 1, cd_parceria: '202600000001' }],
+          total_pages: 1,
+          total_items: 1,
+          page_number: 1,
+          page_size: 200,
+        }),
+        {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        }
+      )
     );
 
     const result = await transferegovGovAdapter.fetch(
-      { baseUrl: 'https://api.transferegov.gov.br', secretEnvKey: 'HOMOLOG_SECRET' },
-      'credencial-teste',
+      { baseUrl: PARTNERSHIP_BASE_URL, secretEnvKey: 'HOMOLOG_SECRET' },
+      null,
       {}
     );
 
     expect(result.status).toBe(200);
     const [url, init] = mockFetch.mock.calls[0];
-    expect(String(url)).toContain('/api/propostas');
-    expect((init?.headers as Record<string, string>)['X-API-Key']).toBe('credencial-teste');
+    expect(String(url)).toContain('/parcerias/parceria');
+    expect(String(url)).toContain('pagina=1');
+    expect(String(url)).toContain('tamanho_da_pagina=200');
+    const headers = (init?.headers ?? {}) as Record<string, string>;
+    expect(headers['X-API-Key']).toBeUndefined();
+    expect(headers['Authorization']).toBeUndefined();
 
     mockFetch.mockRestore();
   });
@@ -200,7 +214,7 @@ describe('E2.2 — Falha de autenticação (R9 auth_failure)', () => {
     );
 
     const result = await transferegovGovAdapter.sync(
-      { baseUrl: 'https://api.transferegov.gov.br', secretEnvKey: 'HOMOLOG_SECRET' },
+      { baseUrl: PARTNERSHIP_BASE_URL, secretEnvKey: 'HOMOLOG_SECRET' },
       {}
     );
 
@@ -316,8 +330,8 @@ describe('E2.2 — Rate limit (429) e recuperação do httpClient', () => {
     });
 
     const result = await httpClient(
-      { baseUrl: 'https://api.transferegov.gov.br', retryBaseDelayMs: 1 },
-      { url: 'https://api.transferegov.gov.br/api/propostas', method: 'GET' }
+      { baseUrl: PARTNERSHIP_BASE_URL, retryBaseDelayMs: 1 },
+      { url: `${PARTNERSHIP_BASE_URL}/parceria`, method: 'GET' }
     );
 
     mockFetch.mockRestore();
@@ -332,8 +346,8 @@ describe('E2.2 — Rate limit (429) e recuperação do httpClient', () => {
     );
 
     const result = await httpClient(
-      { baseUrl: 'https://api.transferegov.gov.br', maxRetries: 1, retryBaseDelayMs: 1 },
-      { url: 'https://api.transferegov.gov.br/api/propostas', method: 'GET' }
+      { baseUrl: PARTNERSHIP_BASE_URL, maxRetries: 1, retryBaseDelayMs: 1 },
+      { url: `${PARTNERSHIP_BASE_URL}/parceria`, method: 'GET' }
     );
 
     mockFetch.mockRestore();
@@ -368,7 +382,7 @@ describe('E2.2 — Payload inesperado', () => {
     expect(typeof transferegovGovAdapter.validate([1, 2, 3])).toBe('string');
   });
 
-  it('sync com resposta malformada não lança e retorna sucesso com 0 normalizados', async () => {
+  it('sync com resposta estruturalmente inválida retorna erro estruturado (sem lançar)', async () => {
     const mockFetch = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
       new Response(JSON.stringify([{ foo: 'bar', sem_chave_esperada: true }]), {
         status: 200,
@@ -377,14 +391,15 @@ describe('E2.2 — Payload inesperado', () => {
     );
 
     const result = await transferegovGovAdapter.sync(
-      { baseUrl: 'https://api.transferegov.gov.br', secretEnvKey: 'HOMOLOG_SECRET' },
+      { baseUrl: PARTNERSHIP_BASE_URL, secretEnvKey: 'HOMOLOG_SECRET' },
       {}
     );
 
     mockFetch.mockRestore();
 
-    expect(result.success).toBe(true);
-    expect(result.fetchedCount).toBeGreaterThan(0);
+    expect(result.success).toBe(false);
+    expect(result.error).toContain('estruturalmente inválida');
+    expect(result.httpStatus).toBe(200);
   });
 });
 
@@ -470,16 +485,22 @@ describe('E2.2 — Sincronização completa', () => {
   it('fluxo completo com HTTP 200 normaliza e retorna sucesso', async () => {
     const mockFetch = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
       new Response(
-        JSON.stringify([
-          { proposal_number: 'PROP-FULL-1', status: 'APROVADO', prazo: '2026-12-31' },
-          { proposal_number: 'PROP-FULL-2', status: 'EM_ANALISE', prazo: '2026-11-30' },
-        ]),
+        JSON.stringify({
+          data: [
+            { id_proposta: 101, cd_parceria: '202600000001', in_situacao_parceria: 'Aprovada' },
+            { id_proposta: 102, cd_parceria: '202600000002', in_situacao_parceria: 'Em Análise' },
+          ],
+          total_pages: 1,
+          total_items: 2,
+          page_number: 1,
+          page_size: 200,
+        }),
         { status: 200, headers: { 'Content-Type': 'application/json' } }
       )
     );
 
     const result = await transferegovGovAdapter.sync(
-      { baseUrl: 'https://api.transferegov.gov.br', secretEnvKey: 'HOMOLOG_SECRET' },
+      { baseUrl: PARTNERSHIP_BASE_URL, secretEnvKey: 'HOMOLOG_SECRET' },
       {}
     );
 
@@ -489,8 +510,10 @@ describe('E2.2 — Sincronização completa', () => {
     expect(result.fetchedCount).toBe(2);
     expect(result.normalizedCount).toBe(2);
     expect(result.httpStatus).toBeUndefined();
-    expect(result.events[0].proposalNumber).toBe('PROP-FULL-1');
-    expect(result.events[0].externalStatus).toBe('APROVADO');
+    expect(result.events[0].externalId).toBe('202600000001');
+    expect(result.events[0].proposalNumber).toBe('101');
+    expect(result.events[0].externalStatus).toBe('APROVADA');
+    expect(result.events[1].externalStatus).toBe('EM_ANALISE');
   });
 
   it('fluxo completo com 5xx retorna falha com httpStatus', async () => {
@@ -499,7 +522,7 @@ describe('E2.2 — Sincronização completa', () => {
     );
 
     const result = await transferegovGovAdapter.sync(
-      { baseUrl: 'https://api.transferegov.gov.br', secretEnvKey: 'HOMOLOG_SECRET', maxRetries: 0 },
+      { baseUrl: PARTNERSHIP_BASE_URL, secretEnvKey: 'HOMOLOG_SECRET', maxRetries: 0 },
       {}
     );
 
