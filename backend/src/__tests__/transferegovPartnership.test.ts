@@ -102,6 +102,22 @@ describe('A7.2 — Configuração do contrato (base oficial, authType=none)', ()
     expect(headers['X-API-Key']).toBeUndefined();
     expect(headers['X-Api-Key']).toBeUndefined();
   });
+
+  it('fetch com authType omitido trata como none — não envia header mesmo com credencial', async () => {
+    const mockFetch = vi.spyOn(globalThis, 'fetch').mockResolvedValue(mockJsonResponse(partnershipEnvelope()));
+
+    await transferegovGovAdapter.fetch(
+      { baseUrl: OFFICIAL_BASE, secretEnvKey: 'TRANSFEREGOV_PARTNERSHIP_SECRET' },
+      'credencial-ignorada',
+      {}
+    );
+
+    const [, init] = mockFetch.mock.calls[0];
+    const headers = (init?.headers ?? {}) as Record<string, string>;
+    expect(headers['Authorization']).toBeUndefined();
+    expect(headers['X-API-Key']).toBeUndefined();
+    expect(headers['X-Api-Key']).toBeUndefined();
+  });
 });
 
 // ---------------------------------------------------------------------------

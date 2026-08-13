@@ -242,10 +242,10 @@ export const transferegovGovAdapter: GovernmentIntegrationAdapter = {
 
     const headers: Record<string, string> = {};
     if (credential) {
-      const authType = (config.extra?.authType as string) ?? 'api_key';
+      const authType = (config.extra?.authType as string) ?? 'none';
       if (authType === 'oauth2') {
         headers['Authorization'] = `Bearer ${credential}`;
-      } else {
+      } else if (authType === 'api_key') {
         headers['X-API-Key'] = credential;
       }
     }
