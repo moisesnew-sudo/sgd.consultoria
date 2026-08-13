@@ -4,6 +4,7 @@ import { getAdapter, getGovAdapter } from './adapterRegistry.js';
 import { processWebhookEvent } from './integrationProcessor.js';
 import { logAudit, extractMeta } from './audit.js';
 import { sanitizeIntegrationConfig } from './redact.js';
+import { CONFIGURATION_ERROR_CODE, validateIntegrationConfiguration } from './integrationConfig.js';
 import { lastSyncBySystem, consecutiveErrorsBySystem, parseSystemSyncConfig } from './integrationScheduler.js';
 
 export { listAdapters } from './adapterRegistry.js';
@@ -67,6 +68,8 @@ export interface ManualSyncResult {
   message: string;
   errorMessage: string | null;
   eventId?: number;
+  /** Código de erro estruturado (ex.: CONFIGURATION_ERROR). */
+  code?: string;
 }
 
 export interface SyncStatusSystem {
@@ -248,6 +251,8 @@ export interface TestConnectionResult {
   authenticated: boolean | null;
   message: string;
   errorMessage: string | null;
+  /** Código de erro estruturado (ex.: CONFIGURATION_ERROR). */
+  code?: string;
 }
 
 /** 8. Teste de conexão com um sistema externo (Fase E3): valida auth/endpoint/timeout/resposta. */
@@ -277,6 +282,24 @@ export async function testConnection(systemId: number, user: any, req?: any): Pr
     return result;
   }
 
+  // Fail-fast (Fase 2.1): configuração mínima inválida → bloqueia antes de qualquer HTTP.
+  const validation = validateIntegrationConfiguration(system);
+  if (!validation.valid) {
+    const message = `Configuração inválida: ${validation.errors.join('; ')}`;
+    const result: TestConnectionResult = {
+      success: false,
+      status: 'error',
+      code: CONFIGURATION_ERROR_CODE,
+      httpStatus: null,
+      durationMs: 0,
+      authenticated: null,
+      message,
+      errorMessage: message,
+    };
+    await recordTestResult(system, result, user, req);
+    return result;
+  }
+
   const adapterConfig: any = {
     baseUrl: system.config?.baseUrl ? String(system.config.baseUrl) : undefined,
     secretEnvKey: system.config?.secretEnvKey ? String(system.config.secretEnvKey) : undefined,
@@ -297,13 +320,31 @@ export async function testConnection(systemId: number, user: any, req?: any): Pr
     const timeout = setTimeout(() => controller.abort(), timeoutMs);
 
     // 1. Autenticação (se houver secret configurado)
+    let credential: string | null = null;
     if (adapterConfig.secretEnvKey) {
-      const credential = await adapter.authenticate(adapterConfig);
+      credential = await adapter.authenticate(adapterConfig);
       authenticated = credential !== null;
     }
 
+    // Fail-fast (Fase 2.1): autenticação obrigatória sem credencial → não chamar fetch sem auth.
+    if (adapterConfig.secretEnvKey && !credential) {
+      clearTimeout(timeout);
+      const message = 'Falha de autenticação (credencial não obtida)';
+      const result: TestConnectionResult = {
+        success: false,
+        status: 'error',
+        httpStatus: null,
+        durationMs: Date.now() - startedAt,
+        authenticated: false,
+        message,
+        errorMessage: message,
+      };
+      await recordTestResult(system, result, user, req);
+      return result;
+    }
+
     // 2. Requisição de teste ao endpoint
-    const probe = await adapter.fetch(adapterConfig, authenticated ? ({} as any) : null, {});
+    const probe = await adapter.fetch(adapterConfig, credential, {});
     clearTimeout(timeout);
     httpStatus = probe.status;
     result = {
@@ -697,6 +738,48 @@ export async function runManualSync(systemId: number, user: any, payload: unknow
       [result.httpStatus, eventId, system.id]
     );
   } else {
+    // Fail-fast (Fase 2.1): integração governamental com configuração inválida
+    // é bloqueada antes de qualquer verificação de conectividade HTTP.
+    const govAdapter = getGovAdapter(system.code);
+    const validation = validateIntegrationConfiguration(system);
+    if (govAdapter && !validation.valid) {
+      const message = `Configuração inválida: ${validation.errors.join('; ')}`;
+      const result: ManualSyncResult = {
+        success: false,
+        status: 'error',
+        code: CONFIGURATION_ERROR_CODE,
+        durationMs: 0,
+        httpStatus: null,
+        message,
+        errorMessage: message,
+      };
+
+      await run(
+        `INSERT INTO integration_logs (system_id, system_code, direction, action, status, message, duration_ms, http_status, response_summary, triggered_by, error_message)
+         VALUES ($1, $2, 'out', 'integration.sync', 'error', $3, 0, NULL, $3, 'manual', $4)`,
+        [system.id, system.code, message, message]
+      );
+      await updateSystemHealth(system.id, result);
+      await logAudit(
+        {
+          entity_type: 'integration_system',
+          entity_id: String(system.id),
+          action: 'integration.sync.manual',
+          user_id: user.id,
+          user_name: user.name,
+          details: {
+            system: system.code,
+            status: result.status,
+            code: CONFIGURATION_ERROR_CODE,
+            message,
+            ...(result.errorMessage ? { error_message: result.errorMessage } : {}),
+          },
+          ...extractMeta(req),
+        },
+      );
+      return result;
+    }
+
     const endpoint = system.config?.endpoint ? String(system.config.endpoint) : null;
     let httpStatus: number | null = null;
     let status: 'success' | 'warning' | 'error' = 'warning';

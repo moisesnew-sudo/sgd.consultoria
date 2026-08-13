@@ -1,4 +1,5 @@
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, vi, beforeAll, afterAll, afterEach } from 'vitest';
+import crypto from 'crypto';
 import bcrypt from 'bcryptjs';
 import request from 'supertest';
 import app from '../server.js';
@@ -447,6 +448,173 @@ describe('Integrações - Backend Administrativo (Fase 3.1 - Fase B)', () => {
     it('deve rejeitar sem CSRF', async () => {
       const res = await adminAgent.post(`/api/integrations/admin/systems/${transferegovId}/test-connection`);
       expect(res.status).toBe(403);
+    });
+  });
+
+  describe('Fail-fast de configuração (Fase 2.1)', () => {
+    let originalConfig: unknown;
+
+    beforeAll(async () => {
+      const row = await get('SELECT config FROM integration_systems WHERE id = $1', [transferegovId]);
+      originalConfig = row ? row.config : null;
+    });
+
+    afterEach(async () => {
+      if (originalConfig === null) {
+        await run('UPDATE integration_systems SET config = NULL WHERE id = $1', [transferegovId]);
+      } else {
+        await run('UPDATE integration_systems SET config = $2 WHERE id = $1', [transferegovId, JSON.stringify(originalConfig)]);
+      }
+      delete process.env.TRANSFEREGOV_API_KEY;
+      delete process.env.TRANSFEREGOV_WEBHOOK_SECRET;
+      vi.unstubAllGlobals();
+    });
+
+    it('test-connection: configuração inválida bloqueia antes de qualquer HTTP', async () => {
+      await run('UPDATE integration_systems SET config = $2 WHERE id = $1', [
+        transferegovId,
+        JSON.stringify({ baseUrl: 'https://api.transferegov.gov.br' }),
+      ]);
+      const fetchSpy = vi.fn();
+      vi.stubGlobal('fetch', fetchSpy);
+
+      const res = await withCsrf(adminAgent, adminCsrfToken, 'post', `/api/integrations/admin/systems/${transferegovId}/test-connection`);
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(false);
+      expect(res.body.status).toBe('error');
+      expect(res.body.code).toBe('CONFIGURATION_ERROR');
+      expect(res.body.message).toContain('credencial');
+      expect(fetchSpy).not.toHaveBeenCalled();
+    });
+
+    it('test-connection: configuração válida chega ao fluxo de conexão (HTTP executado)', async () => {
+      process.env.TRANSFEREGOV_API_KEY = 'chave-valida-123';
+      await run('UPDATE integration_systems SET config = $2 WHERE id = $1', [
+        transferegovId,
+        JSON.stringify({ baseUrl: 'https://api.transferegov.gov.br', secretEnvKey: 'TRANSFEREGOV_API_KEY' }),
+      ]);
+      const fetchSpy = vi.fn().mockResolvedValue(
+        new Response(JSON.stringify({ propostas: [] }), { status: 200, headers: { 'content-type': 'application/json' } })
+      );
+      vi.stubGlobal('fetch', fetchSpy);
+
+      const res = await withCsrf(adminAgent, adminCsrfToken, 'post', `/api/integrations/admin/systems/${transferegovId}/test-connection`);
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+      expect(res.body.authenticated).toBe(true);
+      expect(res.body.httpStatus).toBe(200);
+      expect(fetchSpy).toHaveBeenCalled();
+    });
+
+    it('test-connection: falha de autenticação impede a requisição de dados (fetch chamado só 1x)', async () => {
+      process.env.TRANSFEREGOV_API_KEY = 'chave-valida-123';
+      await run('UPDATE integration_systems SET config = $2 WHERE id = $1', [
+        transferegovId,
+        JSON.stringify({
+          baseUrl: 'https://api.transferegov.gov.br',
+          secretEnvKey: 'TRANSFEREGOV_API_KEY',
+          extra: { authType: 'oauth2', clientId: 'sgd-client' },
+        }),
+      ]);
+      const fetchSpy = vi.fn().mockResolvedValue(
+        new Response('{}', { status: 401, headers: { 'content-type': 'application/json' } })
+      );
+      vi.stubGlobal('fetch', fetchSpy);
+
+      const res = await withCsrf(adminAgent, adminCsrfToken, 'post', `/api/integrations/admin/systems/${transferegovId}/test-connection`);
+      expect(res.body.status).toBe('error');
+      expect(res.body.message).toContain('autenticação');
+      expect(fetchSpy).toHaveBeenCalledTimes(1);
+    });
+
+    it('test-connection: erro não vaza segredo nem nome da variável de ambiente', async () => {
+      process.env.TRANSFEREGOV_API_KEY = 'SEGREDO-NAO-DEVE-APARECER-12345';
+      await run('UPDATE integration_systems SET config = $2 WHERE id = $1', [
+        transferegovId,
+        JSON.stringify({ baseUrl: 'url-invalida', secretEnvKey: 'TRANSFEREGOV_API_KEY' }),
+      ]);
+
+      const res = await withCsrf(adminAgent, adminCsrfToken, 'post', `/api/integrations/admin/systems/${transferegovId}/test-connection`);
+      expect(res.body.code).toBe('CONFIGURATION_ERROR');
+      expect(JSON.stringify(res.body)).not.toContain('SEGREDO-NAO-DEVE-APARECER-12345');
+      expect(JSON.stringify(res.body)).not.toContain('TRANSFEREGOV_API_KEY');
+
+      const log = await get(
+        `SELECT * FROM integration_logs WHERE system_id = $1 AND action = 'integration.test-connection' ORDER BY id DESC LIMIT 1`,
+        [transferegovId]
+      );
+      expect(JSON.stringify(log)).not.toContain('SEGREDO-NAO-DEVE-APARECER-12345');
+      expect(JSON.stringify(log)).not.toContain('TRANSFEREGOV_API_KEY');
+    });
+
+    it('runManualSync (sem payload): configuração inválida bloqueia antes de qualquer HTTP', async () => {
+      await run('UPDATE integration_systems SET config = $2 WHERE id = $1', [
+        transferegovId,
+        JSON.stringify({ endpoint: 'https://endpoint.gov.br/ping' }),
+      ]);
+      const fetchSpy = vi.fn();
+      vi.stubGlobal('fetch', fetchSpy);
+
+      const res = await withCsrf(adminAgent, adminCsrfToken, 'post', `/api/integrations/admin/systems/${transferegovId}/sync`);
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(false);
+      expect(res.body.status).toBe('error');
+      expect(res.body.code).toBe('CONFIGURATION_ERROR');
+      expect(fetchSpy).not.toHaveBeenCalled();
+    });
+
+    it('runManualSync (sem payload): configuração válida continua normalmente', async () => {
+      process.env.TRANSFEREGOV_API_KEY = 'chave-valida-123';
+      await run('UPDATE integration_systems SET config = $2 WHERE id = $1', [
+        transferegovId,
+        JSON.stringify({
+          baseUrl: 'https://api.transferegov.gov.br',
+          secretEnvKey: 'TRANSFEREGOV_API_KEY',
+          endpoint: 'https://endpoint.gov.br/ping',
+        }),
+      ]);
+      const fetchSpy = vi.fn().mockResolvedValue(new Response('pong', { status: 200 }));
+      vi.stubGlobal('fetch', fetchSpy);
+
+      const res = await withCsrf(adminAgent, adminCsrfToken, 'post', `/api/integrations/admin/systems/${transferegovId}/sync`);
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+      expect(res.body.status).toBe('success');
+      expect(fetchSpy).toHaveBeenCalled();
+    });
+
+    it('webhook inbound continua funcionando mesmo com config de pull inválida', async () => {
+      process.env.TRANSFEREGOV_WEBHOOK_SECRET = 'webhook-secret-1234567890abc';
+      await run('UPDATE integration_systems SET config = $2 WHERE id = $1', [
+        transferegovId,
+        JSON.stringify({ baseUrl: 'https://api.transferegov.gov.br' }),
+      ]);
+
+      const body = JSON.stringify({
+        event: 'demand.updated',
+        demand: { proposal_number: 'PROP-WEBHOOK-FAILFAST-UNIQUE', status: 'EM_ANALISE' },
+      });
+      const timestamp = Date.now();
+      const signature = crypto
+        .createHmac('sha256', 'webhook-secret-1234567890abc')
+        .update(`${timestamp}\n`)
+        .update(body)
+        .digest('hex');
+
+      const res = await request(app)
+        .post('/api/integrations/webhooks/transferegov')
+        .set('Content-Type', 'application/json')
+        .set('X-Timestamp', String(timestamp))
+        .set('X-Signature', signature)
+        .send(body);
+
+      expect(res.status).toBe(200);
+      expect(res.body.status).toBe('received');
+
+      const eventId = res.body.event_id as number;
+      expect(typeof eventId).toBe('number');
+      await run('DELETE FROM integration_logs WHERE webhook_event_id = $1', [eventId]);
+      await run('DELETE FROM webhook_events WHERE id = $1', [eventId]);
     });
   });
 });

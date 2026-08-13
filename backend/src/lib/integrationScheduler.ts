@@ -20,6 +20,7 @@ import { getGovAdapter } from './adapterRegistry.js';
 import { findDemandByProposalNumber, type SyncResult } from './integrationSync.js';
 import { getMappedStatus } from './statusMapping.js';
 import { publishEvent, emitIntegrationEvent } from './eventBus.js';
+import { CONFIGURATION_ERROR_CODE, validateIntegrationConfiguration } from './integrationConfig.js';
 import { logger } from './logger.js';
 import { createHash } from 'crypto';
 import type { AdapterConfig, SyncPullResult, NormalizedIntegrationEvent } from '../integrations/types.js';
@@ -61,6 +62,8 @@ export interface SyncRunResult {
   error?: string;
   httpStatus?: number | null;
   authError?: boolean;
+  /** Código de erro estruturado (ex.: CONFIGURATION_ERROR). */
+  code?: string;
 }
 
 export interface SyncSchedulerSummary {
@@ -224,6 +227,17 @@ async function syncSingleSystem(
     if (!govAdapter) {
       result.status = 'failed';
       result.error = `Nenhum adapter governamental registrado para ${system.code}`;
+      result.durationMs = Date.now() - startedAt;
+      await recordSyncFailure(system, result);
+      return result;
+    }
+
+    // Fail-fast (Fase 2.1): configuração mínima inválida → não executar HTTP.
+    const validation = validateIntegrationConfiguration(system);
+    if (!validation.valid) {
+      result.status = 'failed';
+      result.code = CONFIGURATION_ERROR_CODE;
+      result.error = `Configuração inválida: ${validation.errors.join('; ')}`;
       result.durationMs = Date.now() - startedAt;
       await recordSyncFailure(system, result);
       return result;
@@ -605,12 +619,15 @@ async function recordSyncFailure(
 interface SystemRow {
   id: number;
   code: string;
+  name?: string;
+  active?: boolean;
+  secret_env_key?: string | null;
   config: Record<string, unknown> | null;
 }
 
 async function loadActiveSyncSystems(): Promise<SystemRow[]> {
   const rows = await all<SystemRow>(
-    `SELECT id, code, config
+    `SELECT id, code, name, active, secret_env_key, config
      FROM integration_systems
      WHERE active = TRUE`
   );

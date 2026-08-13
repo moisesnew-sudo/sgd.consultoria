@@ -427,3 +427,126 @@ describe('Environment variable INTEGRATION_SYNC_INTERVAL_MS', () => {
     expect(DEFAULT_CHECK_INTERVAL_MS).toBe(60_000);
   });
 });
+
+// ---------------------------------------------------------------------------
+// 13. Fail-fast de configuração (Fase 2.1)
+// ---------------------------------------------------------------------------
+describe('Fail-fast de configuração no scheduler (Fase 2.1)', () => {
+  let adapterSync: ReturnType<typeof vi.fn>;
+
+  beforeEach(() => {
+    stopIntegrationScheduler();
+    lastSyncBySystem.clear();
+    consecutiveErrorsBySystem.clear();
+    delete process.env.TRANSFEREGOV_API_KEY;
+
+    mockPoolConnect.mockResolvedValue({
+      query: vi.fn().mockResolvedValue({ rows: [{ pg_try_advisory_lock: true }] }),
+      release: vi.fn(),
+    });
+    adapterSync = vi.fn();
+  });
+
+  afterEach(() => {
+    stopIntegrationScheduler();
+    delete process.env.TRANSFEREGOV_API_KEY;
+    vi.clearAllMocks();
+  });
+
+  it('sistema com configuração inválida não executa HTTP (CONFIGURATION_ERROR)', async () => {
+    const { all, run } = await import('../database.js');
+    const { getGovAdapter } = await import('../lib/adapterRegistry.js');
+    (all as any).mockResolvedValue([
+      {
+        id: 1,
+        code: 'transferegov',
+        name: 'Transferegov',
+        active: true,
+        secret_env_key: 'TRANSFEREGOV_WEBHOOK_SECRET',
+        config: { syncEnabled: true, syncIntervalMinutes: 1, baseUrl: 'https://api.transferegov.gov.br' },
+      },
+    ]);
+    (getGovAdapter as any).mockReturnValue({ sync: adapterSync });
+    (run as any).mockClear();
+
+    const summary = await runScheduledSyncCycle();
+
+    expect(summary).not.toBeNull();
+    expect(summary!.systemsEvaluated).toBe(1);
+    expect(summary!.errors).toBe(1);
+    expect(adapterSync).not.toHaveBeenCalled();
+    expect(consecutiveErrorsBySystem.get('transferegov')).toBe(1);
+    expect(run).toHaveBeenCalledWith(
+      expect.stringContaining('integration_logs'),
+      expect.arrayContaining([expect.any(Number), 'transferegov'])
+    );
+  });
+
+  it('sistema com configuração válida executa sync normalmente', async () => {
+    const { all } = await import('../database.js');
+    const { getGovAdapter } = await import('../lib/adapterRegistry.js');
+    process.env.TRANSFEREGOV_API_KEY = 'chave-valida-123';
+    (all as any).mockResolvedValue([
+      {
+        id: 1,
+        code: 'transferegov',
+        name: 'Transferegov',
+        active: true,
+        secret_env_key: 'TRANSFEREGOV_WEBHOOK_SECRET',
+        config: {
+          syncEnabled: true,
+          syncIntervalMinutes: 1,
+          baseUrl: 'https://api.transferegov.gov.br',
+          secretEnvKey: 'TRANSFEREGOV_API_KEY',
+        },
+      },
+    ]);
+    adapterSync.mockResolvedValue({
+      success: true,
+      fetchedCount: 3,
+      normalizedCount: 3,
+      syncedCount: 0,
+      httpStatus: 200,
+      authError: false,
+      error: null,
+      events: [],
+    });
+    (getGovAdapter as any).mockReturnValue({ sync: adapterSync });
+
+    const summary = await runScheduledSyncCycle();
+
+    expect(summary).not.toBeNull();
+    expect(summary!.systemsSynced).toBe(1);
+    expect(summary!.errors).toBe(0);
+    expect(adapterSync).toHaveBeenCalledTimes(1);
+    expect(adapterSync.mock.calls[0][0]).toMatchObject({
+      baseUrl: 'https://api.transferegov.gov.br',
+      secretEnvKey: 'TRANSFEREGOV_API_KEY',
+    });
+  });
+
+  it('sistema inativo (syncEnabled false) não é alterado nem sincronizado', async () => {
+    const { all, run } = await import('../database.js');
+    const { getGovAdapter } = await import('../lib/adapterRegistry.js');
+    (all as any).mockResolvedValue([
+      {
+        id: 1,
+        code: 'transferegov',
+        name: 'Transferegov',
+        active: true,
+        secret_env_key: null,
+        config: { syncEnabled: false, baseUrl: 'https://api.transferegov.gov.br' },
+      },
+    ]);
+    (getGovAdapter as any).mockReturnValue({ sync: adapterSync });
+    (run as any).mockClear();
+
+    const summary = await runScheduledSyncCycle();
+
+    expect(summary).not.toBeNull();
+    expect(summary!.systemsEvaluated).toBe(0);
+    expect(adapterSync).not.toHaveBeenCalled();
+    expect(run).not.toHaveBeenCalled();
+    expect(lastSyncBySystem.size).toBe(0);
+  });
+});
