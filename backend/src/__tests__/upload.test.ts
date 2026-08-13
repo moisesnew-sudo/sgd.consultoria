@@ -169,16 +169,15 @@ describe('Upload de Anexos - endpoints de attachments', () => {
     expect(res.status).toBe(403);
   });
 
-  it('retorna 404 para upload em demanda inexistente e não persiste registro', async () => {
+  it('retorna 404 para upload em demanda inexistente, não persiste registro e remove o arquivo do disco', async () => {
     const missingDemandId = `INEXISTENTE-${Date.now()}`;
     const before = fs.readdirSync(UPLOAD_DIR).length;
     const res = await doUpload(agent, csrf, missingDemandId, { filename: 'semdemanda.pdf' });
     expect(res.status).toBe(404);
     expect(res.body.error).toContain('não encontrada');
     const after = fs.readdirSync(UPLOAD_DIR).length;
-    // Defeito documentado: o arquivo gravado pelo multer fica órfão no disco
-    // (nenhum mecanismo remove arquivos cujo INSERT nunca aconteceu).
-    expect(after).toBe(before + 1);
+    // Correção (Follow-up 1.1): o arquivo gravado pelo multer é removido no caminho de erro.
+    expect(after).toBe(before);
     const rows = await all('SELECT id FROM attachments WHERE demand_id = $1', [missingDemandId]);
     expect(rows.length).toBe(0);
   });
@@ -302,18 +301,67 @@ describe('Upload de Anexos - endpoints de attachments', () => {
     expect(res.body.error).toContain('Acesso negado');
   });
 
-  it('retorna 500 se falhar ao ler o arquivo do disco e não persiste registro', async () => {
+  it('retorna 500 se falhar ao ler o arquivo do disco, remove o arquivo e não persiste registro', async () => {
     const original = fs.readFileSync;
     fs.readFileSync = (() => { throw new Error('simulated disk failure'); }) as typeof fs.readFileSync;
     try {
+      const before = fs.readdirSync(UPLOAD_DIR).length;
       const res = await doUpload(agent, csrf, demandId, { filename: 'falha.pdf' });
       expect(res.status).toBe(500);
       expect(res.body.error).toContain('upload');
+      const after = fs.readdirSync(UPLOAD_DIR).length;
+      expect(after).toBe(before);
     } finally {
       fs.readFileSync = original;
     }
     const rows = await all('SELECT id FROM attachments WHERE name = $1', ['falha.pdf']);
     expect(rows.length).toBe(0);
+  });
+
+  it('remove o arquivo e não persiste registro quando o INSERT de attachments falha', async () => {
+    await run('DROP TRIGGER IF EXISTS trg_reject_attachments_insert ON attachments');
+    await run('DROP FUNCTION IF EXISTS reject_attachments_insert()');
+    await run(`CREATE OR REPLACE FUNCTION reject_attachments_insert() RETURNS trigger AS $fn$
+      BEGIN RAISE EXCEPTION 'simulated insert failure'; END $fn$ LANGUAGE plpgsql`);
+    await run('CREATE TRIGGER trg_reject_attachments_insert BEFORE INSERT ON attachments FOR EACH ROW EXECUTE FUNCTION reject_attachments_insert()');
+    try {
+      const before = fs.readdirSync(UPLOAD_DIR).length;
+      const res = await doUpload(agent, csrf, demandId, { filename: 'insertfail.pdf' });
+      expect(res.status).toBe(500);
+      expect(res.body.error).toContain('upload');
+      const after = fs.readdirSync(UPLOAD_DIR).length;
+      expect(after).toBe(before);
+      const rows = await all('SELECT id FROM attachments WHERE name = $1', ['insertfail.pdf']);
+      expect(rows.length).toBe(0);
+    } finally {
+      await run('DROP TRIGGER IF EXISTS trg_reject_attachments_insert ON attachments');
+      await run('DROP FUNCTION IF EXISTS reject_attachments_insert()');
+    }
+  });
+
+  it('rollback de requisição múltipla remove arquivos e registros já inseridos quando um arquivo falha', async () => {
+    const original = fs.readFileSync;
+    let reads = 0;
+    fs.readFileSync = ((p: fs.PathOrFileDescriptor, ...args: unknown[]) => {
+      reads += 1;
+      if (reads === 2) throw new Error('simulated disk failure on second file');
+      return (original as any)(p, ...args);
+    }) as typeof fs.readFileSync;
+    try {
+      const before = fs.readdirSync(UPLOAD_DIR).length;
+      const req = agent.post(`/api/demands/${demandId}/attachments`).set('X-CSRF-Token', csrf);
+      req.attach('files', PDF_CONTENT, { filename: 'multi1.pdf', contentType: 'application/pdf' });
+      req.attach('files', PDF_CONTENT, { filename: 'multi2.pdf', contentType: 'application/pdf' });
+      const res = await req;
+      expect(res.status).toBe(500);
+      expect(res.body.error).toContain('upload');
+      const after = fs.readdirSync(UPLOAD_DIR).length;
+      expect(after).toBe(before);
+      const rows = await all("SELECT id FROM attachments WHERE name IN ('multi1.pdf', 'multi2.pdf')");
+      expect(rows.length).toBe(0);
+    } finally {
+      fs.readFileSync = original;
+    }
   });
 
   it('cleanupOrphanedFiles remove arquivos e registros soft-deleted antigos', async () => {

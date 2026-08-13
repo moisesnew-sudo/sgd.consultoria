@@ -104,6 +104,8 @@ function validateFilePath(filePath: string): string | null {
 router.post('/demands/:id/attachments', authenticateToken, requirePermission('demands.edit'), (req: Request, res: Response) => {
   upload.array('files', 10)(req, res, async (err) => {
     if (err) {
+      // Em caso de erro do multer, o próprio multer remove os arquivos que já
+      // haviam sido gravados nesta requisição.
       if (err instanceof multer.MulterError) {
         if (err.code === 'LIMIT_FILE_SIZE') return res.status(413).json({ error: `Arquivo muito grande. Máximo: ${MAX_FILE_SIZE / 1024 / 1024}MB` });
         if (err.code === 'LIMIT_FILE_COUNT') return res.status(400).json({ error: 'Máximo de 10 arquivos por upload' });
@@ -112,13 +114,39 @@ router.post('/demands/:id/attachments', authenticateToken, requirePermission('de
       return res.status(400).json({ error: err.message });
     }
 
+    const files = (req.files as Express.Multer.File[]) || [];
+    // O multer grava todos os arquivos no disco antes de invocar este callback.
+    // Se qualquer etapa posterior falhar, removemos exatamente os arquivos desta
+    // requisição (e os registros já inseridos por ela), garantindo atomicidade
+    // sem jamais tocar em arquivos/registros válidos de outras requisições.
+    const writtenPaths = files.map((f) => f.path);
+    const insertedIds: number[] = [];
+
+    const rollbackUpload = async () => {
+      for (const p of writtenPaths) {
+        try {
+          if (fs.existsSync(p)) fs.unlinkSync(p);
+        } catch (unlinkErr) {
+          logger.warn('Falha ao remover arquivo de upload abortado', { error: unlinkErr instanceof Error ? unlinkErr.message : unlinkErr });
+        }
+      }
+      if (insertedIds.length > 0) {
+        try {
+          await run('DELETE FROM attachments WHERE id = ANY($1::int[])', [insertedIds]);
+        } catch (deleteErr) {
+          logger.warn('Falha ao remover registros de anexo do upload abortado', { error: deleteErr instanceof Error ? deleteErr.message : deleteErr });
+        }
+      }
+    };
+
     try {
       const { ip_address, user_agent } = extractMeta(req);
       const demand = await get('SELECT id, title FROM demands WHERE id = $1 AND deleted_at IS NULL', [req.params.id as string]);
-      if (!demand) return res.status(404).json({ error: 'Demanda não encontrada' });
-
-      const files = req.files as Express.Multer.File[];
-      if (!files || files.length === 0) return res.status(400).json({ error: 'Nenhum arquivo enviado' });
+      if (!demand) {
+        await rollbackUpload();
+        return res.status(404).json({ error: 'Demanda não encontrada' });
+      }
+      if (files.length === 0) return res.status(400).json({ error: 'Nenhum arquivo enviado' });
 
       const saved: Attachment[] = [];
 
@@ -133,6 +161,7 @@ router.post('/demands/:id/attachments', authenticateToken, requirePermission('de
           [req.params.id as string, file.originalname, `${sizeMB} MB`, file.mimetype, file.filename,
            req.user!.id, file.mimetype, file.size, fileHash]
         );
+        insertedIds.push(result.rows[0].id);
         saved.push(result.rows[0]);
       }
 
@@ -149,6 +178,7 @@ router.post('/demands/:id/attachments', authenticateToken, requirePermission('de
 
       res.status(201).json(saved);
     } catch (error) {
+      await rollbackUpload();
       logger.error('Upload error:', error);
       res.status(500).json({ error: 'Erro ao fazer upload' });
     }
