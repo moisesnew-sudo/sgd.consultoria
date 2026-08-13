@@ -601,6 +601,25 @@ export async function initDatabase() {
     CREATE INDEX IF NOT EXISTS idx_background_jobs_queue ON background_jobs(queue);
     CREATE INDEX IF NOT EXISTS idx_background_jobs_type ON background_jobs(type);
     CREATE INDEX IF NOT EXISTS idx_background_jobs_created ON background_jobs(created_at);
+
+    CREATE TABLE IF NOT EXISTS integration_snapshots (
+      id SERIAL PRIMARY KEY,
+      system_id INTEGER NOT NULL REFERENCES integration_systems(id) ON DELETE CASCADE,
+      external_id TEXT NOT NULL,
+      proposal_number TEXT,
+      external_status TEXT,
+      raw_status TEXT,
+      vl_total_planejamento_gastos NUMERIC,
+      payload JSONB,
+      last_seen_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      created_at TIMESTAMPTZ DEFAULT NOW(),
+      updated_at TIMESTAMPTZ DEFAULT NOW(),
+      tenant_id INTEGER DEFAULT 1,
+      UNIQUE(system_id, external_id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_integration_snapshots_system ON integration_snapshots(system_id);
+    CREATE INDEX IF NOT EXISTS idx_integration_snapshots_external ON integration_snapshots(external_id);
+    CREATE INDEX IF NOT EXISTS idx_integration_snapshots_last_seen ON integration_snapshots(system_id, last_seen_at);
   `);
 
   // D3.2 — Migration: adicionar colunas e estados para gestão avançada de entregas.

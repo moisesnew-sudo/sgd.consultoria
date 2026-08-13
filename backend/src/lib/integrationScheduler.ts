@@ -29,7 +29,7 @@ import type { AdapterConfig, SyncPullResult, NormalizedIntegrationEvent } from '
 /* Constants                                                           */
 /* ------------------------------------------------------------------ */
 
-/** Chave advisory lock exclusiva para este scheduler (int32). */
+/** Chave advisory lock exclusiva para este scheduler (int32). Reutilizada pelo motor de snapshot do Transferegov. */
 const SYNC_LOCK_KEY = 738291046;
 
 /** Intervalo de verificação: 1 minuto (o scheduler decide por sistema se é hora de sync). */
