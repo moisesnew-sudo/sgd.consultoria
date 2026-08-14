@@ -1173,3 +1173,155 @@ describe('A7.4 Parte 2 — Auditoria e data de atualização da base (data-atual
     expect(log.metrics.data_atualizacao.value).toBe('2026-08-12');
   });
 });
+
+describe('A7.5.1 — Correção P1: chave real de data de atualização (data_ultima_atualizacao)', () => {
+  it('A. resposta real da API (data_ultima_atualizacao): available=true e valor extraído', async () => {
+    mockApi(
+      { 1: { body: pageEnvelope([partnershipItem('A'), partnershipItem('B')], 1, 2, 1) } },
+      { dataAtualizacao: { body: { data_ultima_atualizacao: '2026-08-13T00:00:00' } } },
+    );
+
+    const result = await runTransferegovSnapshotSync(system(), config, {});
+    expect(result.success).toBe(true);
+    expect(result.executionState).toBe('PUBLISHED');
+    expect(result.published).toBe(true);
+    expect(result.complete).toBe(true);
+    expect(result.dataAtualizacao).toBe('2026-08-13T00:00:00');
+    expect(result.dataAtualizacaoMeta?.available).toBe(true);
+    expect(result.dataAtualizacaoMeta?.matched).toBe(false);
+
+    expect(await storedDataAtualizacao()).toBe('2026-08-13T00:00:00');
+    expect(await countSnapshots()).toBe(2);
+  });
+
+  it('B. chave camelCase dataUltimaAtualizacao: available=true', async () => {
+    mockApi(
+      { 1: { body: pageEnvelope([partnershipItem('A'), partnershipItem('B')], 1, 2, 1) } },
+      { dataAtualizacao: { body: { dataUltimaAtualizacao: '2026-08-13T00:00:00' } } },
+    );
+
+    const result = await runTransferegovSnapshotSync(system(), config, {});
+    expect(result.executionState).toBe('PUBLISHED');
+    expect(result.published).toBe(true);
+    expect(result.dataAtualizacao).toBe('2026-08-13T00:00:00');
+    expect(result.dataAtualizacaoMeta?.available).toBe(true);
+    expect(result.dataAtualizacaoMeta?.matched).toBe(false);
+
+    expect(await storedDataAtualizacao()).toBe('2026-08-13T00:00:00');
+  });
+
+  it('C. campo ausente: available=false e fallback para snapshot completo', async () => {
+    await run('UPDATE integration_systems SET last_data_atualizacao = $2 WHERE id = $1', [systemId, '2026-08-10']);
+    mockApi(
+      { 1: { body: pageEnvelope([partnershipItem('A')], 1, 1, 1) } },
+      { dataAtualizacao: { body: { outro_campo: 'valor' } } },
+    );
+
+    const result = await runTransferegovSnapshotSync(system(), config, {});
+    expect(result.success).toBe(true);
+    expect(result.executionState).toBe('PUBLISHED');
+    expect(result.dataAtualizacaoMeta?.available).toBe(false);
+    expect(result.dataAtualizacaoMeta?.error).toContain('ausente ou vazio');
+    expect(result.dataAtualizacao).toBeUndefined();
+
+    expect(await storedDataAtualizacao()).toBe('2026-08-10');
+    expect(await countSnapshots()).toBe(1);
+  });
+
+  it('D. campo null/vazio: available=false', async () => {
+    mockApi(
+      { 1: { body: pageEnvelope([partnershipItem('A')], 1, 1, 1) } },
+      { dataAtualizacao: { body: { data_ultima_atualizacao: null } } },
+    );
+
+    let result = await runTransferegovSnapshotSync(system(), config, {});
+    expect(result.executionState).toBe('PUBLISHED');
+    expect(result.dataAtualizacaoMeta?.available).toBe(false);
+    expect(result.dataAtualizacaoMeta?.error).toContain('ausente ou vazio');
+
+    mockApi(
+      { 1: { body: pageEnvelope([partnershipItem('A')], 1, 1, 1) } },
+      { dataAtualizacao: { body: { data_ultima_atualizacao: '' } } },
+    );
+
+    result = await runTransferegovSnapshotSync(system(), config, {});
+    expect(result.executionState).toBe('PUBLISHED');
+    expect(result.dataAtualizacaoMeta?.available).toBe(false);
+    expect(result.dataAtualizacaoMeta?.error).toContain('ausente ou vazio');
+  });
+
+  it('E. valor inválido: available=false e fallback', async () => {
+    await run('UPDATE integration_systems SET last_data_atualizacao = $2 WHERE id = $1', [systemId, '2026-08-10']);
+    mockApi(
+      { 1: { body: pageEnvelope([partnershipItem('A')], 1, 1, 1) } },
+      { dataAtualizacao: { body: { data_ultima_atualizacao: 'nao-e-uma-data' } } },
+    );
+
+    const result = await runTransferegovSnapshotSync(system(), config, {});
+    expect(result.executionState).toBe('PUBLISHED');
+    expect(result.dataAtualizacaoMeta?.available).toBe(false);
+    expect(result.dataAtualizacaoMeta?.error).toContain('inválida');
+
+    expect(await storedDataAtualizacao()).toBe('2026-08-10');
+  });
+
+  it('F. mesmo valor da última execução: SKIPPED, sem coleta nem publicação', async () => {
+    await run('UPDATE integration_systems SET last_data_atualizacao = $2 WHERE id = $1', [systemId, '2026-08-13T00:00:00']);
+    const fetchMock = mockApi(
+      { 1: { body: pageEnvelope([partnershipItem('A')], 1, 1, 1) } },
+      { dataAtualizacao: { body: { data_ultima_atualizacao: '2026-08-13T00:00:00' } } },
+    );
+
+    const result = await runTransferegovSnapshotSync(system(), config, {});
+    expect(result.success).toBe(true);
+    expect(result.skipped).toBe(true);
+    expect(result.executionState).toBe('SKIPPED');
+    expect(result.complete).toBe(true);
+    expect(result.published).toBe(false);
+    expect(result.dataAtualizacao).toBe('2026-08-13T00:00:00');
+    expect(result.dataAtualizacaoMeta?.available).toBe(true);
+    expect(result.dataAtualizacaoMeta?.matched).toBe(true);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    expect(await countSnapshots()).toBe(0);
+    expect(await storedDataAtualizacao()).toBe('2026-08-13T00:00:00');
+  });
+
+  it('G. valor alterado: PUBLISHED e novo valor persistido', async () => {
+    await run('UPDATE integration_systems SET last_data_atualizacao = $2 WHERE id = $1', [systemId, '2026-08-12T00:00:00']);
+    mockApi(
+      { 1: { body: pageEnvelope([partnershipItem('A')], 1, 1, 1) } },
+      { dataAtualizacao: { body: { data_ultima_atualizacao: '2026-08-13T00:00:00' } } },
+    );
+
+    const result = await runTransferegovSnapshotSync(system(), config, {});
+    expect(result.executionState).toBe('PUBLISHED');
+    expect(result.published).toBe(true);
+    expect(result.dataAtualizacaoMeta?.matched).toBe(false);
+
+    expect(await storedDataAtualizacao()).toBe('2026-08-13T00:00:00');
+    expect(await countSnapshots()).toBe(1);
+  });
+
+  it('H. falha na persistência: ROLLBACK e last_data_atualizacao anterior intacto', async () => {
+    await run('UPDATE integration_systems SET last_data_atualizacao = $2 WHERE id = $1', [systemId, '2026-08-10']);
+    mockApi(
+      { 1: { body: pageEnvelope([partnershipItem('A')], 1, 1, 1) } },
+      { dataAtualizacao: { body: { data_ultima_atualizacao: '2026-08-13T00:00:00' } } },
+    );
+
+    const spy = spyOnPersistFail('INSERT INTO integration_snapshots', 'falha controlada na persistência (P1)');
+    try {
+      const result = await runTransferegovSnapshotSync(system(), config, {});
+      expect(result.success).toBe(false);
+      expect(result.executionState).toBe('FAILED');
+      expect(result.published).toBe(false);
+      expect(result.error).toContain('falha controlada na persistência');
+    } finally {
+      spy.mockRestore();
+    }
+
+    expect(await storedDataAtualizacao()).toBe('2026-08-10');
+    expect(await countSnapshots()).toBe(0);
+  });
+});

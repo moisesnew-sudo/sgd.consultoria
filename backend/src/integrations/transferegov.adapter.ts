@@ -62,7 +62,15 @@ const FINANCIAL_KEYS = ['vl_total_planejamento_gastos', 'vlTotalPlanejamentoGast
 /** Caminho do endpoint de data de atualização da base oficial (GET /parcerias/data-atualizacao). */
 const DATA_ATUALIZACAO_PATH = '/data-atualizacao';
 /** Chaves candidatas do campo de data de atualização na resposta do endpoint. */
-const DATA_ATUALIZACAO_KEYS = ['data_atualizacao', 'dataAtualizacao', 'atualizado_em', 'atualizadoEm', 'data'];
+const DATA_ATUALIZACAO_KEYS = [
+  'data_ultima_atualizacao',
+  'dataUltimaAtualizacao',
+  'data_atualizacao',
+  'dataAtualizacao',
+  'atualizado_em',
+  'atualizadoEm',
+  'data',
+];
 
 /**
  * Adapter síncrono puro — normalização de webhooks (compatível com Fase 2.2).
