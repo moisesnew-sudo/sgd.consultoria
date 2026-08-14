@@ -59,6 +59,11 @@ const NU_EXTERNO_KEYS = ['nu_externo'];
 const PARTNERSHIP_STATUS_KEYS = ['in_situacao_parceria', 'situacao_parceria', 'situacao', 'status'];
 const FINANCIAL_KEYS = ['vl_total_planejamento_gastos', 'vlTotalPlanejamentoGastos'];
 
+/** Caminho do endpoint de data de atualização da base oficial (GET /parcerias/data-atualizacao). */
+const DATA_ATUALIZACAO_PATH = '/data-atualizacao';
+/** Chaves candidatas do campo de data de atualização na resposta do endpoint. */
+const DATA_ATUALIZACAO_KEYS = ['data_atualizacao', 'dataAtualizacao', 'atualizado_em', 'atualizadoEm', 'data'];
+
 /**
  * Adapter síncrono puro — normalização de webhooks (compatível com Fase 2.2).
  */
@@ -107,6 +112,104 @@ function pickOriginalValue(payload: Record<string, unknown>, keys: string[]): un
     }
   }
   return undefined;
+}
+
+/** Constrói a URL do endpoint de data de atualização da base (GET /parcerias/data-atualizacao). */
+function buildDataAtualizacaoUrl(baseUrl: string): string {
+  const base = baseUrl.replace(/\/+$/, '');
+  if (base.endsWith('/parcerias')) {
+    return `${base}${DATA_ATUALIZACAO_PATH}`;
+  }
+  return `${base}/parcerias${DATA_ATUALIZACAO_PATH}`;
+}
+
+/** Resultado da consulta ao endpoint de data de atualização da base. */
+export interface TransferegovDataAtualizacaoResult {
+  /** Se a data de atualização foi obtida com sucesso (HTTP 200 + campo presente). */
+  ok: boolean;
+  /** Valor bruto do campo de data (string) quando presente. */
+  value?: string;
+  /** Motivo da falha (rede/HTTP/formato). */
+  error?: string;
+  /** Status HTTP da resposta (0 = erro de rede/baseUrl; null = sem HTTP). */
+  httpStatus: number | null;
+}
+
+/**
+ * Consulta a data de atualização da base oficial do Transferegov
+ * (GET /parcerias/data-atualizacao), usada pelo motor de snapshot para
+ * otimizar a execução (pular sincronizações sem alterações).
+ *
+ * Função standalone (NÃO altera o contrato de GovernmentIntegrationAdapter).
+ * A validação de formato da data (new Date) fica a cargo do módulo de snapshot.
+ */
+export async function fetchTransferegovDataAtualizacao(
+  config: AdapterConfig,
+  credential?: string | null,
+): Promise<TransferegovDataAtualizacaoResult> {
+  const baseUrl = config.baseUrl;
+  if (!baseUrl) {
+    return { ok: false, error: 'BaseUrl não configurada para o Transferegov', httpStatus: null };
+  }
+
+  const headers: Record<string, string> = {};
+  if (credential) {
+    const authType = (config.extra?.authType as string) ?? 'none';
+    if (authType === 'oauth2') {
+      headers['Authorization'] = `Bearer ${credential}`;
+    } else if (authType === 'api_key') {
+      headers['X-API-Key'] = credential;
+    }
+  }
+
+  try {
+    const response = await httpClient(config, {
+      url: buildDataAtualizacaoUrl(baseUrl),
+      method: 'GET',
+      headers,
+    });
+
+    if (response.status === 0) {
+      return {
+        ok: false,
+        error: 'Falha de rede ou timeout ao consultar a data de atualização do Transferegov',
+        httpStatus: 0,
+      };
+    }
+    if (response.status !== 200) {
+      return {
+        ok: false,
+        error: `HTTP ${response.status} na consulta de data de atualização do Transferegov`,
+        httpStatus: response.status,
+      };
+    }
+
+    const data = response.data;
+    if (!data || typeof data !== 'object' || Array.isArray(data)) {
+      return {
+        ok: false,
+        error: 'Resposta de data de atualização estruturalmente inválida',
+        httpStatus: response.status,
+      };
+    }
+
+    const value = pickOriginalValue(data as Record<string, unknown>, DATA_ATUALIZACAO_KEYS);
+    if (typeof value !== 'string' || value.trim() === '') {
+      return {
+        ok: false,
+        error: 'Campo de data de atualização ausente ou vazio na resposta',
+        httpStatus: response.status,
+      };
+    }
+
+    return { ok: true, value: value.trim(), httpStatus: response.status };
+  } catch (error) {
+    return {
+      ok: false,
+      error: error instanceof Error ? error.message : String(error),
+      httpStatus: 0,
+    };
+  }
 }
 
 /**

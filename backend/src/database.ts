@@ -503,6 +503,17 @@ export async function initDatabase() {
     CREATE INDEX IF NOT EXISTS idx_integration_logs_status ON integration_logs(status);
     CREATE INDEX IF NOT EXISTS idx_integration_logs_direction ON integration_logs(direction);
 
+    -- Fase A7.4 Parte 2 — Auditoria de execução do snapshot do Transferegov.
+    -- integration_systems.last_data_atualizacao: última data de atualização da
+    -- base oficial informada pelo endpoint GET /parcerias/data-atualizacao.
+    -- integration_logs.execution_state: estado explícito da execução do snapshot.
+    -- integration_logs.metrics: métricas essenciais da execução (JSONB, sem segredos).
+    ALTER TABLE integration_systems ADD COLUMN IF NOT EXISTS last_data_atualizacao TEXT;
+    ALTER TABLE integration_logs ADD COLUMN IF NOT EXISTS execution_state TEXT
+      CHECK(execution_state IN ('PUBLISHED', 'LIMITED', 'FAILED', 'SKIPPED'));
+    ALTER TABLE integration_logs ADD COLUMN IF NOT EXISTS metrics JSONB;
+    CREATE INDEX IF NOT EXISTS idx_integration_logs_execution_state ON integration_logs(execution_state);
+
     -- Fase D1.2 — Central de Alertas Inteligentes
     -- Persistência dos alertas gerados pelas regras R1-R8 (motor na Fase D1.3).
     -- Segurança: details guarda apenas contexto operacional (nunca api_key/password/token/secret);
@@ -612,11 +623,18 @@ export async function initDatabase() {
       vl_total_planejamento_gastos NUMERIC,
       payload JSONB,
       last_seen_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      -- A7.4 — Reconciliação reversível: preenchido quando o registro esteve presente
+      -- em um snapshot anterior mas NÃO foi encontrado no último snapshot completo
+      -- publicado. NULL = presente no último snapshot completo (ou nunca reconciliado).
+      -- Registros ausentes NUNCA são apagados fisicamente.
+      absent_since TIMESTAMPTZ,
       created_at TIMESTAMPTZ DEFAULT NOW(),
       updated_at TIMESTAMPTZ DEFAULT NOW(),
       tenant_id INTEGER DEFAULT 1,
       UNIQUE(system_id, external_id)
     );
+    -- Idempotente para bancos existentes (A7.3 → A7.4).
+    ALTER TABLE integration_snapshots ADD COLUMN IF NOT EXISTS absent_since TIMESTAMPTZ;
     CREATE INDEX IF NOT EXISTS idx_integration_snapshots_system ON integration_snapshots(system_id);
     CREATE INDEX IF NOT EXISTS idx_integration_snapshots_external ON integration_snapshots(external_id);
     CREATE INDEX IF NOT EXISTS idx_integration_snapshots_last_seen ON integration_snapshots(system_id, last_seen_at);
