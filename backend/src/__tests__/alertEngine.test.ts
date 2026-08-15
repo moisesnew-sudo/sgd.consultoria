@@ -207,6 +207,13 @@ describe('alertEngine — regras R1–R7 (funções puras)', () => {
     expect(severity(evalFor(snap({ lastSyncAt: null }), CTX), 'stale_sync')).toBe('warning');
   });
 
+  it('R6: lastSyncAt como Date (driver pg) → stale_sync sem erro, com data formatada', () => {
+    const m = evalFor(snap({ lastSyncAt: new Date(NOW.getTime() - 25 * 3600 * 1000) }), CTX);
+    expect(severity(m, 'stale_sync')).toBe('warning');
+    const stale = m.find((x) => x.type === 'stale_sync');
+    expect(stale?.message).toContain('em 2026-08-06');
+  });
+
   it('R6: sistema inativo não gera stale_sync (tratado por R3)', () => {
     const m = evalFor(snap({ active: false, lastSyncAt: null }), CTX);
     expect(types(m)).toContain('system_inactive');
@@ -468,6 +475,15 @@ describe('alertEngine — integração PostgreSQL (criação, coalescing, dedup,
     const summary = await runAlertEvaluation({ systemIds: [id] });
     expect(summary.resolved).toBe(1);
     expect((await getAlert(id, 'stale_sync')).status).toBe('resolved');
+  });
+
+  it('R6: last_sync_at antigo (Date retornado pelo pg) cria stale_sync com mensagem válida', async () => {
+    const { id } = await createSystem({ lastSyncAt: new Date(Date.now() - 25 * 3600 * 1000).toISOString() });
+    const summary = await runAlertEvaluation({ systemIds: [id] });
+    expect(summary.created).toBe(1);
+    const alert = await getAlert(id, 'stale_sync');
+    expect(alert.status).toBe('open');
+    expect(alert.message).toMatch(/último sync em \d{4}-\d{2}-\d{2}/);
   });
 
   it('R7: 1 unmatched → criado; 2º unmatched → coalescing (mesmo id); processados → resolved', async () => {

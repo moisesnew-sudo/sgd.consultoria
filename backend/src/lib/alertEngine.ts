@@ -73,7 +73,8 @@ export interface SystemSnapshot {
   name: string;
   tenantId: number;
   active: boolean;
-  lastSyncAt: string | null;
+  /** Última sincronização — string ISO ou Date (driver pg para TIMESTAMPTZ). */
+  lastSyncAt: string | Date | null;
   lastHttpStatus: number | null;
   lastResponseMs: number | null;
   errorCount24h: number;
@@ -281,7 +282,7 @@ export function evaluateRules(system: SystemSnapshot, ctx: EvaluationContext): R
       matches.push({
         type: 'stale_sync',
         severity: 'warning',
-        message: `Sincronização defasada em ${system.name}: último sync ${system.lastSyncAt ? `em ${system.lastSyncAt.slice(0, 10)}` : 'nunca realizado'} (limite ${STALE_SYNC_HOURS}h)`,
+        message: `Sincronização defasada em ${system.name}: último sync ${system.lastSyncAt ? `em ${formatSyncDate(system.lastSyncAt)}` : 'nunca realizado'} (limite ${STALE_SYNC_HOURS}h)`,
         details: {
           ...baseDetails('stale_sync', system, ctx),
           currentValue: system.lastSyncAt,
@@ -341,7 +342,19 @@ export function evaluateRules(system: SystemSnapshot, ctx: EvaluationContext): R
   return matches;
 }
 
-function nowMinusMillis(iso: string | null, now: Date): number {
+/**
+ * Formata o dia (YYYY-MM-DD) de lastSyncAt para mensagens de alerta.
+ * lastSyncAt pode ser string ISO (testes/fixtures) ou Date (retornado pelo
+ * driver pg para a coluna TIMESTAMPTZ last_sync_at).
+ */
+function formatSyncDate(value: string | Date): string {
+  if (value instanceof Date) {
+    return value.toISOString().slice(0, 10);
+  }
+  return value.slice(0, 10);
+}
+
+function nowMinusMillis(iso: string | Date | null, now: Date): number {
   if (iso === null) return 0;
   return now.getTime() - new Date(iso).getTime();
 }
