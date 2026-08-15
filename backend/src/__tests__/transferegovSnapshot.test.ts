@@ -107,12 +107,24 @@ function partnershipItem(cdParceria: string, over: Record<string, unknown> = {})
 /** Handler dedicado para o endpoint de data de atualização da base. */
 interface MockApiOptions {
   dataAtualizacao?: { body: unknown; status?: number };
+  /** Páginas do endpoint de propostas (GET /parcerias/proposta). Sem handler, responde coleta vazia. */
+  proposta?: Record<number, { body: unknown; status?: number }>;
 }
 
+/** Envelope vazio padrão do endpoint de propostas (coleta vazia, contrato coerente). */
+const EMPTY_PROPOSAL_ENVELOPE = {
+  data: [],
+  total_pages: 1,
+  total_items: 0,
+  page_number: 1,
+  page_size: 200,
+};
+
 /**
- * Mock do fetch global: roteia o endpoint /data-atualizacao por pathname e as
- * demais requisições por página (rejeita páginas inesperadas). Sem handler
- * dedicado, o data-atualizacao responde 500 (fallback seguro de snapshot).
+ * Mock do fetch global: roteia o endpoint /data-atualizacao e /proposta por
+ * pathname e as demais requisições (parcerias) por página. Sem handler
+ * dedicado, o data-atualizacao responde 500 (fallback seguro de snapshot) e o
+ * /proposta responde uma coleta vazia válida (sem enriquecimento financeiro).
  */
 function mockApi(handlers: Record<number, { body: unknown; status?: number }>, opts: MockApiOptions = {}) {
   return vi.spyOn(globalThis, 'fetch').mockImplementation((url: unknown) => {
@@ -121,6 +133,14 @@ function mockApi(handlers: Record<number, { body: unknown; status?: number }>, o
       const handler = opts.dataAtualizacao;
       if (!handler) {
         return Promise.resolve(mockJsonResponse({ erro: 'data-atualizacao não configurado no mock' }, 500));
+      }
+      return Promise.resolve(mockJsonResponse(handler.body, handler.status ?? 200));
+    }
+    if (u.pathname.endsWith('/proposta')) {
+      const page = Number(u.searchParams.get('pagina') ?? '1');
+      const handler = opts.proposta?.[page];
+      if (!handler) {
+        return Promise.resolve(mockJsonResponse(EMPTY_PROPOSAL_ENVELOPE, 200));
       }
       return Promise.resolve(mockJsonResponse(handler.body, handler.status ?? 200));
     }

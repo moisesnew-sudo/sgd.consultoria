@@ -33,13 +33,22 @@
  *    NUNCA é tratada como "sem alterações") e o valor armazenado não é atualizado;
  *  - A data de atualização só é persistida na MESMA transação de um snapshot
  *    completo e validado (COMMIT confirma ambos, ROLLBACK desfaz ambos).
+ *
+ * P2.2 — Enriquecimento financeiro via coleta de propostas:
+ *  - Após validar as parcerias, o endpoint GET /parcerias/proposta é coletado
+ *    integralmente em memória (collectTransferegovProposals);
+ *  - Cada parceria do snapshot é enriquecida pelo seu id_proposta: valor
+ *    numérico → NUMERIC; null explícito → NULL; id_proposta ausente da coleta
+ *    → NÃO altera o valor (ausência não vira NULL);
+ *  - Uma falha na coleta de propostas impede a publicação (nada parcial);
+ *  - Toda a coleta (parcerias + propostas) é completada antes do BEGIN.
  */
 import type { PoolClient } from 'pg';
 import { pool, run, get, transaction } from '../database.js';
 import { getGovAdapter } from '../lib/adapterRegistry.js';
 import { logger } from '../lib/logger.js';
 import { SYNC_LOCK_KEY } from '../lib/integrationScheduler.js';
-import { fetchTransferegovDataAtualizacao } from './transferegov.adapter.js';
+import { collectTransferegovProposals, fetchTransferegovDataAtualizacao } from './transferegov.adapter.js';
 import {
   flattenPayload,
   pickString,
@@ -138,6 +147,18 @@ export interface TransferegovSnapshotResult {
   totalItems: number | null;
   /** total_pages declarado pela API (null se a coleta falhou antes do envelope). */
   totalPages: number | null;
+  /** Registros obtidos na coleta de propostas (P2.2; 0 se a coleta não ocorreu). */
+  proposalFetchedCount: number;
+  /** Páginas processadas na coleta de propostas (P2.2; 0 se a coleta não ocorreu). */
+  proposalPagesProcessed: number;
+  /** total_items declarado pela API na coleta de propostas (P2.2). */
+  proposalTotalItems: number | null;
+  /** Propostas com vl_total_planejamento_gastos numérico (P2.2). */
+  proposalsWithValue: number;
+  /** Propostas com vl_total_planejamento_gastos nulo (P2.2). */
+  proposalsWithoutValue: number;
+  /** Registros do snapshot enriquecidos com o valor de propostas por id_proposta (P2.2). */
+  proposalsEnriched: number;
   /** Mensagem descritiva quando aplicável. */
   message?: string;
   /** Erro estruturado (quando success = false). */
@@ -456,6 +477,38 @@ function validateSnapshot(
 }
 
 /**
+ * P2.2 — Enriquecimento do snapshot com os valores de vl_total_planejamento_gastos
+ * coletados do endpoint de propostas (GET /parcerias/proposta), por id_proposta.
+ *
+ * Regra de enriquecimento (sem conversão silenciosa de null/ausência):
+ *  - id_proposta presente no mapa com valor numérico → o valor financeiro do
+ *    registro é substituído pelo número (persistido como NUMERIC);
+ *  - id_proposta presente no mapa com null explícito → o valor financeiro do
+ *    registro é substituído por null (NULL no banco, nunca zero);
+ *  - id_proposta AUSENTE do mapa (proposta não encontrada na coleta) → o valor
+ *    financeiro do registro permanece inalterado (ausência NÃO vira NULL).
+ *
+ * A associação é feita exclusivamente por id_proposta (chave do mapa), nunca
+ * por posição, índice ou ordem da resposta.
+ *
+ * @returns Quantidade de registros enriquecidos.
+ */
+function enrichSnapshotWithProposalValues(
+  records: TransferegovSnapshotRecord[],
+  valuesByProposalId: Map<string, number | null>,
+): number {
+  let enriched = 0;
+  for (const record of records) {
+    const proposalNumber = record.proposalNumber;
+    if (proposalNumber === undefined || proposalNumber === '') continue;
+    if (!valuesByProposalId.has(proposalNumber)) continue;
+    record.financialValue = valuesByProposalId.get(proposalNumber);
+    enriched++;
+  }
+  return enriched;
+}
+
+/**
  * Publica o snapshot e reconcilia ausentes de forma atômica:
  * BEGIN → leitura do estado prévio → UPSERTs → marcação de ausentes → COMMIT.
  * Qualquer erro dispara ROLLBACK (via transaction) e o estado anterior permanece válido.
@@ -587,6 +640,12 @@ function baseResult(): TransferegovSnapshotResult {
     pagesProcessed: 0,
     totalItems: null,
     totalPages: null,
+    proposalFetchedCount: 0,
+    proposalPagesProcessed: 0,
+    proposalTotalItems: null,
+    proposalsWithValue: 0,
+    proposalsWithoutValue: 0,
+    proposalsEnriched: 0,
     httpStatus: null,
     authError: false,
     executionState: 'FAILED',
@@ -694,6 +753,12 @@ function buildSnapshotMetrics(result: TransferegovSnapshotResult): Record<string
     pages_processed: result.pagesProcessed,
     total_items: result.totalItems,
     total_pages: result.totalPages,
+    proposal_fetched_count: result.proposalFetchedCount,
+    proposal_pages_processed: result.proposalPagesProcessed,
+    proposal_total_items: result.proposalTotalItems,
+    proposals_with_value: result.proposalsWithValue,
+    proposals_without_value: result.proposalsWithoutValue,
+    proposals_enriched: result.proposalsEnriched,
     ...(result.dataAtualizacaoMeta
       ? { data_atualizacao: { ...result.dataAtualizacaoMeta, value: result.dataAtualizacaoMeta.value ?? null } }
       : {}),
@@ -848,6 +913,29 @@ export async function runTransferegovSnapshotSync(
     }
 
     result.validatedCount = validation.records.length;
+
+    // P2.2 — coleta integral das propostas (GET /parcerias/proposta) para
+    // enriquecimento financeiro por id_proposta. Toda a coleta acontece em
+    // memória, ANTES do BEGIN: uma falha aqui impede a publicação (nada
+    // parcial). O retry é delegado integralmente ao HttpClient existente.
+    const proposals = await collectTransferegovProposals(config, credential);
+    result.proposalFetchedCount = proposals.fetchedCount;
+    result.proposalPagesProcessed = proposals.pagesProcessed;
+    result.proposalTotalItems = proposals.totalItems;
+    result.proposalsWithValue = proposals.withValue;
+    result.proposalsWithoutValue = proposals.withoutValue;
+
+    if (!proposals.success) {
+      result.executionState = 'FAILED';
+      result.error = `Falha na coleta de propostas do Transferegov: ${proposals.error ?? 'erro desconhecido'}`;
+      result.httpStatus = proposals.httpStatus ?? result.httpStatus;
+      result.authError = proposals.authError ?? false;
+      result.durationMs = Date.now() - startedAt;
+      await recordSnapshotExecutionLog(system, result);
+      return result;
+    }
+
+    result.proposalsEnriched = enrichSnapshotWithProposalValues(validation.records, proposals.valuesByProposalId);
 
     // A7.4 — cálculo da reconciliação (antes do BEGIN): identidade do snapshot
     // atual por (system_id + external_id). A publicação e a reconciliação de
