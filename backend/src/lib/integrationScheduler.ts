@@ -254,6 +254,41 @@ async function syncSingleSystem(
       extra: system.config?.extra as Record<string, unknown> | undefined,
     };
 
+    // P1 — Despacho exclusivo do Transferegov para o motor de snapshot (P2.1/P2.2):
+    // runTransferegovSnapshotSync coleta parcerias + propostas, enriquece e publica
+    // integration_snapshots de forma atômica. Demais sistemas mantêm o fluxo legado.
+    // Dynamic import para evitar dependência circular: transferegovSnapshot.ts importa
+    // SYNC_LOCK_KEY deste módulo.
+    if (system.code === 'transferegov') {
+      const { runTransferegovSnapshotSync } = await import('../integrations/transferegovSnapshot.js');
+      const snapshot = await runTransferegovSnapshotSync(system, adapterConfig, {
+        maxRecords: syncConfig.maxRecords,
+      });
+
+      result.fetchedCount = snapshot.fetchedCount;
+      result.normalizedCount = snapshot.validatedCount;
+      result.httpStatus = snapshot.httpStatus ?? null;
+      result.authError = snapshot.authError ?? false;
+      result.durationMs = snapshot.durationMs;
+
+      // Estados controlados não são erros: PUBLISHED (sucesso completo),
+      // LIMITED (coleta parcial por maxRecords) e SKIPPED (base sem alterações
+      // ou lock do ciclo). Apenas success=false sem skip é falha real.
+      if (snapshot.success || snapshot.skipped) {
+        result.status = 'success';
+        result.syncedCount = snapshot.insertedCount + snapshot.updatedCount;
+        result.duplicateCount = snapshot.unchangedCount;
+        consecutiveErrorsBySystem.set(system.code, 0);
+        await recordSyncSuccess(system, result);
+        return result;
+      }
+
+      result.status = 'failed';
+      result.error = snapshot.error ?? 'Falha na sincronização de snapshot do Transferegov';
+      await recordSyncFailure(system, result);
+      return result;
+    }
+
     const syncResult = await govAdapter.sync(adapterConfig, {
       maxRecords: syncConfig.maxRecords,
     });

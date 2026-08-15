@@ -56,6 +56,10 @@ vi.mock('../lib/logger.js', () => ({
   },
 }));
 
+vi.mock('../integrations/transferegovSnapshot.js', () => ({
+  runTransferegovSnapshotSync: vi.fn(),
+}));
+
 // ---------------------------------------------------------------------------
 // 1. Configuração por sistema (parseSystemSyncConfig)
 // ---------------------------------------------------------------------------
@@ -502,19 +506,19 @@ describe('Fail-fast de configuração no scheduler (Fase 2.1)', () => {
   it('erro transitório externo continua incrementando consecutive_errors e last_error_at', async () => {
     const { all, run } = await import('../database.js');
     const { getGovAdapter } = await import('../lib/adapterRegistry.js');
-    process.env.TRANSFEREGOV_API_KEY = 'chave-valida-123';
+    process.env.SEI_API_TOKEN = 'sei-token-valido';
     (all as any).mockResolvedValue([
       {
-        id: 1,
-        code: 'transferegov',
-        name: 'Transferegov',
+        id: 2,
+        code: 'sei',
+        name: 'SEI',
         active: true,
-        secret_env_key: 'TRANSFEREGOV_WEBHOOK_SECRET',
+        secret_env_key: 'SEI_WEBHOOK_SECRET',
         config: {
           syncEnabled: true,
           syncIntervalMinutes: 1,
-          baseUrl: 'https://api.transferegov.gov.br',
-          secretEnvKey: 'TRANSFEREGOV_API_KEY',
+          baseUrl: 'https://api.sei.gov.br',
+          secretEnvKey: 'SEI_API_TOKEN',
         },
       },
     ]);
@@ -525,7 +529,7 @@ describe('Fail-fast de configuração no scheduler (Fase 2.1)', () => {
       syncedCount: 0,
       httpStatus: 500,
       authError: false,
-      error: 'HTTP 500 na consulta ao Transferegov',
+      error: 'HTTP 500 na consulta ao SEI',
       events: [],
     });
     (getGovAdapter as any).mockReturnValue({ sync: adapterSync });
@@ -535,7 +539,7 @@ describe('Fail-fast de configuração no scheduler (Fase 2.1)', () => {
 
     expect(summary).not.toBeNull();
     expect(summary!.errors).toBe(1);
-    expect(consecutiveErrorsBySystem.get('transferegov')).toBe(1);
+    expect(consecutiveErrorsBySystem.get('sei')).toBe(1);
     // Falha transitória mantém o UPDATE com last_error_at e incremento de consecutive_errors.
     const sqls = (run as any).mock.calls.map((c: any[]) => String(c[0] ?? ''));
     expect(sqls.some((sql: string) => sql.includes('last_error_at') && sql.includes('consecutive_errors'))).toBe(true);
@@ -603,19 +607,19 @@ describe('Fail-fast de configuração no scheduler (Fase 2.1)', () => {
   it('sistema com configuração válida executa sync normalmente', async () => {
     const { all } = await import('../database.js');
     const { getGovAdapter } = await import('../lib/adapterRegistry.js');
-    process.env.TRANSFEREGOV_API_KEY = 'chave-valida-123';
+    process.env.SEI_API_TOKEN = 'sei-token-valido';
     (all as any).mockResolvedValue([
       {
-        id: 1,
-        code: 'transferegov',
-        name: 'Transferegov',
+        id: 2,
+        code: 'sei',
+        name: 'SEI',
         active: true,
-        secret_env_key: 'TRANSFEREGOV_WEBHOOK_SECRET',
+        secret_env_key: 'SEI_WEBHOOK_SECRET',
         config: {
           syncEnabled: true,
           syncIntervalMinutes: 1,
-          baseUrl: 'https://api.transferegov.gov.br',
-          secretEnvKey: 'TRANSFEREGOV_API_KEY',
+          baseUrl: 'https://api.sei.gov.br',
+          secretEnvKey: 'SEI_API_TOKEN',
         },
       },
     ]);
@@ -638,8 +642,8 @@ describe('Fail-fast de configuração no scheduler (Fase 2.1)', () => {
     expect(summary!.errors).toBe(0);
     expect(adapterSync).toHaveBeenCalledTimes(1);
     expect(adapterSync.mock.calls[0][0]).toMatchObject({
-      baseUrl: 'https://api.transferegov.gov.br',
-      secretEnvKey: 'TRANSFEREGOV_API_KEY',
+      baseUrl: 'https://api.sei.gov.br',
+      secretEnvKey: 'SEI_API_TOKEN',
     });
   });
 
@@ -667,4 +671,268 @@ describe('Fail-fast de configuração no scheduler (Fase 2.1)', () => {
     expect(run).not.toHaveBeenCalled();
     expect(lastSyncBySystem.size).toBe(0);
   });
+});
+
+// ---------------------------------------------------------------------------
+// 14. P1 — Wiring do motor de snapshot do Transferegov
+// ---------------------------------------------------------------------------
+describe('Wiring do snapshot do Transferegov (P1)', () => {
+  let adapterSync: ReturnType<typeof vi.fn>;
+
+  beforeEach(async () => {
+    stopIntegrationScheduler();
+    lastSyncBySystem.clear();
+    consecutiveErrorsBySystem.clear();
+    delete process.env.TRANSFEREGOV_API_KEY;
+    delete process.env.SEI_API_TOKEN;
+
+    mockPoolConnect.mockResolvedValue({
+      query: vi.fn().mockResolvedValue({ rows: [{ pg_try_advisory_lock: true }] }),
+      release: vi.fn(),
+    });
+    adapterSync = vi.fn();
+    const { runTransferegovSnapshotSync } = await import('../integrations/transferegovSnapshot.js');
+    (runTransferegovSnapshotSync as any).mockReset();
+  });
+
+  afterEach(() => {
+    stopIntegrationScheduler();
+    delete process.env.TRANSFEREGOV_API_KEY;
+    delete process.env.SEI_API_TOKEN;
+    vi.clearAllMocks();
+  });
+
+  const transferegovSystem = () => ({
+    id: 1,
+    code: 'transferegov',
+    name: 'Transferegov',
+    active: true,
+    secret_env_key: 'TRANSFEREGOV_WEBHOOK_SECRET',
+    config: {
+      syncEnabled: true,
+      syncIntervalMinutes: 1,
+      baseUrl: 'https://api-publica.transferegov.gestao.gov.br/parcerias',
+      secretEnvKey: 'TRANSFEREGOV_API_KEY',
+    } as Record<string, unknown>,
+  });
+
+  const snapshotResult = (overrides: Record<string, unknown> = {}) => ({
+    success: true,
+    complete: true,
+    limited: false,
+    skipped: false,
+    published: true,
+    fetchedCount: 100,
+    validatedCount: 100,
+    publishedCount: 100,
+    insertedCount: 40,
+    updatedCount: 10,
+    unchangedCount: 50,
+    missingCount: 0,
+    reconciledCount: 0,
+    missingIds: [],
+    pagesProcessed: 1,
+    totalItems: 100,
+    totalPages: 1,
+    proposalFetchedCount: 120,
+    proposalPagesProcessed: 1,
+    proposalTotalItems: 120,
+    proposalsWithValue: 100,
+    proposalsWithoutValue: 20,
+    proposalsEnriched: 100,
+    httpStatus: 200,
+    authError: false,
+    executionState: 'PUBLISHED',
+    durationMs: 1500,
+    message: 'Snapshot completo publicado',
+    ...overrides,
+  });
+
+  it('A — transferegov despacha para o snapshot e NÃO chama govAdapter.sync', async () => {
+    process.env.TRANSFEREGOV_API_KEY = 'chave-valida-123';
+    const { all, getGovAdapter, runTransferegovSnapshotSync } = await importMocks();
+    (all as any).mockResolvedValue([transferegovSystem()]);
+    (getGovAdapter as any).mockReturnValue({ sync: adapterSync });
+    (runTransferegovSnapshotSync as any).mockResolvedValue(snapshotResult());
+
+    const summary = await runScheduledSyncCycle();
+
+    expect(summary).not.toBeNull();
+    expect(summary!.systemsEvaluated).toBe(1);
+    expect(summary!.systemsSynced).toBe(1);
+    expect(summary!.errors).toBe(0);
+    expect(runTransferegovSnapshotSync).toHaveBeenCalledTimes(1);
+    expect(adapterSync).not.toHaveBeenCalled();
+  });
+
+  it('B — snapshot é chamado exatamente 1x com (system, adapterConfig, { maxRecords })', async () => {
+    process.env.TRANSFEREGOV_API_KEY = 'chave-valida-123';
+    const { all, getGovAdapter, runTransferegovSnapshotSync } = await importMocks();
+    (all as any).mockResolvedValue([transferegovSystem()]);
+    (getGovAdapter as any).mockReturnValue({ sync: adapterSync });
+    (runTransferegovSnapshotSync as any).mockResolvedValue(snapshotResult());
+
+    await runScheduledSyncCycle();
+
+    expect(runTransferegovSnapshotSync).toHaveBeenCalledTimes(1);
+    const [systemArg, adapterConfig, params] = (runTransferegovSnapshotSync as any).mock.calls[0];
+    expect(systemArg).toMatchObject({ id: 1, code: 'transferegov' });
+    expect(adapterConfig).toMatchObject({
+      baseUrl: 'https://api-publica.transferegov.gestao.gov.br/parcerias',
+      secretEnvKey: 'TRANSFEREGOV_API_KEY',
+    });
+    expect(params).toEqual({ maxRecords: 100 });
+  });
+
+  it('C — sistemas não-Transferegov (sei) continuam usando govAdapter.sync', async () => {
+    process.env.SEI_API_TOKEN = 'sei-token-valido';
+    const { all, getGovAdapter, runTransferegovSnapshotSync } = await importMocks();
+    (all as any).mockResolvedValue([
+      {
+        id: 2,
+        code: 'sei',
+        name: 'SEI',
+        active: true,
+        secret_env_key: 'SEI_WEBHOOK_SECRET',
+        config: {
+          syncEnabled: true,
+          syncIntervalMinutes: 1,
+          baseUrl: 'https://api.sei.gov.br',
+          secretEnvKey: 'SEI_API_TOKEN',
+        },
+      },
+    ]);
+    (getGovAdapter as any).mockReturnValue({ sync: adapterSync });
+    adapterSync.mockResolvedValue({
+      success: true,
+      fetchedCount: 3,
+      normalizedCount: 3,
+      syncedCount: 0,
+      httpStatus: 200,
+      authError: false,
+      error: null,
+      events: [],
+    });
+
+    const summary = await runScheduledSyncCycle();
+
+    expect(summary).not.toBeNull();
+    expect(summary!.systemsSynced).toBe(1);
+    expect(summary!.errors).toBe(0);
+    expect(adapterSync).toHaveBeenCalledTimes(1);
+    expect(runTransferegovSnapshotSync).not.toHaveBeenCalled();
+  });
+
+  it('D — falha do snapshot propaga erro, preserva httpStatus e incrementa erros', async () => {
+    process.env.TRANSFEREGOV_API_KEY = 'chave-valida-123';
+    const { all, run, getGovAdapter, runTransferegovSnapshotSync } = await importMocks();
+    (all as any).mockResolvedValue([transferegovSystem()]);
+    (getGovAdapter as any).mockReturnValue({ sync: adapterSync });
+    (run as any).mockClear();
+    (runTransferegovSnapshotSync as any).mockResolvedValue(
+      snapshotResult({
+        success: false,
+        complete: false,
+        published: false,
+        error: 'Falha na coleta de propostas do Transferegov: HTTP 500',
+        httpStatus: 500,
+        authError: false,
+        executionState: 'FAILED',
+      }),
+    );
+
+    const summary = await runScheduledSyncCycle();
+
+    expect(summary).not.toBeNull();
+    expect(summary!.errors).toBe(1);
+    expect(summary!.systemsSynced).toBe(0);
+    expect(consecutiveErrorsBySystem.get('transferegov')).toBe(1);
+    expect(runTransferegovSnapshotSync).toHaveBeenCalledTimes(1);
+    expect(adapterSync).not.toHaveBeenCalled();
+    const sqls = (run as any).mock.calls.map((c: any[]) => String(c[0] ?? ''));
+    expect(sqls.some((sql: string) => sql.includes('last_error_at') && sql.includes('consecutive_errors'))).toBe(true);
+    expect(run).toHaveBeenCalledWith(
+      expect.stringContaining('integration_logs'),
+      expect.arrayContaining([expect.stringContaining('Falha na coleta de propostas do Transferegov: HTTP 500')])
+    );
+  });
+
+  it('E — métricas mapeadas: fetched→totalFetched, insert+update→synced, unchanged→duplicate', async () => {
+    process.env.TRANSFEREGOV_API_KEY = 'chave-valida-123';
+    const { all, run, getGovAdapter, runTransferegovSnapshotSync } = await importMocks();
+    (all as any).mockResolvedValue([transferegovSystem()]);
+    (getGovAdapter as any).mockReturnValue({ sync: adapterSync });
+    (run as any).mockClear();
+    (runTransferegovSnapshotSync as any).mockResolvedValue(snapshotResult());
+
+    const summary = await runScheduledSyncCycle();
+
+    expect(summary!.totalFetched).toBe(100);
+    expect(summary!.totalSynced).toBe(50); // 40 inserted + 10 updated
+    expect(summary!.totalDuplicates).toBe(50); // unchanged
+    expect(run).toHaveBeenCalledWith(
+      expect.stringContaining('integration_logs'),
+      expect.arrayContaining([expect.stringContaining('Sync periódica: 100 obtidos, 50 sincronizados, 50 duplicatas')])
+    );
+  });
+
+  it('F — maxRecordsPerSync=50 é encaminhado e LIMITED não vira erro', async () => {
+    process.env.TRANSFEREGOV_API_KEY = 'chave-valida-123';
+    const { all, getGovAdapter, runTransferegovSnapshotSync } = await importMocks();
+    const system = transferegovSystem();
+    system.config = { ...system.config, maxRecordsPerSync: 50 };
+    (all as any).mockResolvedValue([system]);
+    (getGovAdapter as any).mockReturnValue({ sync: adapterSync });
+    (runTransferegovSnapshotSync as any).mockResolvedValue(
+      snapshotResult({
+        success: true,
+        complete: false,
+        limited: true,
+        published: false,
+        fetchedCount: 50,
+        executionState: 'LIMITED',
+        message: 'Coleta interrompida no limite de 50 registros',
+      }),
+    );
+
+    const summary = await runScheduledSyncCycle();
+
+    expect((runTransferegovSnapshotSync as any).mock.calls[0][2]).toEqual({ maxRecords: 50 });
+    expect(summary!.systemsSynced).toBe(1);
+    expect(summary!.errors).toBe(0);
+    expect(consecutiveErrorsBySystem.get('transferegov')).toBe(0);
+  });
+
+  it('G — SKIPPED (lock/base sem alterações) não gera falso erro nem dupla execução', async () => {
+    process.env.TRANSFEREGOV_API_KEY = 'chave-valida-123';
+    const { all, getGovAdapter, runTransferegovSnapshotSync } = await importMocks();
+    (all as any).mockResolvedValue([transferegovSystem()]);
+    (getGovAdapter as any).mockReturnValue({ sync: adapterSync });
+    (runTransferegovSnapshotSync as any).mockResolvedValue(
+      snapshotResult({
+        success: false,
+        skipped: true,
+        complete: true,
+        published: false,
+        fetchedCount: 0,
+        httpStatus: null,
+        executionState: 'SKIPPED',
+        error: 'Sincronização bloqueada: outra execução está em andamento (advisory lock do ciclo)',
+      }),
+    );
+
+    const summary = await runScheduledSyncCycle();
+
+    expect(runTransferegovSnapshotSync).toHaveBeenCalledTimes(1);
+    expect(summary!.errors).toBe(0);
+    expect(summary!.systemsSynced).toBe(1);
+    expect(consecutiveErrorsBySystem.get('transferegov')).toBe(0);
+  });
+
+  async function importMocks() {
+    const { all, run } = await import('../database.js');
+    const { getGovAdapter } = await import('../lib/adapterRegistry.js');
+    const { runTransferegovSnapshotSync } = await import('../integrations/transferegovSnapshot.js');
+    return { all, run, getGovAdapter, runTransferegovSnapshotSync };
+  }
 });
