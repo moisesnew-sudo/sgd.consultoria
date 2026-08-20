@@ -781,7 +781,7 @@ describe('Wiring do snapshot do Transferegov (P1)', () => {
       baseUrl: 'https://api-publica.transferegov.gestao.gov.br/parcerias',
       secretEnvKey: 'TRANSFEREGOV_API_KEY',
     });
-    expect(params).toEqual({ maxRecords: 100 });
+    expect(params).toEqual({ maxRecords: 100, lockAlreadyAcquired: true });
   });
 
   it('C — sistemas não-Transferegov (sei) continuam usando govAdapter.sync', async () => {
@@ -897,7 +897,7 @@ describe('Wiring do snapshot do Transferegov (P1)', () => {
 
     const summary = await runScheduledSyncCycle();
 
-    expect((runTransferegovSnapshotSync as any).mock.calls[0][2]).toEqual({ maxRecords: 50 });
+    expect((runTransferegovSnapshotSync as any).mock.calls[0][2]).toEqual({ maxRecords: 50, lockAlreadyAcquired: true });
     expect(summary!.systemsSynced).toBe(1);
     expect(summary!.errors).toBe(0);
     expect(consecutiveErrorsBySystem.get('transferegov')).toBe(0);
@@ -927,6 +927,114 @@ describe('Wiring do snapshot do Transferegov (P1)', () => {
     expect(summary!.errors).toBe(0);
     expect(summary!.systemsSynced).toBe(1);
     expect(consecutiveErrorsBySystem.get('transferegov')).toBe(0);
+  });
+
+  it('H — SEI continua usando govAdapter.sync (regressão)', async () => {
+    process.env.SEI_API_TOKEN = 'sei-token-valido';
+    const { all, run, getGovAdapter } = await importMocks();
+    (all as any).mockResolvedValue([
+      {
+        id: 2,
+        code: 'sei',
+        name: 'SEI',
+        active: true,
+        secret_env_key: 'SEI_WEBHOOK_SECRET',
+        config: {
+          syncEnabled: true,
+          syncIntervalMinutes: 1,
+          baseUrl: 'https://api.sei.gov.br',
+          secretEnvKey: 'SEI_API_TOKEN',
+        },
+      },
+    ]);
+    adapterSync.mockResolvedValue({
+      success: true,
+      fetchedCount: 5,
+      normalizedCount: 5,
+      syncedCount: 0,
+      httpStatus: 200,
+      authError: false,
+      error: null,
+      events: [],
+    });
+    (getGovAdapter as any).mockReturnValue({ sync: adapterSync });
+    (run as any).mockClear();
+
+    const summary = await runScheduledSyncCycle();
+
+    expect(summary).not.toBeNull();
+    expect(summary!.systemsSynced).toBe(1);
+    expect(summary!.errors).toBe(0);
+    expect(summary!.totalFetched).toBe(5);
+    expect(adapterSync).toHaveBeenCalledTimes(1);
+  });
+
+  it('I — CGLOG continua usando govAdapter.sync (regressão)', async () => {
+    process.env.CGLOG_API_TOKEN = 'cglog-token-valido';
+    const { all, run, getGovAdapter, runTransferegovSnapshotSync } = await importMocks();
+    (all as any).mockResolvedValue([
+      {
+        id: 3,
+        code: 'cglog',
+        name: 'CGLOG',
+        active: true,
+        secret_env_key: 'CGLOG_WEBHOOK_SECRET',
+        config: {
+          syncEnabled: true,
+          syncIntervalMinutes: 1,
+          baseUrl: 'https://api.cglog.gov.br',
+          secretEnvKey: 'CGLOG_API_TOKEN',
+        },
+      },
+    ]);
+    adapterSync.mockResolvedValue({
+      success: true,
+      fetchedCount: 2,
+      normalizedCount: 2,
+      syncedCount: 0,
+      httpStatus: 200,
+      authError: false,
+      error: null,
+      events: [],
+    });
+    (getGovAdapter as any).mockReturnValue({ sync: adapterSync });
+    (run as any).mockClear();
+
+    const summary = await runScheduledSyncCycle();
+
+    expect(summary).not.toBeNull();
+    expect(summary!.systemsSynced).toBe(1);
+    expect(summary!.errors).toBe(0);
+    expect(adapterSync).toHaveBeenCalledTimes(1);
+    expect(runTransferegovSnapshotSync).not.toHaveBeenCalled();
+  });
+
+  it('J — scheduler libera o lock no finally mesmo quando há erro', async () => {
+    const mockRelease = vi.fn();
+    const mockUnlock = vi.fn().mockResolvedValue({ rows: [{ pg_advisory_unlock: true }] });
+    const mockClientQuery = vi.fn().mockImplementation((_sql: string, params?: unknown[]) => {
+      const sql = typeof _sql === 'string' ? _sql : '';
+      if (sql.includes('pg_advisory_unlock')) {
+        return mockUnlock();
+      }
+      if (Array.isArray(params) && params[0] === 738291046) {
+        return Promise.resolve({ rows: [{ pg_try_advisory_lock: true }] });
+      }
+      return Promise.resolve({ rows: [] });
+    });
+    mockPoolConnect.mockResolvedValue({
+      query: mockClientQuery,
+      release: mockRelease,
+    });
+
+    const { all } = await import('../database.js');
+    (all as any).mockRejectedValue(new Error('database error'));
+
+    const summary = await runScheduledSyncCycle();
+
+    expect(summary).toBeNull();
+    expect(mockUnlock).toHaveBeenCalled();
+    expect(mockRelease).toHaveBeenCalled();
   });
 
   async function importMocks() {

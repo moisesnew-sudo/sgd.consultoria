@@ -263,6 +263,7 @@ async function syncSingleSystem(
       const { runTransferegovSnapshotSync } = await import('../integrations/transferegovSnapshot.js');
       const snapshot = await runTransferegovSnapshotSync(system, adapterConfig, {
         maxRecords: syncConfig.maxRecords,
+        lockAlreadyAcquired: true,
       });
 
       result.fetchedCount = snapshot.fetchedCount;

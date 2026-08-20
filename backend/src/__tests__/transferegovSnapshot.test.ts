@@ -533,6 +533,62 @@ describe('A7.3 — Motor de snapshot do Transferegov', () => {
     expect(unblocked.published).toBe(true);
     expect(await countSnapshots()).toBe(1);
   });
+
+  it('K2. lockAlreadyAcquired=true: não tenta adquirir advisory lock, executa normalmente', async () => {
+    const lockClient = await pool.connect();
+    try {
+      const lock = await lockClient.query<{ pg_try_advisory_lock: boolean }>(
+        'SELECT pg_try_advisory_lock($1) AS pg_try_advisory_lock',
+        [SYNC_LOCK_KEY],
+      );
+      expect(lock.rows[0].pg_try_advisory_lock).toBe(true);
+
+      mockApi({ 1: { body: pageEnvelope([partnershipItem('202500037099')], 1, 1, 1) } });
+
+      const result = await runTransferegovSnapshotSync(system(), config, { lockAlreadyAcquired: true });
+      expect(result.success).toBe(true);
+      expect(result.skipped).toBe(false);
+      expect(result.published).toBe(true);
+      expect(result.complete).toBe(true);
+      expect(result.fetchedCount).toBe(1);
+      expect(result.error).toBeUndefined();
+      expect(await countSnapshots()).toBe(1);
+    } finally {
+      await lockClient.query('SELECT pg_advisory_unlock($1)', [SYNC_LOCK_KEY]);
+      lockClient.release();
+    }
+  });
+
+  it('K3. lockAlreadyAcquired=true: não emite pg_try_advisory_lock no pool', async () => {
+    const lockClient = await pool.connect();
+    try {
+      const lock = await lockClient.query<{ pg_try_advisory_lock: boolean }>(
+        'SELECT pg_try_advisory_lock($1) AS pg_try_advisory_lock',
+        [SYNC_LOCK_KEY],
+      );
+      expect(lock.rows[0].pg_try_advisory_lock).toBe(true);
+
+      const advisoryLockCalls: string[] = [];
+      const originalQuery: (...args: any[]) => any = pool.query.bind(pool);
+      const spy = vi.spyOn(pool, 'query').mockImplementation((...args: any[]) => {
+        const sql = typeof args[0] === 'string' ? args[0] : (args[0]?.text ?? '');
+        if (sql.includes('pg_try_advisory_lock')) {
+          advisoryLockCalls.push(sql);
+        }
+        return originalQuery(...args);
+      });
+
+      mockApi({ 1: { body: pageEnvelope([partnershipItem('202500037099')], 1, 1, 1) } });
+
+      await runTransferegovSnapshotSync(system(), config, { lockAlreadyAcquired: true });
+
+      expect(advisoryLockCalls).toHaveLength(0);
+      spy.mockRestore();
+    } finally {
+      await lockClient.query('SELECT pg_advisory_unlock($1)', [SYNC_LOCK_KEY]);
+      lockClient.release();
+    }
+  });
 });
 
 describe('A7.4 — Reconciliação segura do snapshot do Transferegov', () => {
@@ -1018,6 +1074,37 @@ describe('A7.4 Parte 2 — Auditoria e data de atualização da base (data-atual
       expect(blocked.executionState).toBe('SKIPPED');
 
       expect(await listSnapshotLogs()).toHaveLength(0);
+    } finally {
+      await lockClient.query('SELECT pg_advisory_unlock($1)', [SYNC_LOCK_KEY]);
+      lockClient.release();
+    }
+  });
+
+  it('I2. lockAlreadyAcquired=true com lock ativo: executa normalmente sem SKIPPED', async () => {
+    const lockClient = await pool.connect();
+    try {
+      const lock = await lockClient.query<{ pg_try_advisory_lock: boolean }>(
+        'SELECT pg_try_advisory_lock($1) AS pg_try_advisory_lock',
+        [SYNC_LOCK_KEY],
+      );
+      expect(lock.rows[0].pg_try_advisory_lock).toBe(true);
+
+      mockApi(
+        { 1: { body: pageEnvelope([partnershipItem('A'), partnershipItem('B')], 1, 2, 1) } },
+        { dataAtualizacao: { body: { data_atualizacao: '2026-08-14' } } },
+      );
+
+      const result = await runTransferegovSnapshotSync(system(), config, { lockAlreadyAcquired: true });
+      expect(result.success).toBe(true);
+      expect(result.skipped).toBe(false);
+      expect(result.executionState).toBe('PUBLISHED');
+      expect(result.published).toBe(true);
+      expect(result.fetchedCount).toBe(2);
+      expect(await countSnapshots()).toBe(2);
+
+      const logs = await listSnapshotLogs();
+      expect(logs).toHaveLength(1);
+      expect(logs[0].execution_state).toBe('PUBLISHED');
     } finally {
       await lockClient.query('SELECT pg_advisory_unlock($1)', [SYNC_LOCK_KEY]);
       lockClient.release();

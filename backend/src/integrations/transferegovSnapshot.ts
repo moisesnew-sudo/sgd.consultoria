@@ -84,6 +84,17 @@ export interface TransferegovSnapshotRecord {
 export interface TransferegovSnapshotParams {
   /** Limite máximo de registros por execução (maxRecordsPerSync). Quando atingido, a coleta é interrompida e o resultado é parcial (não publicado como completo). */
   maxRecords?: number;
+  /**
+   * Quando true, indica que o advisory lock (SYNC_LOCK_KEY) já foi adquirido
+   * pelo chamador (ex.: integrationScheduler). O snapshot engine NÃO tenta
+   * adquirir novamente o lock — nem cria PoolClient exclusivamente para isso,
+   * nem executa pg_advisory_unlock no finally.
+   *
+   * Quando false/ausente: mantém o comportamento atual de adquirir o advisory
+   * lock em PoolClient próprio. Se não conseguir, retorna SKIPPED e libera
+   * o lock no finally.
+   */
+  lockAlreadyAcquired?: boolean;
 }
 
 /**
@@ -827,21 +838,27 @@ export async function runTransferegovSnapshotSync(
   const maxRecords =
     typeof params.maxRecords === 'number' && params.maxRecords > 0 ? Math.floor(params.maxRecords) : undefined;
 
+  const lockAlreadyAcquired = params.lockAlreadyAcquired === true;
+
   let lockClient: PoolClient | null = null;
   let lockAcquired = false;
   try {
-    lockClient = await pool.connect();
-    const lockQuery = await lockClient.query<{ pg_try_advisory_lock: boolean }>(
-      'SELECT pg_try_advisory_lock($1) AS pg_try_advisory_lock',
-      [SYNC_LOCK_KEY],
-    );
-    lockAcquired = lockQuery.rows[0].pg_try_advisory_lock;
-    if (!lockAcquired) {
-      result.skipped = true;
-      result.executionState = 'SKIPPED';
-      result.error = 'Sincronização bloqueada: outra execução está em andamento (advisory lock do ciclo)';
-      result.durationMs = Date.now() - startedAt;
-      return result;
+    if (!lockAlreadyAcquired) {
+      lockClient = await pool.connect();
+      const lockQuery = await lockClient.query<{ pg_try_advisory_lock: boolean }>(
+        'SELECT pg_try_advisory_lock($1) AS pg_try_advisory_lock',
+        [SYNC_LOCK_KEY],
+      );
+      lockAcquired = lockQuery.rows[0].pg_try_advisory_lock;
+      if (!lockAcquired) {
+        result.skipped = true;
+        result.executionState = 'SKIPPED';
+        result.error = 'Sincronização bloqueada: outra execução está em andamento (advisory lock do ciclo)';
+        result.durationMs = Date.now() - startedAt;
+        return result;
+      }
+    } else {
+      lockAcquired = true;
     }
 
     const adapter = getGovAdapter(system.code);
@@ -974,13 +991,15 @@ export async function runTransferegovSnapshotSync(
     await recordSnapshotExecutionLog(system, result);
     return result;
   } finally {
-    if (lockAcquired) {
+    if (lockAcquired && !lockAlreadyAcquired) {
       try {
         await lockClient?.query('SELECT pg_advisory_unlock($1)', [SYNC_LOCK_KEY]);
       } catch {
         // liberação do lock é best-effort
       }
     }
-    lockClient?.release();
+    if (!lockAlreadyAcquired) {
+      lockClient?.release();
+    }
   }
 }
