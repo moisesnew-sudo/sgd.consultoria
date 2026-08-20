@@ -6,4 +6,5 @@ beforeAll(async () => {
   await run('DELETE FROM active_sessions');
   await run('DELETE FROM token_blacklist');
   await run('DELETE FROM password_reset_tokens');
+  await run('DELETE FROM demands');
 });
