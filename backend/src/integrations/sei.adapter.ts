@@ -35,6 +35,13 @@ import { logger } from '../lib/logger.js';
 
 const SYSTEM_CODE = 'sei';
 
+/** Primeira página da API. */
+const FIRST_PAGE = 1;
+/** Máximo de registros por página aceito pela API. */
+const MAX_PAGE_SIZE = 200;
+/** Tamanho padrão de página usado na coleta paginada. */
+const DEFAULT_PAGE_SIZE = 100;
+
 const PROPOSAL_KEYS = ['proposal_number', 'numero_proposta', 'numeroProposta', 'proposta', 'id_proposta'];
 const PROCESS_KEYS = ['numero_processo', 'process_number', 'processNumber', 'processo', 'nup'];
 const STATUS_KEYS = ['status', 'situacao', 'tramite'];
@@ -154,6 +161,16 @@ export const seiGovAdapter: GovernmentIntegrationAdapter = {
       return { status: 0, data: null, durationMs: 0 };
     }
 
+    // Modo de coleta paginada (motor de snapshot): pagina a partir de 1,
+    // tamanho_da_pagina <= 200. Quando pagina é informado, a consulta usa o
+    // envelope paginado { data, total_pages, total_items } do recurso de listagem.
+    const parsedPage = Number(params.pagina);
+    const pagina = Number.isFinite(parsedPage) && parsedPage >= FIRST_PAGE ? Math.floor(parsedPage) : undefined;
+    const requestedSize = Number(params.tamanho_da_pagina ?? params.tamanhoDaPagina);
+    const tamanhoDaPagina = Number.isFinite(requestedSize) && requestedSize > 0
+      ? Math.min(Math.floor(requestedSize), MAX_PAGE_SIZE)
+      : DEFAULT_PAGE_SIZE;
+
     const processNumber = params.processNumber as string | undefined;
     const proposalNumber = params.proposalNumber as string | undefined;
     const status = params.status as string | undefined;
@@ -161,7 +178,9 @@ export const seiGovAdapter: GovernmentIntegrationAdapter = {
 
     let endpoint: string;
 
-    if (processNumber) {
+    if (pagina !== undefined) {
+      endpoint = `${baseUrl}/api/v1/processos?pagina=${pagina}&tamanho_da_pagina=${tamanhoDaPagina}`;
+    } else if (processNumber) {
       endpoint = `${baseUrl}/api/v1/processos/${encodeURIComponent(processNumber)}`;
       if (includeTramitacoes) {
         endpoint += '/tramitacoes';

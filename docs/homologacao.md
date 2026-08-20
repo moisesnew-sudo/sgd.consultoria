@@ -113,8 +113,19 @@ A rotina `integrationScheduler.ts` roda `runScheduledSyncCycle()`:
 ### Configurando o SEI (Fase E3.2)
 
 O SEI é processado pelo **mesmo** scheduler e pela mesma arquitetura do
-Transferegov — sem fluxo paralelo. A configuração do sistema `sei` segue o mesmo
-formato de config JSONB:
+Transferegov — sem fluxo paralelo. Diferente do Transferegov, o SEI usa o
+**motor de snapshot** (`seiSnapshot.ts`): o scheduler invoca
+`runSeiSnapshotSync` em vez do `govAdapter.sync`, publicando a base de
+processos em `integration_snapshots` (UPSERT idempotente por NUP).
+
+> **STATUS DO CONTRATO: INFERIDO / PENDENTE DE HOMOLOGAÇÃO.**
+> Não há endpoint oficial confirmado pelo órgão. Assume-se a listagem paginada
+> `GET {baseUrl}/api/v1/processos?pagina={n}&tamanho_da_pagina={m}` com envelope
+> `{ data: [...], total_pages, total_items }` (padrão do Transferegov validado);
+> uma resposta sem envelope (array direto) também é aceita como página única.
+> **Habilitar em produção somente após a homologação do endpoint real do órgão.**
+
+A configuração do sistema `sei` segue o mesmo formato de config JSONB:
 
 ```json
 {
@@ -131,9 +142,15 @@ formato de config JSONB:
 
 - `authType: "token"` → o fetch envia o secret no header `X-Auth-Token`
   (equivalente ao `api_key` do Transferegov).
-- Validação de **NUP** no formato `NNNNN.NNNNNN/AAAA-XX` é feita pelo adapter
-  (`sei.adapter.ts#validate`) antes de normalizar; payloads inválidos são rejeitados.
-- Em falha (HTTP 401/403, 5xx ou 0) o `sync` retorna `httpStatus` e `authError`,
+- Identidade dos registros: `external_id` = **NUP** (`NNNNNN.NNNNNN/AAAA-XX`),
+  validado pelo adapter (`sei.adapter.ts#validate`) e pelo motor; itens sem NUP
+  na listagem são ignorados (não invalidam o snapshot).
+- Não há endpoint de data-atualizacao confirmado: a execução sempre coleta o
+  snapshot completo; o estado `SKIPPED` só ocorre por bloqueio de advisory lock
+  (execução concorrente).
+- Execução auditada em `integration_logs` (ação `integration.snapshot.sei`,
+  `triggered_by = snapshot-sync`, `metrics.api_contract = "inferred"`).
+- Em falha (HTTP 401/403, 5xx ou 0) o snapshot registra `httpStatus`/`authError`,
   alimentando os alertas R9 `auth_failure` e R10 `api_unavailable` do mesmo jeito
   que o Transferegov.
 - O SEI aparece automaticamente em **Integration Operations**, **Sync Dashboard**
@@ -141,32 +158,27 @@ formato de config JSONB:
 
 ### Configurando o CGLOG (Fase E3.3)
 
-O CGLOG é processado pelo **mesmo** scheduler e pela mesma arquitetura do
-Transferegov e SEI — sem fluxo paralelo. A configuração do sistema `cglog` segue
-o mesmo formato de config JSONB:
+> **STATUS DO CONTRATO: NÃO CONFIRMADO — integração webhook-driven apenas.**
+> O CGLOG não possui contrato de consulta (polling) confirmado pelo órgão.
+> Por isso **não** há motor de snapshot e o scheduler **não** executa polling:
+> mesmo com `syncEnabled: true`, a guarda do scheduler registra um
+> `integration_logs` de aviso ("contrato de API de consulta não confirmado"),
+> atualiza `last_sync_at` e **não** incrementa `consecutive_errors` (evita
+> falsos `stale_sync` e alertas em sistemas webhook-only).
 
-```json
-{
-  "syncEnabled": true,
-  "syncIntervalMinutes": 60,
-  "maxRecordsPerSync": 100,
-  "baseUrl": "https://api.cglog.gov.br",
-  "secretEnvKey": "CGLOG_API_TOKEN",
-  "authType": "token",
-  "timeoutMs": 30000,
-  "maxRetries": 3
-}
-```
+Eventos chegam exclusivamente por webhook:
 
-- `authType: "token"` → o fetch envia o secret no header `X-Auth-Token`.
-- `authType: "oauth2"` → autenticação via `client_credentials` (POST `/api/v1/auth/token`).
-- Validação exige **protocolo** ou **número de proposta** no payload; payloads
-  inválidos são rejeitados pelo adapter (`cglog.adapter.ts#validate`).
-- Em falha (HTTP 401/403, 5xx ou 0) o `sync` retorna `httpStatus` e `authError`,
-  alimentando os alertas R9 `auth_failure` e R10 `api_unavailable` do mesmo jeito
-  que o Transferegov e o SEI.
-- O CGLOG aparece automaticamente em **Integration Operations**, **Sync Dashboard**
-  e **System Health** — não há telas novas.
+- `POST /api/integrations/webhooks/cglog` com HMAC-SHA256
+  (`X-Signature` sobre `timestamp\n[chave-idempotencia]\nbody`, janela
+  anti-replay de 5 min, secret `CGLOG_WEBHOOK_SECRET`);
+- Payload exige **protocolo** ou **número de proposta**; status normalizado e
+  mapeado via `integration_status_mapping` (ex.: `EM_ANALISE` → `analise`);
+- Idempotente por `X-Idempotency-Key` (duplicatas respondem 200 com
+  `duplicate: true` e não reprocessam).
+
+Quando o órgão disponibilizar a API de consulta: confirmar o contrato,
+implementar o motor de snapshot no padrão Transferegov/SEI e remover a guarda
+do scheduler (`integrationScheduler.ts`).
 
 ---
 
@@ -218,7 +230,9 @@ ORDER BY severity DESC, updated_at DESC;
       `POST /api/integrations/webhooks/sei` e `POST /api/integrations/webhooks/cglog`
       (HMAC) com hooks de teste.
 - [ ] Sincronização manual: `POST /api/integrations/admin/systems/:id/sync` →
-     200, `integration_logs` `success`, `http_status` 200 (Transferegov, SEI e CGLOG).
+      200, `integration_logs` `success`, `http_status` 200 (Transferegov e SEI).
+      CGLOG: validar via webhook (o polling permanece desabilitado até o
+      contrato de consulta ser confirmado).
 - [ ] Scheduler ativo com `syncEnabled=true` e intervalo <= 60 min.
 - [ ] Rodar a suíte de testes: `npm test` (backend) e `npm run build`.
 - [ ] Migrações idempotentes aplicadas (rodar `npx tsx src/database.ts` ou o seed

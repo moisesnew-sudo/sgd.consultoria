@@ -29,7 +29,7 @@ import type { AdapterConfig, SyncPullResult, NormalizedIntegrationEvent } from '
 /* Constants                                                           */
 /* ------------------------------------------------------------------ */
 
-/** Chave advisory lock exclusiva para este scheduler (int32). Reutilizada pelo motor de snapshot do Transferegov. */
+/** Chave advisory lock exclusiva para este scheduler (int32). Reutilizada pelos motores de snapshot do Transferegov e do SEI. */
 const SYNC_LOCK_KEY = 738291046;
 
 /** Intervalo de verificação: 1 minuto (o scheduler decide por sistema se é hora de sync). */
@@ -254,42 +254,63 @@ async function syncSingleSystem(
       extra: system.config?.extra as Record<string, unknown> | undefined,
     };
 
-    // P1 — Despacho exclusivo do Transferegov para o motor de snapshot (P2.1/P2.2):
-    // runTransferegovSnapshotSync coleta parcerias + propostas, enriquece e publica
-    // integration_snapshots de forma atômica. Demais sistemas mantêm o fluxo legado.
-    // Dynamic import para evitar dependência circular: transferegovSnapshot.ts importa
-    // SYNC_LOCK_KEY deste módulo.
-    if (system.code === 'transferegov') {
-      const { runTransferegovSnapshotSync } = await import('../integrations/transferegovSnapshot.js');
-      const snapshot = await runTransferegovSnapshotSync(system, adapterConfig, {
-        maxRecords: syncConfig.maxRecords,
-        lockAlreadyAcquired: true,
-      });
+    // P1/P2 — Despacho dos motores de snapshot (Transferegov e SEI): coleta
+    // paginada em memória → validação → publicação atômica em
+    // integration_snapshots (UPSERT + reconciliação de ausentes). Os demais
+    // sistemas seguem o fluxo legado (govAdapter.sync). Dynamic import para
+    // evitar dependência circular: os snapshot engines importam SYNC_LOCK_KEY
+    // deste módulo.
+    if (system.code === 'transferegov' || system.code === 'sei') {
+      let snapshot: SnapshotOutcomeLike;
+      if (system.code === 'transferegov') {
+        const { runTransferegovSnapshotSync } = await import('../integrations/transferegovSnapshot.js');
+        snapshot = await runTransferegovSnapshotSync(system, adapterConfig, {
+          maxRecords: syncConfig.maxRecords,
+          lockAlreadyAcquired: true,
+        });
+      } else {
+        const { runSeiSnapshotSync } = await import('../integrations/seiSnapshot.js');
+        snapshot = await runSeiSnapshotSync(system, adapterConfig, {
+          maxRecords: syncConfig.maxRecords,
+          lockAlreadyAcquired: true,
+        });
+      }
 
-      result.fetchedCount = snapshot.fetchedCount;
-      result.normalizedCount = snapshot.validatedCount;
-      result.httpStatus = snapshot.httpStatus ?? null;
-      result.authError = snapshot.authError ?? false;
-      result.durationMs = snapshot.durationMs;
+      applySnapshotOutcome(result, snapshot);
 
       // Estados controlados não são erros: PUBLISHED (sucesso completo),
-      // LIMITED (coleta parcial por maxRecords) e SKIPPED (base sem alterações
-      // ou lock do ciclo). Apenas success=false sem skip é falha real.
-      if (snapshot.success || snapshot.skipped) {
-        result.status = 'success';
-        result.syncedCount = snapshot.insertedCount + snapshot.updatedCount;
-        result.duplicateCount = snapshot.unchangedCount;
+      // LIMITED (coleta parcial por maxRecords) e SKIPPED (lock do ciclo ou
+      // base sem alterações). Apenas success=false sem skip é falha real.
+      if (result.status === 'success') {
         consecutiveErrorsBySystem.set(system.code, 0);
         await recordSyncSuccess(system, result);
         return result;
       }
 
       result.status = 'failed';
-      result.error = snapshot.error ?? 'Falha na sincronização de snapshot do Transferegov';
+      result.error = snapshot.error ?? `Falha na sincronização de snapshot do ${system.code}`;
       await recordSyncFailure(system, result);
       return result;
     }
 
+    // CGLOG — contrato de API de consulta (polling) NÃO confirmado: a
+    // integração é webhook-driven apenas. Guarda explícita: mesmo com
+    // syncEnabled=true o scheduler NUNCA executa polling HTTP contra a URL
+    // de contrato inferido; registra skip auditável (warning, fora das
+    // contagens de erro) e mantém last_sync_at atualizado (evita falso
+    // stale_sync em sistemas webhook-only).
+    if (system.code === 'cglog') {
+      result.status = 'success';
+      result.error =
+        'CGLOG: contrato de API de consulta não confirmado — polling desabilitado (integração webhook-only)';
+      result.durationMs = Date.now() - startedAt;
+      consecutiveErrorsBySystem.set(system.code, 0);
+      await recordSyncSkipped(system, result);
+      return result;
+    }
+
+    // E1.1 — Sistemas governamentais restantes seguem o fluxo legado
+    // (govAdapter.sync) até que seus motores de snapshot sejam implementados.
     const syncResult = await govAdapter.sync(adapterConfig, {
       maxRecords: syncConfig.maxRecords,
     });
@@ -338,6 +359,42 @@ async function syncSingleSystem(
 /* ------------------------------------------------------------------ */
 
 type ProcessResult = 'synced' | 'duplicate' | 'unmatched';
+
+/**
+ * Formato mínimo de resultado compartilhado pelos motores de snapshot
+ * (Transferegov e SEI) — publicado por ambos sem acoplamento de tipos.
+ */
+interface SnapshotOutcomeLike {
+  success: boolean;
+  skipped: boolean;
+  fetchedCount: number;
+  validatedCount: number;
+  insertedCount: number;
+  updatedCount: number;
+  unchangedCount: number;
+  httpStatus?: number | null;
+  authError?: boolean;
+  durationMs: number;
+  error?: string;
+}
+
+/** Aplica o resultado de um motor de snapshot ao SyncRunResult do sistema. */
+function applySnapshotOutcome(result: SyncRunResult, snapshot: SnapshotOutcomeLike): void {
+  result.fetchedCount = snapshot.fetchedCount;
+  result.normalizedCount = snapshot.validatedCount;
+  result.httpStatus = snapshot.httpStatus ?? null;
+  result.authError = snapshot.authError ?? false;
+  result.durationMs = snapshot.durationMs;
+
+  if (snapshot.success || snapshot.skipped) {
+    result.status = 'success';
+    result.syncedCount = snapshot.insertedCount + snapshot.updatedCount;
+    result.duplicateCount = snapshot.unchangedCount;
+    return;
+  }
+  result.status = 'failed';
+  result.error = snapshot.error ?? 'Falha na sincronização de snapshot';
+}
 
 /**
  * Processa um evento normalizado: valida, deduplica, aplica status mapping
@@ -567,6 +624,43 @@ async function applySyncChanges(
 /* ------------------------------------------------------------------ */
 /* Metrics recording                                                   */
 /* ------------------------------------------------------------------ */
+
+/**
+ * Registra um skip CONTROLADO de sincronização (polling desabilitado por
+ * design — ex.: CGLOG sem contrato de consulta confirmado):
+ * - NÃO incrementa consecutive_errors (nem em memória, nem na coluna);
+ * - NÃO atualiza last_error_at/last_error_message;
+ * - Atualiza last_sync_at (evita falso stale_sync de sistemas webhook-only);
+ * - Log em integration_logs usa status 'warning' (não entra em contagens de erro).
+ */
+async function recordSyncSkipped(
+  system: { id: number; code: string },
+  result: SyncRunResult
+): Promise<void> {
+  await run(
+    `UPDATE integration_systems SET
+       last_sync_at = NOW(),
+       consecutive_errors = 0,
+       last_error_at = NULL,
+       last_error_message = NULL,
+       updated_at = NOW()
+     WHERE id = $1`,
+    [system.id]
+  );
+
+  await run(
+    `INSERT INTO integration_logs (system_id, system_code, direction, action, status, message, duration_ms, http_status, triggered_by, error_message)
+     VALUES ($1, $2, 'out', 'integration.sync.periodic', 'warning', $3, $4, $5, 'scheduler', $6)`,
+    [
+      system.id,
+      system.code,
+      `Sync periódica ignorada (polling desabilitado): ${result.error}`,
+      result.durationMs,
+      result.httpStatus ?? null,
+      result.error,
+    ]
+  );
+}
 
 async function recordSyncSuccess(
   system: { id: number; code: string },

@@ -60,6 +60,10 @@ vi.mock('../integrations/transferegovSnapshot.js', () => ({
   runTransferegovSnapshotSync: vi.fn(),
 }));
 
+vi.mock('../integrations/seiSnapshot.js', () => ({
+  runSeiSnapshotSync: vi.fn(),
+}));
+
 // ---------------------------------------------------------------------------
 // 1. Configuração por sistema (parseSystemSyncConfig)
 // ---------------------------------------------------------------------------
@@ -506,19 +510,19 @@ describe('Fail-fast de configuração no scheduler (Fase 2.1)', () => {
   it('erro transitório externo continua incrementando consecutive_errors e last_error_at', async () => {
     const { all, run } = await import('../database.js');
     const { getGovAdapter } = await import('../lib/adapterRegistry.js');
-    process.env.SEI_API_TOKEN = 'sei-token-valido';
+    process.env.LEGADO_API_TOKEN = 'legado-token-valido';
     (all as any).mockResolvedValue([
       {
         id: 2,
-        code: 'sei',
-        name: 'SEI',
+        code: 'legado',
+        name: 'Sistema Legado',
         active: true,
-        secret_env_key: 'SEI_WEBHOOK_SECRET',
+        secret_env_key: 'LEGADO_WEBHOOK_SECRET',
         config: {
           syncEnabled: true,
           syncIntervalMinutes: 1,
-          baseUrl: 'https://api.sei.gov.br',
-          secretEnvKey: 'SEI_API_TOKEN',
+          baseUrl: 'https://api.legado.gov.br',
+          secretEnvKey: 'LEGADO_API_TOKEN',
         },
       },
     ]);
@@ -529,7 +533,7 @@ describe('Fail-fast de configuração no scheduler (Fase 2.1)', () => {
       syncedCount: 0,
       httpStatus: 500,
       authError: false,
-      error: 'HTTP 500 na consulta ao SEI',
+      error: 'HTTP 500 na consulta ao sistema legado',
       events: [],
     });
     (getGovAdapter as any).mockReturnValue({ sync: adapterSync });
@@ -539,7 +543,7 @@ describe('Fail-fast de configuração no scheduler (Fase 2.1)', () => {
 
     expect(summary).not.toBeNull();
     expect(summary!.errors).toBe(1);
-    expect(consecutiveErrorsBySystem.get('sei')).toBe(1);
+    expect(consecutiveErrorsBySystem.get('legado')).toBe(1);
     // Falha transitória mantém o UPDATE com last_error_at e incremento de consecutive_errors.
     const sqls = (run as any).mock.calls.map((c: any[]) => String(c[0] ?? ''));
     expect(sqls.some((sql: string) => sql.includes('last_error_at') && sql.includes('consecutive_errors'))).toBe(true);
@@ -548,7 +552,7 @@ describe('Fail-fast de configuração no scheduler (Fase 2.1)', () => {
   it('erro de configuração em um sistema não impede o scheduler de processar os demais', async () => {
     const { all, run } = await import('../database.js');
     const { getGovAdapter } = await import('../lib/adapterRegistry.js');
-    process.env.SEI_API_TOKEN = 'sei-token-valido';
+    process.env.LEGADO_API_TOKEN = 'legado-token-valido';
     (all as any).mockResolvedValue([
       {
         id: 1,
@@ -560,15 +564,15 @@ describe('Fail-fast de configuração no scheduler (Fase 2.1)', () => {
       },
       {
         id: 2,
-        code: 'sei',
-        name: 'SEI',
+        code: 'legado',
+        name: 'Sistema Legado',
         active: true,
-        secret_env_key: 'SEI_WEBHOOK_SECRET',
+        secret_env_key: 'LEGADO_WEBHOOK_SECRET',
         config: {
           syncEnabled: true,
           syncIntervalMinutes: 1,
-          baseUrl: 'https://api.sei.gov.br',
-          secretEnvKey: 'SEI_API_TOKEN',
+          baseUrl: 'https://api.legado.gov.br',
+          secretEnvKey: 'LEGADO_API_TOKEN',
         },
       },
     ]);
@@ -591,11 +595,11 @@ describe('Fail-fast de configuração no scheduler (Fase 2.1)', () => {
     expect(summary!.systemsEvaluated).toBe(2);
     expect(summary!.systemsSynced).toBe(1);
     expect(summary!.errors).toBe(1);
-    // Apenas o sistema válido (SEI) executou sync.
+    // Apenas o sistema válido (legado) executou sync.
     expect(adapterSync).toHaveBeenCalledTimes(1);
     expect(adapterSync.mock.calls[0][0]).toMatchObject({
-      baseUrl: 'https://api.sei.gov.br',
-      secretEnvKey: 'SEI_API_TOKEN',
+      baseUrl: 'https://api.legado.gov.br',
+      secretEnvKey: 'LEGADO_API_TOKEN',
     });
     expect(consecutiveErrorsBySystem.get('transferegov')).toBeUndefined();
     expect(run).toHaveBeenCalledWith(
@@ -607,19 +611,19 @@ describe('Fail-fast de configuração no scheduler (Fase 2.1)', () => {
   it('sistema com configuração válida executa sync normalmente', async () => {
     const { all } = await import('../database.js');
     const { getGovAdapter } = await import('../lib/adapterRegistry.js');
-    process.env.SEI_API_TOKEN = 'sei-token-valido';
+    process.env.LEGADO_API_TOKEN = 'legado-token-valido';
     (all as any).mockResolvedValue([
       {
         id: 2,
-        code: 'sei',
-        name: 'SEI',
+        code: 'legado',
+        name: 'Sistema Legado',
         active: true,
-        secret_env_key: 'SEI_WEBHOOK_SECRET',
+        secret_env_key: 'LEGADO_WEBHOOK_SECRET',
         config: {
           syncEnabled: true,
           syncIntervalMinutes: 1,
-          baseUrl: 'https://api.sei.gov.br',
-          secretEnvKey: 'SEI_API_TOKEN',
+          baseUrl: 'https://api.legado.gov.br',
+          secretEnvKey: 'LEGADO_API_TOKEN',
         },
       },
     ]);
@@ -642,8 +646,8 @@ describe('Fail-fast de configuração no scheduler (Fase 2.1)', () => {
     expect(summary!.errors).toBe(0);
     expect(adapterSync).toHaveBeenCalledTimes(1);
     expect(adapterSync.mock.calls[0][0]).toMatchObject({
-      baseUrl: 'https://api.sei.gov.br',
-      secretEnvKey: 'SEI_API_TOKEN',
+      baseUrl: 'https://api.legado.gov.br',
+      secretEnvKey: 'LEGADO_API_TOKEN',
     });
   });
 
@@ -784,9 +788,9 @@ describe('Wiring do snapshot do Transferegov (P1)', () => {
     expect(params).toEqual({ maxRecords: 100, lockAlreadyAcquired: true });
   });
 
-  it('C — sistemas não-Transferegov (sei) continuam usando govAdapter.sync', async () => {
+  it('C — SEI usa runSeiSnapshotSync (snapshot engine), não govAdapter.sync', async () => {
     process.env.SEI_API_TOKEN = 'sei-token-valido';
-    const { all, getGovAdapter, runTransferegovSnapshotSync } = await importMocks();
+    const { all, getGovAdapter, runTransferegovSnapshotSync, runSeiSnapshotSync } = await importMocks();
     (all as any).mockResolvedValue([
       {
         id: 2,
@@ -803,15 +807,28 @@ describe('Wiring do snapshot do Transferegov (P1)', () => {
       },
     ]);
     (getGovAdapter as any).mockReturnValue({ sync: adapterSync });
-    adapterSync.mockResolvedValue({
+    (runSeiSnapshotSync as any).mockResolvedValue({
       success: true,
+      complete: true,
+      limited: false,
+      skipped: false,
+      published: true,
       fetchedCount: 3,
-      normalizedCount: 3,
-      syncedCount: 0,
+      validatedCount: 3,
+      publishedCount: 3,
+      insertedCount: 3,
+      updatedCount: 0,
+      unchangedCount: 0,
+      missingCount: 0,
+      reconciledCount: 0,
+      missingIds: [],
+      pagesProcessed: 1,
+      totalItems: 3,
+      totalPages: 1,
       httpStatus: 200,
       authError: false,
-      error: null,
-      events: [],
+      executionState: 'PUBLISHED',
+      durationMs: 100,
     });
 
     const summary = await runScheduledSyncCycle();
@@ -819,7 +836,8 @@ describe('Wiring do snapshot do Transferegov (P1)', () => {
     expect(summary).not.toBeNull();
     expect(summary!.systemsSynced).toBe(1);
     expect(summary!.errors).toBe(0);
-    expect(adapterSync).toHaveBeenCalledTimes(1);
+    expect(runSeiSnapshotSync).toHaveBeenCalledTimes(1);
+    expect(adapterSync).not.toHaveBeenCalled();
     expect(runTransferegovSnapshotSync).not.toHaveBeenCalled();
   });
 
@@ -929,9 +947,9 @@ describe('Wiring do snapshot do Transferegov (P1)', () => {
     expect(consecutiveErrorsBySystem.get('transferegov')).toBe(0);
   });
 
-  it('H — SEI continua usando govAdapter.sync (regressão)', async () => {
+  it('H — SEI usa runSeiSnapshotSync (snapshot engine)', async () => {
     process.env.SEI_API_TOKEN = 'sei-token-valido';
-    const { all, run, getGovAdapter } = await importMocks();
+    const { all, run, getGovAdapter, runSeiSnapshotSync } = await importMocks();
     (all as any).mockResolvedValue([
       {
         id: 2,
@@ -947,18 +965,31 @@ describe('Wiring do snapshot do Transferegov (P1)', () => {
         },
       },
     ]);
-    adapterSync.mockResolvedValue({
-      success: true,
-      fetchedCount: 5,
-      normalizedCount: 5,
-      syncedCount: 0,
-      httpStatus: 200,
-      authError: false,
-      error: null,
-      events: [],
-    });
     (getGovAdapter as any).mockReturnValue({ sync: adapterSync });
     (run as any).mockClear();
+    (runSeiSnapshotSync as any).mockResolvedValue({
+      success: true,
+      complete: true,
+      limited: false,
+      skipped: false,
+      published: true,
+      fetchedCount: 5,
+      validatedCount: 5,
+      publishedCount: 5,
+      insertedCount: 5,
+      updatedCount: 0,
+      unchangedCount: 0,
+      missingCount: 0,
+      reconciledCount: 0,
+      missingIds: [],
+      pagesProcessed: 1,
+      totalItems: 5,
+      totalPages: 1,
+      httpStatus: 200,
+      authError: false,
+      executionState: 'PUBLISHED',
+      durationMs: 120,
+    });
 
     const summary = await runScheduledSyncCycle();
 
@@ -966,10 +997,11 @@ describe('Wiring do snapshot do Transferegov (P1)', () => {
     expect(summary!.systemsSynced).toBe(1);
     expect(summary!.errors).toBe(0);
     expect(summary!.totalFetched).toBe(5);
-    expect(adapterSync).toHaveBeenCalledTimes(1);
+    expect(runSeiSnapshotSync).toHaveBeenCalledTimes(1);
+    expect(adapterSync).not.toHaveBeenCalled();
   });
 
-  it('I — CGLOG continua usando govAdapter.sync (regressão)', async () => {
+  it('I — CGLOG é webhook-only, não executa polling (regressão)', async () => {
     process.env.CGLOG_API_TOKEN = 'cglog-token-valido';
     const { all, run, getGovAdapter, runTransferegovSnapshotSync } = await importMocks();
     (all as any).mockResolvedValue([
@@ -1005,7 +1037,8 @@ describe('Wiring do snapshot do Transferegov (P1)', () => {
     expect(summary).not.toBeNull();
     expect(summary!.systemsSynced).toBe(1);
     expect(summary!.errors).toBe(0);
-    expect(adapterSync).toHaveBeenCalledTimes(1);
+    // CGLOG é webhook-only: scheduler retorna success SEM chamar govAdapter.sync
+    expect(adapterSync).not.toHaveBeenCalled();
     expect(runTransferegovSnapshotSync).not.toHaveBeenCalled();
   });
 
@@ -1041,6 +1074,7 @@ describe('Wiring do snapshot do Transferegov (P1)', () => {
     const { all, run } = await import('../database.js');
     const { getGovAdapter } = await import('../lib/adapterRegistry.js');
     const { runTransferegovSnapshotSync } = await import('../integrations/transferegovSnapshot.js');
-    return { all, run, getGovAdapter, runTransferegovSnapshotSync };
+    const { runSeiSnapshotSync } = await import('../integrations/seiSnapshot.js');
+    return { all, run, getGovAdapter, runTransferegovSnapshotSync, runSeiSnapshotSync };
   }
 });
