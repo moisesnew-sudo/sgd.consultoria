@@ -45,6 +45,27 @@ function validateEnv() {
     if (corsOrigin.includes('*') || corsOrigin.trim() === '') {
       errors.push('CORS_ORIGIN não pode ser "*" ou vazio em produção. Defina domínios específicos.');
     }
+
+    if (!process.env.FRONTEND_URL || process.env.FRONTEND_URL.trim() === '') {
+      errors.push('FRONTEND_URL não pode ser vazio em produção. Necessário para links de recuperação de senha.');
+    }
+
+    // Email config validation (opcional: se EMAIL_ENABLED não for false, validar SMTP)
+    const emailEnabled = process.env.EMAIL_ENABLED !== 'false';
+    if (emailEnabled) {
+      if (!process.env.SMTP_HOST || process.env.SMTP_HOST.trim() === '') {
+        errors.push('SMTP_HOST não pode ser vazio em produção (EMAIL_ENABLED=true).');
+      }
+      if (!process.env.SMTP_USER || process.env.SMTP_USER.trim() === '') {
+        errors.push('SMTP_USER não pode ser vazio em produção (EMAIL_ENABLED=true).');
+      }
+      if (!process.env.SMTP_PASS || process.env.SMTP_PASS.trim() === '') {
+        errors.push('SMTP_PASS não pode ser vazio em produção (EMAIL_ENABLED=true).');
+      }
+      if (!process.env.SMTP_FROM || process.env.SMTP_FROM.trim() === '') {
+        warnings.push('SMTP_FROM não definido — usando fallback padrão.');
+      }
+    }
   }
 
   if (warnings.length > 0) {

@@ -6,6 +6,7 @@ import { z } from 'zod';
 import { get, run } from '../database.js';
 import { logAudit, extractMeta } from '../lib/audit.js';
 import { logger } from '../lib/logger.js';
+import { sendPasswordResetEmail } from '../lib/email.js';
 
 const router = Router();
 
@@ -52,8 +53,25 @@ router.post('/request', async (req: Request, res: Response) => {
         logger.info('Token de reset gerado', { email, expires: '30min' });
       }
 
-      // ⚠️ PENDENTE DE IMPLEMENTAÇÃO: envio do email com o link de redefinição.
-      // O token é gerado e persistido, mas o FRONTEND_URL não é utilizado por nenhum serviço de email.
+      // Envio do email com link de redefinição
+      const frontendUrl = process.env.FRONTEND_URL;
+      if (!frontendUrl) {
+        logger.error('FRONTEND_URL não configurada — email de reset não enviado', { email });
+      } else {
+        const emailResult = await sendPasswordResetEmail({
+          email,
+          token,
+          frontendUrl,
+          expiresMinutes: 30,
+        });
+        if (!emailResult.success) {
+          logger.error('Falha no envio de email de reset — token permanece válido', {
+            email,
+            error: emailResult.error,
+          });
+          // Não falha a requisição: token persistido, usuário pode tentar reenviar
+        }
+      }
 
       await logAudit({
         entity_type: 'auth', entity_id: String(user.id), action: 'password_reset_requested',
