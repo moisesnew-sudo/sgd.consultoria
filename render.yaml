@@ -18,6 +18,8 @@ services:
           property: connectionString
       - key: JWT_SECRET
         sync: false
+      - key: JWT_REFRESH_SECRET
+        sync: false
       - key: SEED_ADMIN_PASSWORD
         sync: false
       - key: SEED_VIEWER_PASSWORD
@@ -42,3 +44,8 @@ services:
         value: https://gruposgd.com.br,https://www.gruposgd.com.br,http://localhost:3000
       - key: PUBLIC_API_URL
         value: https://api.gruposgd.com.br/api
+      - key: FRONTEND_URL
+        value: https://gruposgd.com.br
+      # Email disabled for Release Candidate - SMTP/OAuth2 is post-release.
+      - key: EMAIL_ENABLED
+        value: "false"

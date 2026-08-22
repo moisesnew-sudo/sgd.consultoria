@@ -76,10 +76,12 @@ npm run build    # tsc + vite build
 | `PORT` | `3001` |
 | `DATABASE_URL` | URL de conexão PostgreSQL |
 | `JWT_SECRET` | ≥32 caracteres aleatórios |
-| `JWT_REFRESH_SECRET` | Diferente do JWT_SECRET |
+| `JWT_REFRESH_SECRET` | Diferente do JWT_SECRET; definir diretamente no Render Dashboard (`sync: false`, não versionado) |
 | `CORS_ORIGIN` | `https://gruposgd.com.br,https://www.gruposgd.com.br` |
 | `COOKIE_DOMAIN` | `gruposgd.com.br` |
 | `PUBLIC_API_URL` | `https://api.gruposgd.com.br/api` |
+| `FRONTEND_URL` | `https://gruposgd.com.br` — obrigatória em produção; usada nos links de recuperação de senha |
+| `EMAIL_ENABLED` | `false` no Release Candidate — ver seção **E-mail** abaixo |
 
 #### Integrações
 
@@ -104,6 +106,41 @@ npm run build    # tsc + vite build
 | `LOG_LEVEL` | Nível de log (debug/info/warn/error) |
 | `SEED_DEFAULT_PASSWORD` | Senha padrão dos usuários seed |
 | `SEED_ADMIN_PASSWORD` | Senha do admin |
+
+#### E-mail (EMAIL_ENABLED)
+
+O envio de e-mail é controlado pela variável `EMAIL_ENABLED`. No **Release
+Candidate o e-mail está deliberadamente desabilitado**: a configuração
+SMTP/OAuth2 é uma etapa **pós-release**.
+
+Com `EMAIL_ENABLED=false`:
+
+- O backend **sobe normalmente em produção** — a validação SMTP do startup é ignorada;
+- O fluxo de **recuperação de senha continua funcional**: o token de reset é gerado,
+  persistido (30 min, uso único) e pode ser processado normalmente;
+- O **envio efetivo do e-mail fica desabilitado** — a solicitação responde com sucesso
+  e registra em log que o e-mail não foi enviado;
+- Nenhuma credencial SMTP precisa existir no ambiente.
+
+### SMTP (pós-release)
+
+Para habilitar o envio de e-mails após o release, definir no Render Dashboard:
+
+| Variável | Descrição |
+|----------|-----------|
+| `EMAIL_ENABLED` | `true` |
+| `SMTP_HOST` | Host do servidor SMTP institucional |
+| `SMTP_PORT` | `587` (STARTTLS) ou `465` (SSL) |
+| `SMTP_USER` | Usuário da conta de envio |
+| `SMTP_PASS` | Senha ou senha de app da conta de envio |
+| `SMTP_FROM` | Remetente exibido, ex.: `SGD <noreply@dominio.gov.br>` |
+
+> Suporte a OAuth2 para SMTP (`SMTP_AUTH_TYPE=oauth2` e variáveis associadas) está
+> planejado como etapa pós-release e **não** faz parte da configuração atual.
+
+Atenção: com `EMAIL_ENABLED=true` em produção, `validateEnv()` exige `SMTP_HOST`,
+`SMTP_USER` e `SMTP_PASS` preenchidos e **encerra o processo (exit 1)** se estiverem
+ausentes — ver Troubleshooting.
 
 ---
 
@@ -210,10 +247,15 @@ Pool: pg defaults (max 10 conexões)
 
 ### Servidor não inicia
 
+`validateEnv()` executa antes de qualquer rota e encerra o processo (`exit 1`)
+listando os erros críticos nos logs do Render.
+
 1. Verificar `DATABASE_URL` — `psql $DATABASE_URL -c "SELECT 1"`
 2. Verificar `JWT_SECRET` — ≥32 caracteres
 3. Verificar `CORS_ORIGIN` — não pode ser `*` em produção
-4. Verificar logs do Render
+4. Verificar `FRONTEND_URL` — obrigatória em produção (usada nos links de recuperação de senha); vazia causa exit 1
+5. Verificar e-mail — em produção, com `EMAIL_ENABLED` diferente de `false`, `SMTP_HOST`, `SMTP_USER` e `SMTP_PASS` são obrigatórios; ausentes causam exit 1. No RC manter `EMAIL_ENABLED=false` até a configuração SMTP pós-release
+6. Verificar logs do Render (a mensagem `❌ ERROS DE CONFIGURAÇÃO CRÍTICOS` lista exatamente quais variáveis faltam)
 
 ### Erro 502 Bad Gateway
 
@@ -257,7 +299,19 @@ JWT_REFRESH_SECRET=    # diferente do JWT_SECRET
 CORS_ORIGIN=https://gruposgd.com.br,https://www.gruposgd.com.br
 COOKIE_DOMAIN=gruposgd.com.br
 WEBAPP_URL=https://gruposgd.com.br
+FRONTEND_URL=https://gruposgd.com.br    # obrigatória em produção (links de reset de senha)
 PUBLIC_API_URL=https://api.gruposgd.com.br/api
+
+# === Email ===
+# RC: e-mail desabilitado — SMTP é pós-release
+EMAIL_ENABLED=false
+# Para ativar após o release:
+# EMAIL_ENABLED=true
+# SMTP_HOST=
+# SMTP_PORT=587
+# SMTP_USER=
+# SMTP_PASS=
+# SMTP_FROM="SGD <noreply@...>"
 
 # === Servidor ===
 NODE_ENV=production
