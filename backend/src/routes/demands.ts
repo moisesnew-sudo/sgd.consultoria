@@ -79,12 +79,12 @@ async function ensureOrgan(organ: string | undefined, role: string): Promise<{ o
   };
 }
 
-async function saveDemandVersion(demandId: string, snapshot: any, changedBy: number, changedByName: string, ipAddress?: string) {
+async function saveDemandVersion(demandId: string, tenantId: number, snapshot: any, changedBy: number, changedByName: string, ipAddress?: string) {
   await run(
-    `INSERT INTO demand_versions (demand_id, version, snapshot, changed_by, changed_by_name, ip_address)
-     SELECT $1, COALESCE(MAX(version), 0) + 1, $2, $3, $4, $5
-     FROM demand_versions WHERE demand_id = $1`,
-    [demandId, JSON.stringify(snapshot), changedBy, changedByName, ipAddress || null]
+    `INSERT INTO demand_versions (demand_id, tenant_id, version, snapshot, changed_by, changed_by_name, ip_address)
+     SELECT $1, $2, COALESCE(MAX(version), 0) + 1, $3, $4, $5, $6
+     FROM demand_versions WHERE demand_id = $1 AND tenant_id = $2`,
+    [demandId, tenantId, JSON.stringify(snapshot), changedBy, changedByName, ipAddress || null]
   );
 }
 
@@ -118,6 +118,8 @@ router.get('/', authenticateToken, requirePermission('demands.view'), async (req
     const params: any[] = [];
     const conditions: string[] = [];
 
+    conditions.push(`tenant_id = $${params.length + 1}`);
+    params.push(req.user!.tenant_id);
     if (include_deleted === 'true' && req.user?.role === 'admin') {
       // Não filtra deleted_at — mostra tudo
     } else {
@@ -224,10 +226,10 @@ router.get('/', authenticateToken, requirePermission('demands.view'), async (req
 router.get('/calendar/events', authenticateToken, requirePermission('demands.view'), async (req: Request, res: Response) => {
   try {
     const demands = await all(
-      "SELECT id, title, status, priority, municipality, uf, created_at, updated_at FROM demands WHERE deleted_at IS NULL"
+      "SELECT id, title, status, priority, municipality, uf, created_at, updated_at FROM demands WHERE tenant_id = $1 AND deleted_at IS NULL", [req.user!.tenant_id]
     );
     const events = await all(
-      "SELECT demand_id, title, status_changed_to, created_at FROM timeline_events ORDER BY created_at DESC LIMIT 200"
+      "SELECT demand_id, title, status_changed_to, created_at FROM timeline_events WHERE tenant_id = $1 ORDER BY created_at DESC LIMIT 200", [req.user!.tenant_id]
     );
     const result = [
       ...demands.map(d => ({
@@ -252,28 +254,28 @@ router.get('/calendar/events', authenticateToken, requirePermission('demands.vie
 
 router.get('/stats/dashboard', authenticateToken, async (req: Request, res: Response) => {
   try {
-    const cacheKey = 'dashboard-stats';
+    const cacheKey = `dashboard-stats:${req.user!.tenant_id}`;
     const cached = getCached<any>(cacheKey);
     if (cached) return res.json(cached);
 
     const [total, byStatus, byPriority, byUf, totalValue, today] = await Promise.all([
-      get<{ count: string }>('SELECT COUNT(*) as count FROM demands WHERE deleted_at IS NULL'),
+      get<{ count: string }>('SELECT COUNT(*) as count FROM demands WHERE tenant_id = $1 AND deleted_at IS NULL', [req.user!.tenant_id]),
       all<{ status: string; count: string }>(
-        'SELECT status, COUNT(*) as count FROM demands WHERE deleted_at IS NULL GROUP BY status ORDER BY count DESC'
+        'SELECT status, COUNT(*) as count FROM demands WHERE tenant_id = $1 AND deleted_at IS NULL GROUP BY status ORDER BY count DESC', [req.user!.tenant_id]
       ),
       all<{ priority: string; count: string }>(
-        'SELECT priority, COUNT(*) as count FROM demands WHERE deleted_at IS NULL GROUP BY priority ORDER BY count DESC'
+        'SELECT priority, COUNT(*) as count FROM demands WHERE tenant_id = $1 AND deleted_at IS NULL GROUP BY priority ORDER BY count DESC', [req.user!.tenant_id]
       ),
       all<{ uf: string; count: string }>(
-        'SELECT uf, COUNT(*) as count FROM demands WHERE deleted_at IS NULL GROUP BY uf ORDER BY count DESC'
+        'SELECT uf, COUNT(*) as count FROM demands WHERE tenant_id = $1 AND deleted_at IS NULL GROUP BY uf ORDER BY count DESC', [req.user!.tenant_id]
       ),
-      get<{ total: string | null }>('SELECT SUM(requested_value) as total FROM demands WHERE deleted_at IS NULL'),
+      get<{ total: string | null }>('SELECT SUM(requested_value) as total FROM demands WHERE tenant_id = $1 AND deleted_at IS NULL', [req.user!.tenant_id]),
       get<{ count: string }>(
-        'SELECT COUNT(*) as count FROM demands WHERE deleted_at IS NULL AND DATE(created_at) = CURRENT_DATE'
+        'SELECT COUNT(*) as count FROM demands WHERE tenant_id = $1 AND deleted_at IS NULL AND DATE(created_at) = CURRENT_DATE', [req.user!.tenant_id]
       ),
     ]);
 
-    const overdue = await getAllOverdue();
+    const overdue = await getAllOverdue(req.user!.tenant_id);
     const result = {
       total: parseInt(total?.count || '0'),
       byStatus: byStatus.reduce((acc, item) => ({ ...acc, [item.status]: parseInt(item.count) }), {}),
@@ -294,13 +296,14 @@ router.get('/stats/dashboard', authenticateToken, async (req: Request, res: Resp
 router.get('/stats/executive', authenticateToken, requirePermission('dashboard.view'), async (req: Request, res: Response) => {
   try {
     const { year, uf, status, municipality, dateFrom, dateTo } = req.query as Record<string, string>;
-    const cacheKey = `executive-stats:${year || ''}:${uf || ''}:${status || ''}:${municipality || ''}:${dateFrom || ''}:${dateTo || ''}`;
+    const cacheKey = `executive-stats:${req.user!.tenant_id}:${year || ''}:${uf || ''}:${status || ''}:${municipality || ''}:${dateFrom || ''}:${dateTo || ''}`;
     const cached = getCached<any>(cacheKey);
     if (cached) return res.json(cached);
 
-    const conditions = ['deleted_at IS NULL'];
+    const conditions = ['tenant_id = $1', 'deleted_at IS NULL'];
     const params: any[] = [];
-    let idx = 1;
+    params.push(req.user!.tenant_id);
+    let idx = 2;
 
     if (year) { conditions.push(`EXTRACT(YEAR FROM created_at) = $${idx++}`); params.push(parseInt(year)); }
     if (uf) { conditions.push(`uf = $${idx++}`); params.push(uf.toUpperCase()); }
@@ -366,10 +369,10 @@ router.get('/stats/executive', authenticateToken, requirePermission('dashboard.v
   }
 });
 
-async function getAllOverdue() {
+async function getAllOverdue(tenantId: number) {
   const result = await get<{ count: string }>(`
     SELECT COUNT(*) as count FROM demands
-    WHERE status IN ('pendente', 'analise')
+    WHERE tenant_id = $1 AND status IN ('pendente', 'analise')
     AND deleted_at IS NULL
     AND EXTRACT(EPOCH FROM (NOW() - created_at)) / 86400 >
     CASE priority
@@ -378,16 +381,19 @@ async function getAllOverdue() {
       WHEN 'media' THEN 30
       ELSE 45
     END
-  `);
+  `, [tenantId]);
   return parseInt(result?.count || '0');
 }
 
 router.get('/:id/versions', authenticateToken, requirePermission('demands.view'), async (req: Request, res: Response) => {
   try {
     const versions = await all(
-      `SELECT id, version, snapshot, changed_by, changed_by_name, ip_address, created_at
-       FROM demand_versions WHERE demand_id = $1 ORDER BY version DESC`,
-      [req.params.id as string]
+      `SELECT v.id, v.version, v.snapshot, v.changed_by, v.changed_by_name, v.ip_address, v.created_at
+       FROM demand_versions v
+       JOIN demands d ON d.id = v.demand_id
+       WHERE v.demand_id = $1 AND d.tenant_id = $2
+       ORDER BY v.version DESC`,
+      [req.params.id as string, req.user!.tenant_id]
     );
     res.json(versions);
   } catch (error) {
@@ -398,12 +404,12 @@ router.get('/:id/versions', authenticateToken, requirePermission('demands.view')
 
 router.get('/:id', authenticateToken, requirePermission('demands.view'), async (req: Request, res: Response) => {
   try {
-    const demand = await get('SELECT * FROM demands WHERE id = $1 AND deleted_at IS NULL', [req.params.id as string]);
+    const demand = await get('SELECT * FROM demands WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL', [req.params.id as string, req.user!.tenant_id]);
     if (!demand) return res.status(404).json({ error: 'Demanda não encontrada' });
     const [timeline, attachments, comments] = await Promise.all([
       all('SELECT * FROM timeline_events WHERE demand_id = $1 ORDER BY created_at DESC', [demand.id]),
-      all('SELECT * FROM attachments WHERE demand_id = $1 AND deleted_at IS NULL', [demand.id]),
-      all('SELECT * FROM comments WHERE demand_id = $1 AND deleted_at IS NULL ORDER BY created_at ASC', [demand.id])
+      all('SELECT * FROM attachments WHERE demand_id = $1 AND tenant_id = $2 AND deleted_at IS NULL', [demand.id, req.user!.tenant_id]),
+      all('SELECT * FROM comments WHERE demand_id = $1 AND tenant_id = $2 AND deleted_at IS NULL ORDER BY created_at ASC', [demand.id, req.user!.tenant_id])
     ]);
     res.json({ ...demand, timeline, attachments, comments });
   } catch (error) {
@@ -439,24 +445,24 @@ router.post('/', authenticateToken, requirePermission('demands.create'), async (
     const anoVal = data.ano ?? currentYear;
 
     await run(
-      `INSERT INTO demands (id, title, description, category, status, priority, municipality, uf, requested_value, prefeitura, proposal_number, organ, process_link, responsible_name, responsible_email, responsible_phone, notes, created_by, created_at, updated_at, ano, deadline)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22)`,
+      `INSERT INTO demands (id, title, description, category, status, priority, municipality, uf, requested_value, prefeitura, proposal_number, organ, process_link, responsible_name, responsible_email, responsible_phone, notes, created_by, created_at, updated_at, ano, deadline, tenant_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23)`,
       [id, data.title, data.description || '', data.category, data.status || 'pendente', data.priority || 'media',
        data.municipality, data.uf, data.requested_value || 0, data.prefeitura || `Prefeitura Municipal de ${data.municipality}`,
        data.proposal_number || `PROP-${currentYear}-${crypto.randomUUID().slice(0, 4).toUpperCase()}`,
        data.organ || '', data.process_link || '', data.responsible_name || req.user!.name,
        data.responsible_email || req.user!.email, data.responsible_phone || '', data.notes || '',
-       req.user!.id, now, now, anoVal, data.deadline ?? null]
+       req.user!.id, now, now, anoVal, data.deadline ?? null, req.user!.tenant_id]
     );
     await addTimelineEvent(id, 'Demanda Cadastrada', `Demanda criada por ${req.user!.name}`, req.user!.name, data.status || 'pendente', 'created', {
       status: data.status || 'pendente', municipality: data.municipality, uf: data.uf, requested_value: data.requested_value || 0
     });
     await run(
-      'UPDATE municipalities SET demands_count = demands_count + 1, total_value = total_value + $1, updated_at = NOW() WHERE name = $2 AND uf = $3',
-      [data.requested_value || 0, data.municipality, data.uf]
+      'UPDATE municipalities SET demands_count = demands_count + 1, total_value = total_value + $1, updated_at = NOW() WHERE name = $2 AND uf = $3 AND tenant_id = $4',
+      [data.requested_value || 0, data.municipality, data.uf, req.user!.tenant_id]
     );
-    await saveDemandVersion(id, { ...data, created_by: req.user!.id }, req.user!.id, req.user!.name, ip_address);
-    const newDemand = await get('SELECT * FROM demands WHERE id = $1', [id]);
+    await saveDemandVersion(id, req.user!.tenant_id, { ...data, created_by: req.user!.id }, req.user!.id, req.user!.name, ip_address);
+    const newDemand = await get('SELECT * FROM demands WHERE id = $1 AND tenant_id = $2', [id, req.user!.tenant_id]);
     await logAudit({
       entity_type: 'demand', entity_id: id, action: 'create',
       user_id: req.user!.id, user_name: req.user!.name,
@@ -468,6 +474,7 @@ router.post('/', authenticateToken, requirePermission('demands.create'), async (
     });
     clearCache('dashboard-stats');
     publishEvent('demand:created', {
+      tenantId: req.user!.tenant_id,
       demandId: id,
       title: data.title,
       status: data.status || 'pendente',
@@ -491,9 +498,9 @@ router.put('/:id', authenticateToken, requirePermission('demands.edit'), async (
     if (req.user!.role === 'consulta') {
       return res.status(403).json({ error: 'Consulta não pode editar demandas' });
     }
-    const existing = await get('SELECT * FROM demands WHERE id = $1 AND deleted_at IS NULL', [req.params.id as string]);
+    const existing = await get('SELECT * FROM demands WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL', [req.params.id as string, req.user!.tenant_id]);
     if (!existing) return res.status(404).json({ error: 'Demanda não encontrada' });
-    await saveDemandVersion(req.params.id as string, existing, req.user!.id, req.user!.name, ip_address);
+    await saveDemandVersion(req.params.id as string, req.user!.tenant_id, existing, req.user!.id, req.user!.name, ip_address);
     const data = normalizeDemandText(demandSchema.partial().parse(req.body));
     if (data.municipality) {
       const canonical = canonicalMunicipality(data.municipality, data.uf || existing.uf);
@@ -519,6 +526,7 @@ router.put('/:id', authenticateToken, requirePermission('demands.edit'), async (
       if (data.status && data.status !== existing.status) {
         await logStatusChange(req.params.id as string, existing.status, data.status, req.user!.name);
         publishEvent('demand:status_changed', {
+          tenantId: req.user!.tenant_id,
           demandId: req.params.id as string,
           title: existing.title,
           from: existing.status,
@@ -533,11 +541,12 @@ router.put('/:id', authenticateToken, requirePermission('demands.edit'), async (
       }
     }
     publishEvent('demand:updated', {
+      tenantId: req.user!.tenant_id,
       demandId: req.params.id as string,
       title: existing.title,
       changes: Object.keys(data),
     });
-    const updated = await get('SELECT * FROM demands WHERE id = $1 AND deleted_at IS NULL', [req.params.id as string]);
+    const updated = await get('SELECT * FROM demands WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL', [req.params.id as string, req.user!.tenant_id]);
     await logAudit({
       entity_type: 'demand', entity_id: req.params.id as string, action: 'update',
       user_id: req.user!.id, user_name: req.user!.name,
@@ -567,15 +576,15 @@ router.delete('/:id', authenticateToken, requirePermission('demands.delete'), as
     if (req.user!.role !== 'admin' && req.user!.role !== 'gestor') {
       return res.status(403).json({ error: 'Sem permissão para excluir demandas' });
     }
-    const demand = await get('SELECT * FROM demands WHERE id = $1 AND deleted_at IS NULL', [req.params.id as string]);
+    const demand = await get('SELECT * FROM demands WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL', [req.params.id as string, req.user!.tenant_id]);
     if (!demand) return res.status(404).json({ error: 'Demanda não encontrada' });
-    await run('UPDATE demands SET deleted_at = NOW(), deleted_by = $1 WHERE id = $2', [req.user!.id, req.params.id as string]);
+    await run('UPDATE demands SET deleted_at = NOW(), deleted_by = $1 WHERE id = $2 AND tenant_id = $3', [req.user!.id, req.params.id as string, req.user!.tenant_id]);
     await addTimelineEvent(req.params.id as string, 'Demanda Excluída', `Demanda excluída por ${req.user!.name}`, req.user!.name, demand.status, 'deleted', {
       status: demand.status, municipality: demand.municipality, uf: demand.uf
     });
     await run(
-      'UPDATE municipalities SET demands_count = GREATEST(demands_count - 1, 0), total_value = GREATEST(total_value - $1, 0), updated_at = NOW() WHERE name = $2 AND uf = $3',
-      [demand.requested_value, demand.municipality, demand.uf]
+      'UPDATE municipalities SET demands_count = GREATEST(demands_count - 1, 0), total_value = GREATEST(total_value - $1, 0), updated_at = NOW() WHERE name = $2 AND uf = $3 AND tenant_id = $4',
+      [demand.requested_value, demand.municipality, demand.uf, req.user!.tenant_id]
     );
     await logAudit({
       entity_type: 'demand', entity_id: req.params.id as string, action: 'delete',
@@ -588,6 +597,7 @@ router.delete('/:id', authenticateToken, requirePermission('demands.delete'), as
     });
     clearCache('dashboard-stats');
     publishEvent('demand:deleted', {
+      tenantId: req.user!.tenant_id,
       demandId: req.params.id as string,
       title: demand.title,
     });
@@ -601,12 +611,12 @@ router.delete('/:id', authenticateToken, requirePermission('demands.delete'), as
 router.post('/:id/restore', authenticateToken, requirePermission('demands.delete'), async (req: Request, res: Response) => {
   try {
     const { ip_address, user_agent } = extractMeta(req);
-    const demand = await get('SELECT * FROM demands WHERE id = $1 AND deleted_at IS NOT NULL', [req.params.id as string]);
+    const demand = await get('SELECT * FROM demands WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NOT NULL', [req.params.id as string, req.user!.tenant_id]);
     if (!demand) return res.status(404).json({ error: 'Demanda não encontrada ou não excluída' });
-    await run('UPDATE demands SET deleted_at = NULL, deleted_by = NULL WHERE id = $1', [req.params.id as string]);
+    await run('UPDATE demands SET deleted_at = NULL, deleted_by = NULL WHERE id = $1 AND tenant_id = $2', [req.params.id as string, req.user!.tenant_id]);
     await run(
-      'UPDATE municipalities SET demands_count = demands_count + 1, total_value = total_value + $1, updated_at = NOW() WHERE name = $2 AND uf = $3',
-      [demand.requested_value, demand.municipality, demand.uf]
+      'UPDATE municipalities SET demands_count = demands_count + 1, total_value = total_value + $1, updated_at = NOW() WHERE name = $2 AND uf = $3 AND tenant_id = $4',
+      [demand.requested_value, demand.municipality, demand.uf, req.user!.tenant_id]
     );
     await addTimelineEvent(req.params.id as string, 'Demanda Restaurada', `Demanda restaurada por ${req.user!.name}`, req.user!.name, demand.status, 'restored');
     await logAudit({
@@ -630,7 +640,7 @@ router.post('/:id/timeline', authenticateToken, requirePermission('demands.edit'
     if (req.user!.role === 'consulta') {
       return res.status(403).json({ error: 'Seu perfil (Consulta) é somente leitura' });
     }
-    const demand = await get('SELECT * FROM demands WHERE id = $1 AND deleted_at IS NULL', [req.params.id as string]);
+    const demand = await get('SELECT * FROM demands WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL', [req.params.id as string, req.user!.tenant_id]);
     if (!demand) return res.status(404).json({ error: 'Demanda não encontrada' });
     const data = timelineEventSchema.parse(req.body);
     const eventId = await addTimelineEvent(req.params.id as string, data.title,
@@ -639,8 +649,9 @@ router.post('/:id/timeline', authenticateToken, requirePermission('demands.edit'
       data.status_changed_to ? 'status_changed' : 'note',
       data.status_changed_to ? { from: demand.status, to: data.status_changed_to } : null);
     if (data.status_changed_to) {
-      await run('UPDATE demands SET status = $1, updated_at = NOW() WHERE id = $2', [data.status_changed_to, req.params.id as string]);
+      await run('UPDATE demands SET status = $1, updated_at = NOW() WHERE id = $2 AND tenant_id = $3', [data.status_changed_to, req.params.id as string, req.user!.tenant_id]);
       publishEvent('demand:status_changed', {
+        tenantId: req.user!.tenant_id,
         demandId: req.params.id as string,
         title: demand.title,
         from: demand.status,
@@ -653,6 +664,7 @@ router.post('/:id/timeline', authenticateToken, requirePermission('demands.edit'
       }
     }
     publishEvent('demand:updated', {
+      tenantId: req.user!.tenant_id,
       demandId: req.params.id as string,
       title: demand.title,
       changes: data.status_changed_to ? ['status'] : ['timeline'],

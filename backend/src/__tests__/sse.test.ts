@@ -19,7 +19,7 @@ vi.mock('../middleware/auth.js', () => ({
     if (req.headers['x-test-role'] === 'no-permission') {
       return res.status(403).json({ error: 'Acesso negado' });
     }
-    req.user = { id: 1, email: 'test@test.com', name: 'Test', role: 'admin', permissions: ['integrations.view'] };
+    req.user = { id: 1, email: 'test@test.com', name: 'Test', role: 'admin', tenant_id: 1, permissions: ['integrations.view'] };
     next();
   }),
   requirePermission: vi.fn(() => (_req: any, _res: any, next: any) => next()),
@@ -200,7 +200,7 @@ describe('sse — eventos', () => {
     const { req, res } = await httpGet(port);
     await new Promise((r) => setTimeout(r, 50));
 
-    const payload: IntegrationCreatedPayload = { systemId: 1, code: 'sei', name: 'SEI' };
+    const payload: IntegrationCreatedPayload = { tenantId: 1, systemId: 1, code: 'sei', name: 'SEI' };
     emitIntegrationEvent('integration:created', payload);
 
     const events = await collectEvents(res, 300);
@@ -214,7 +214,7 @@ describe('sse — eventos', () => {
     const { req, res } = await httpGet(port);
     await new Promise((r) => setTimeout(r, 50));
 
-    const payload: IntegrationHealthPayload = { systemId: 2, health: 'operational', lastSyncAt: null };
+    const payload: IntegrationHealthPayload = { tenantId: 1, systemId: 2, health: 'operational', lastSyncAt: null };
     emitIntegrationEvent('integration:health', payload);
 
     const events = await collectEvents(res, 300);
@@ -298,7 +298,7 @@ describe('sse — múltiplas conexões', () => {
 
     await new Promise((r) => setTimeout(r, 50));
 
-    const payload: IntegrationCreatedPayload = { systemId: 99, code: 'multi', name: 'Multi' };
+    const payload: IntegrationCreatedPayload = { tenantId: 1, systemId: 99, code: 'multi', name: 'Multi' };
     emitIntegrationEvent('integration:created', payload);
 
     const results = await Promise.all(
@@ -329,7 +329,7 @@ describe('sse — segurança', () => {
     const { req, res } = await httpGet(port);
     await new Promise((r) => setTimeout(r, 50));
 
-    emitIntegrationEvent('integration:created', { systemId: 1, code: 'test', name: 'Test' });
+    emitIntegrationEvent('integration:created', { tenantId: 1, systemId: 1, code: 'test', name: 'Test' });
     const events = await collectEvents(res, 300);
 
     for (const e of events) {

@@ -52,6 +52,13 @@ router.get('/user/:id', authenticateToken, async (req: Request, res: Response) =
       return res.status(403).json({ error: 'Acesso negado. Você não possui permissão para executar esta ação.' });
     }
     const userId = parseInt(req.params.id as string);
+    const targetUser = await get<{ id: number }>(
+      'SELECT id FROM users WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL',
+      [userId, req.user!.tenant_id]
+    );
+    if (!targetUser) {
+      return res.status(404).json({ error: 'Usuário não encontrado' });
+    }
     const result = await all<{ permission_id: number; key: string; granted: boolean }>(
       `SELECT up.permission_id, p.key, up.granted FROM permissions p
        LEFT JOIN user_permissions up ON up.permission_id = p.id AND up.user_id = $1
@@ -77,7 +84,7 @@ router.put('/user/:id', authenticateToken, async (req: Request, res: Response) =
       return res.status(400).json({ error: 'Formato de permissões inválido' });
     }
 
-    const targetUser = await get<UserResponse>('SELECT id, name, email FROM users WHERE id = $1 AND deleted_at IS NULL', [userId]);
+    const targetUser = await get<UserResponse>('SELECT id, name, email FROM users WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL', [userId, req.user!.tenant_id]);
     if (!targetUser) {
       return res.status(404).json({ error: 'Usuário não encontrado' });
     }

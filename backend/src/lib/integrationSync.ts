@@ -45,18 +45,28 @@ export interface SyncContext {
   webhookEventId?: number;
   ipAddress?: string;
   source?: string;
+  /** Escopo multi-tenant: restringe a busca da demanda à organização informada. */
+  tenantId?: number;
 }
 
 /**
  * Localiza uma demanda SGD pelo número da proposta (comparação case-insensitive).
  * Retorna a linha encontrada ou undefined. Somente leitura — nunca altera dados.
+ * Quando tenantId é informado, a busca fica restrita àquela organização, evitando
+ * localizar demandas de outros tenants pelo mesmo número de proposta.
  */
-export async function findDemandByProposalNumber(proposalNumber: string): Promise<{ id: string } | undefined> {
+export async function findDemandByProposalNumber(
+  proposalNumber: string,
+  tenantId?: number
+): Promise<{ id: string; tenant_id: number } | undefined> {
   const normalized = String(proposalNumber || '').trim().toUpperCase();
   if (!normalized) return undefined;
-  return get<{ id: string }>(
-    'SELECT id FROM demands WHERE UPPER(proposal_number) = $1 AND deleted_at IS NULL',
-    [normalized]
+  return get<{ id: string; tenant_id: number }>(
+    `SELECT id, tenant_id FROM demands
+     WHERE UPPER(proposal_number) = $1 AND deleted_at IS NULL
+       AND ($2::int IS NULL OR tenant_id = $2)
+     LIMIT 1`,
+    [normalized, tenantId ?? null]
   );
 }
 
@@ -97,7 +107,7 @@ export async function syncIntegrationEvent(payload: unknown, context?: SyncConte
       return { success: false, action: 'unmatched', reason: 'demand not found' };
     }
 
-    const demand = await findDemandByProposalNumber(normalized.proposalNumber);
+    const demand = await findDemandByProposalNumber(normalized.proposalNumber, context?.tenantId);
     if (!demand) {
       logger.warn('Demanda não encontrada pelo número da proposta', {
         system: normalized.systemCode, proposalNumber: normalized.proposalNumber, source,

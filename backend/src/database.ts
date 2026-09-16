@@ -298,9 +298,11 @@ export async function initDatabase() {
       success BOOLEAN NOT NULL,
       attempted_at TIMESTAMPTZ DEFAULT NOW()
     );
+    ALTER TABLE login_attempts ADD COLUMN IF NOT EXISTS tenant_id INTEGER DEFAULT 1;
     CREATE INDEX IF NOT EXISTS idx_login_attempts_email ON login_attempts(email);
     CREATE INDEX IF NOT EXISTS idx_login_attempts_ip ON login_attempts(ip_address);
     CREATE INDEX IF NOT EXISTS idx_login_attempts_time ON login_attempts(attempted_at);
+    CREATE INDEX IF NOT EXISTS idx_login_attempts_tenant ON login_attempts(tenant_id, email);
 
     CREATE TABLE IF NOT EXISTS password_history (
       id SERIAL PRIMARY KEY,
@@ -346,6 +348,27 @@ export async function initDatabase() {
     ALTER TABLE attachments ADD COLUMN IF NOT EXISTS tenant_id INTEGER DEFAULT 1;
     ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS tenant_id INTEGER DEFAULT 1;
 
+    ALTER TABLE demand_versions ADD COLUMN IF NOT EXISTS tenant_id INTEGER DEFAULT 1;
+    ALTER TABLE refresh_tokens ADD COLUMN IF NOT EXISTS tenant_id INTEGER DEFAULT 1;
+    ALTER TABLE active_sessions ADD COLUMN IF NOT EXISTS tenant_id INTEGER DEFAULT 1;
+    ALTER TABLE export_logs ADD COLUMN IF NOT EXISTS tenant_id INTEGER DEFAULT 1;
+    ALTER TABLE backups ADD COLUMN IF NOT EXISTS tenant_id INTEGER DEFAULT 1;
+    ALTER TABLE organs ADD COLUMN IF NOT EXISTS tenant_id INTEGER DEFAULT 1;
+    ALTER TABLE monitoring_logs ADD COLUMN IF NOT EXISTS tenant_id INTEGER DEFAULT 1;
+
+    -- E-mail é uma identidade dentro da organização, não global.
+    ALTER TABLE users DROP CONSTRAINT IF EXISTS users_email_key;
+    CREATE UNIQUE INDEX IF NOT EXISTS uq_users_tenant_email ON users (tenant_id, LOWER(email));
+
+    -- Nome de município/órgão é único DENTRO da organização, não global.
+    ALTER TABLE municipalities DROP CONSTRAINT IF EXISTS municipalities_name_uf_key;
+    CREATE UNIQUE INDEX IF NOT EXISTS uq_municipalities_tenant_name_uf ON municipalities (tenant_id, name, uf);
+    ALTER TABLE organs DROP CONSTRAINT IF EXISTS organs_name_key;
+    DROP INDEX IF EXISTS uq_organs_name_upper;
+    CREATE UNIQUE INDEX IF NOT EXISTS uq_organs_tenant_name_upper ON organs (tenant_id, UPPER(name));
+
+    CREATE INDEX IF NOT EXISTS idx_comments_tenant ON comments(tenant_id);
+    CREATE INDEX IF NOT EXISTS idx_attachments_tenant ON attachments(tenant_id);
     CREATE INDEX IF NOT EXISTS idx_demands_tenant ON demands(tenant_id);
     CREATE INDEX IF NOT EXISTS idx_users_tenant ON users(tenant_id);
     CREATE INDEX IF NOT EXISTS idx_demands_deleted ON demands(deleted_at);

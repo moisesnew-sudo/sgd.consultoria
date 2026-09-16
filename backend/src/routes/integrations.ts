@@ -50,7 +50,7 @@ router.get('/systems', authenticateToken, requirePermission('integrations.view')
     const search = req.query.search ? String(req.query.search) : undefined;
     const active = req.query.active !== undefined ? String(req.query.active) === 'true' : undefined;
 
-    const result = await getAll({ page, limit, search, active }, canViewSensitiveConfig(req.user));
+    const result = await getAll(req.user!.tenant_id, { page, limit, search, active }, canViewSensitiveConfig(req.user));
 
     res.json({
       data: result.data,
@@ -79,7 +79,7 @@ router.get('/systems/:id', authenticateToken, requirePermission('integrations.vi
       return res.status(400).json({ error: 'ID inválido' });
     }
 
-    const system = await getById(id, canViewSensitiveConfig(req.user));
+    const system = await getById(req.user!.tenant_id, id, canViewSensitiveConfig(req.user));
 
     if (!system) {
       return res.status(404).json({ error: 'Sistema não encontrado' });
@@ -99,7 +99,7 @@ router.get('/systems/:id', authenticateToken, requirePermission('integrations.vi
  */
 router.post('/systems', authenticateToken, requirePermission('integrations.manage'), csrfProtection, async (req: Request, res: Response) => {
   try {
-    const system = await create(req.body, req.user);
+    const system = await create(req.user!.tenant_id, req.body, req.user);
 
     res.status(201).json(system);
   } catch (error) {
@@ -131,7 +131,7 @@ router.put('/systems/:id', authenticateToken, requirePermission('integrations.ma
       return res.status(400).json({ error: 'ID inválido' });
     }
 
-    const system = await update(id, req.body, req.user);
+    const system = await update(req.user!.tenant_id, id, req.body, req.user);
 
     res.json(system);
   } catch (error) {
@@ -166,7 +166,7 @@ router.patch('/systems/:id/activate', authenticateToken, requirePermission('inte
       return res.status(400).json({ error: 'ID inválido' });
     }
 
-    const system = await setActive(id, true, req.user);
+    const system = await setActive(req.user!.tenant_id, id, true, req.user);
 
     res.json(system);
   } catch (error) {
@@ -193,7 +193,7 @@ router.patch('/systems/:id/deactivate', authenticateToken, requirePermission('in
       return res.status(400).json({ error: 'ID inválido' });
     }
 
-    const system = await setActive(id, false, req.user);
+    const system = await setActive(req.user!.tenant_id, id, false, req.user);
 
     res.json(system);
   } catch (error) {

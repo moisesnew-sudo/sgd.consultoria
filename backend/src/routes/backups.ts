@@ -19,7 +19,7 @@ if (!fs.existsSync(BACKUPS_DIR)) {
   fs.mkdirSync(BACKUPS_DIR, { recursive: true });
 }
 
-const SAFE_TABLES = ['demands', 'municipalities', 'timeline_events', 'attachments', 'comments', 'audit_logs', 'system_settings', 'permissions', 'user_permissions', 'role_permissions'];
+const SAFE_TABLES = ['demands', 'municipalities', 'timeline_events', 'attachments', 'comments', 'audit_logs'];
 
 function validateTable(table: string): string {
   if (!SAFE_TABLES.includes(table)) {
@@ -28,14 +28,28 @@ function validateTable(table: string): string {
   return table;
 }
 
-async function exportAllData(): Promise<string> {
-  const [tableRows, users] = await Promise.all([
-    Promise.all(SAFE_TABLES.map(table => all(`SELECT * FROM ${validateTable(table)}`))),
-    all('SELECT id, email, name, role, active, created_at, updated_at, deleted_at FROM users')
+async function exportAllData(tenantId: number): Promise<string> {
+  const [demands, municipalities, timelineEvents, attachments, comments, auditLogs, users] = await Promise.all([
+    all('SELECT * FROM demands WHERE tenant_id = $1', [tenantId]),
+    all('SELECT * FROM municipalities WHERE tenant_id = $1', [tenantId]),
+    all(
+      `SELECT te.* FROM timeline_events te
+       JOIN demands d ON d.id = te.demand_id
+       WHERE d.tenant_id = $1`,
+      [tenantId]
+    ),
+    all('SELECT * FROM attachments WHERE tenant_id = $1', [tenantId]),
+    all('SELECT * FROM comments WHERE tenant_id = $1', [tenantId]),
+    all('SELECT * FROM audit_logs WHERE tenant_id = $1', [tenantId]),
+    all('SELECT id, email, name, role, active, created_at, updated_at, deleted_at, tenant_id FROM users WHERE tenant_id = $1', [tenantId])
   ]);
-  const data: Record<string, any> = {};
-  SAFE_TABLES.forEach((table, i) => { data[table] = tableRows[i]; });
-  data['users'] = users;
+  const data: Record<string, any> = {
+    demands, municipalities,
+    timeline_events: timelineEvents,
+    attachments, comments,
+    audit_logs: auditLogs,
+    users
+  };
 
   return JSON.stringify({ version: 'sgd-v3', timestamp: new Date().toISOString(), data }, null, 2);
 }
@@ -52,7 +66,8 @@ router.get('/', authenticateToken, requireRole('admin'), async (req: Request, re
   try {
     const backups = await all(
       `SELECT id, filename, file_size, sha256_hash, backup_type, status, created_by, created_at
-       FROM backups ORDER BY created_at DESC`
+       FROM backups WHERE tenant_id = $1 ORDER BY created_at DESC`,
+      [req.user!.tenant_id]
     );
     res.json(backups);
   } catch (error) {
@@ -68,7 +83,7 @@ router.post('/', authenticateToken, requireRole('admin'), async (req: Request, r
     if (!['daily', 'weekly', 'monthly', 'manual'].includes(backupType)) {
       return res.status(400).json({ error: 'Tipo de backup inválido' });
     }
-    const jsonData = await exportAllData();
+    const jsonData = await exportAllData(req.user!.tenant_id);
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
     const filename = `backup_${backupType}_${timestamp}.json`;
     const filePath = path.join(BACKUPS_DIR, filename);
@@ -78,9 +93,9 @@ router.post('/', authenticateToken, requireRole('admin'), async (req: Request, r
     fs.writeFileSync(filePath, jsonData, 'utf8');
 
     const result = await run(
-      `INSERT INTO backups (filename, file_path, file_size, sha256_hash, backup_type, status, created_by)
-       VALUES ($1, $2, $3, $4, $5, 'completed', $6) RETURNING id`,
-      [filename, filePath, fileSize, sha256Hash, backupType, req.user!.id]
+      `INSERT INTO backups (filename, file_path, file_size, sha256_hash, backup_type, status, created_by, tenant_id)
+       VALUES ($1, $2, $3, $4, $5, 'completed', $6, $7) RETURNING id`,
+      [filename, filePath, fileSize, sha256Hash, backupType, req.user!.id, req.user!.tenant_id]
     );
 
     await logAudit({
@@ -100,7 +115,7 @@ router.post('/', authenticateToken, requireRole('admin'), async (req: Request, r
 router.get('/:id/download', authenticateToken, requireRole('admin'), async (req: Request, res: Response) => {
   try {
     const backup = await get<{ file_path: string; filename: string }>(
-      'SELECT file_path, filename FROM backups WHERE id = $1', [req.params.id]
+      'SELECT file_path, filename FROM backups WHERE id = $1 AND tenant_id = $2', [req.params.id, req.user!.tenant_id]
     );
     if (!backup) return res.status(404).json({ error: 'Backup não encontrado' });
 
@@ -119,7 +134,7 @@ router.get('/:id/download', authenticateToken, requireRole('admin'), async (req:
 router.post('/:id/verify', authenticateToken, requireRole('admin'), async (req: Request, res: Response) => {
   try {
     const backup = await get<{ sha256_hash: string; file_path: string; filename: string }>(
-      'SELECT sha256_hash, file_path, filename FROM backups WHERE id = $1', [req.params.id]
+      'SELECT sha256_hash, file_path, filename FROM backups WHERE id = $1 AND tenant_id = $2', [req.params.id, req.user!.tenant_id]
     );
     if (!backup) return res.status(404).json({ error: 'Backup não encontrado' });
 
@@ -141,7 +156,7 @@ router.post('/:id/restore', authenticateToken, requireRole('admin'), async (req:
   try {
     const { ip_address, user_agent } = extractMeta(req);
     const backup = await get<{ sha256_hash: string; file_path: string; filename: string }>(
-      'SELECT sha256_hash, file_path, filename FROM backups WHERE id = $1', [req.params.id]
+      'SELECT sha256_hash, file_path, filename FROM backups WHERE id = $1 AND tenant_id = $2', [req.params.id, req.user!.tenant_id]
     );
     if (!backup) return res.status(404).json({ error: 'Backup não encontrado' });
 
@@ -159,20 +174,16 @@ router.post('/:id/restore', authenticateToken, requireRole('admin'), async (req:
     const { data } = backupData;
 
     await transaction(async (client) => {
-      await client.query('UPDATE active_sessions SET active = FALSE');
-      await client.query('DELETE FROM comments');
-      await client.query('DELETE FROM audit_logs');
-      await client.query('DELETE FROM attachments');
-      await client.query('DELETE FROM timeline_events');
-      await client.query('DELETE FROM demand_versions');
-      await client.query('DELETE FROM token_blacklist');
-      await client.query('DELETE FROM demands');
-      await client.query('DELETE FROM municipalities');
-      await client.query('DELETE FROM user_permissions');
-      await client.query('DELETE FROM role_permissions');
-      await client.query('DELETE FROM permissions');
-      await client.query('DELETE FROM users');
-      await client.query('DELETE FROM system_settings');
+      await client.query('UPDATE active_sessions SET active = FALSE WHERE tenant_id = $1', [req.user!.tenant_id]);
+      await client.query('DELETE FROM comments WHERE tenant_id = $1', [req.user!.tenant_id]);
+      await client.query('DELETE FROM audit_logs WHERE tenant_id = $1', [req.user!.tenant_id]);
+      await client.query('DELETE FROM attachments WHERE tenant_id = $1', [req.user!.tenant_id]);
+      await client.query('DELETE FROM timeline_events WHERE demand_id IN (SELECT id FROM demands WHERE tenant_id = $1)', [req.user!.tenant_id]);
+      await client.query('DELETE FROM demand_versions WHERE demand_id IN (SELECT id FROM demands WHERE tenant_id = $1)', [req.user!.tenant_id]);
+      await client.query('DELETE FROM demands WHERE tenant_id = $1', [req.user!.tenant_id]);
+      await client.query('DELETE FROM municipalities WHERE tenant_id = $1', [req.user!.tenant_id]);
+      await client.query('DELETE FROM user_permissions WHERE user_id IN (SELECT id FROM users WHERE tenant_id = $1)', [req.user!.tenant_id]);
+      await client.query('DELETE FROM users WHERE tenant_id = $1', [req.user!.tenant_id]);
 
       for (const table of SAFE_TABLES.concat(['users'])) {
         if (data[table] && Array.isArray(data[table])) {

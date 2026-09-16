@@ -17,10 +17,11 @@ function normalizeName(name: string): string {
 }
 
 // Lista (autenticados) â€” usada no cadastro mestre.
-router.get('/', authenticateToken, async (_req: Request, res: Response) => {
+router.get('/', authenticateToken, async (req: Request, res: Response) => {
   try {
     const organs = await all(
-      'SELECT id, name, active FROM organs ORDER BY name ASC'
+      'SELECT id, name, active FROM organs WHERE tenant_id = $1 ORDER BY name ASC',
+      [req.user!.tenant_id]
     );
     res.json(organs);
   } catch (error) {
@@ -36,12 +37,12 @@ router.post('/', authenticateToken, requireRole('admin', 'administrador'), async
     const name = normalizeName(data.name);
     if (!name) return res.status(400).json({ error: 'Nome invÃ¡lido' });
 
-    const existing = await get('SELECT id FROM organs WHERE UPPER(name) = $1', [name]);
-    if (existing) return res.status(409).json({ error: 'Ã“rgÃ£o jÃ¡ cadastrado' });
+const existing = await get('SELECT id FROM organs WHERE UPPER(name) = $1 AND tenant_id = $2', [name, req.user!.tenant_id]);
+    if (existing) return res.status(409).json({ error: 'Órgão já cadastrado' });
 
     const result = await run(
-      'INSERT INTO organs (name, created_by) VALUES ($1, $2) RETURNING id, name, active',
-      [name, req.user!.id]
+      'INSERT INTO organs (name, created_by, tenant_id) VALUES ($1, $2, $3) RETURNING id, name, active',
+      [name, req.user!.id, req.user!.tenant_id]
     );
     const { ip_address, user_agent } = extractMeta(req);
     await logAudit({
@@ -60,13 +61,13 @@ router.post('/', authenticateToken, requireRole('admin', 'administrador'), async
 // RenomeaÃ§Ã£o (administrador)
 router.put('/:id', authenticateToken, requireRole('admin', 'administrador'), async (req: Request, res: Response) => {
   try {
-    const existing = await get('SELECT * FROM organs WHERE id = $1', [req.params.id]);
-    if (!existing) return res.status(404).json({ error: 'Ã“rgÃ£o nÃ£o encontrado' });
+const existing = await get('SELECT * FROM organs WHERE id = $1 AND tenant_id = $2', [req.params.id, req.user!.tenant_id]);
+    if (!existing) return res.status(404).json({ error: 'Órgão não encontrado' });
     const data = organSchema.parse(req.body);
     const name = normalizeName(data.name);
-    const dup = await get('SELECT id FROM organs WHERE UPPER(name) = $1 AND id != $2', [name, req.params.id]);
-    if (dup) return res.status(409).json({ error: 'Ã“rgÃ£o jÃ¡ cadastrado' });
-    await run('UPDATE organs SET name = $1, updated_at = NOW() WHERE id = $2', [name, req.params.id]);
+    const dup = await get('SELECT id FROM organs WHERE UPPER(name) = $1 AND id != $2 AND tenant_id = $3', [name, req.params.id, req.user!.tenant_id]);
+    if (dup) return res.status(409).json({ error: 'Órgão já cadastrado' });
+    await run('UPDATE organs SET name = $1, updated_at = NOW() WHERE id = $2 AND tenant_id = $3', [name, req.params.id, req.user!.tenant_id]);
     res.json({ id: Number(req.params.id), name, active: existing.active });
   } catch (error) {
     if (error instanceof z.ZodError) return res.status(400).json({ error: 'Dados invÃ¡lidos', details: error.errors });
@@ -78,9 +79,9 @@ router.put('/:id', authenticateToken, requireRole('admin', 'administrador'), asy
 // DesativaÃ§Ã£o (administrador)
 router.delete('/:id', authenticateToken, requireRole('admin', 'administrador'), async (req: Request, res: Response) => {
   try {
-    const existing = await get('SELECT * FROM organs WHERE id = $1 AND active = TRUE', [req.params.id]);
-    if (!existing) return res.status(404).json({ error: 'Ã“rgÃ£o nÃ£o encontrado ou jÃ¡ inativo' });
-    await run('UPDATE organs SET active = FALSE, updated_at = NOW() WHERE id = $1', [req.params.id]);
+const existing = await get('SELECT * FROM organs WHERE id = $1 AND tenant_id = $2 AND active = TRUE', [req.params.id, req.user!.tenant_id]);
+    if (!existing) return res.status(404).json({ error: 'Órgão não encontrado ou já inativo' });
+    await run('UPDATE organs SET active = FALSE, updated_at = NOW() WHERE id = $1 AND tenant_id = $2', [req.params.id, req.user!.tenant_id]);
     res.json({ message: 'Ã“rgÃ£o desativado com sucesso' });
   } catch (error) {
     logger.error('Delete organ error', { error });

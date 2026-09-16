@@ -25,7 +25,8 @@ const passwordSchema = z.string()
 
 const loginSchema = z.object({
   email: z.string().email('Email inválido'),
-  password: z.string().min(1, 'Senha é obrigatória')
+  password: z.string().min(1, 'Senha é obrigatória'),
+  tenantId: z.coerce.number().int().positive().default(1)
 });
 
 const registerSchema = z.object({
@@ -35,11 +36,11 @@ const registerSchema = z.object({
   role: z.enum(USER_ROLES).optional()
 });
 
-async function isAccountLocked(email: string): Promise<boolean> {
+async function isAccountLocked(email: string, tenantId: number): Promise<boolean> {
   const recent = await get<{ count: string }>(
     `SELECT COUNT(*) as count FROM login_attempts
-     WHERE email = $1 AND success = FALSE AND attempted_at > NOW() - $2 * INTERVAL '1 minute'`,
-    [email, LOCKOUT_MINUTES]
+     WHERE email = $1 AND tenant_id = $2 AND success = FALSE AND attempted_at > NOW() - $3 * INTERVAL '1 minute'`,
+    [email, tenantId, LOCKOUT_MINUTES]
   );
   return parseInt(recent?.count || '0') >= MAX_LOGIN_ATTEMPTS;
 }
@@ -69,11 +70,11 @@ async function wasPasswordUsed(userId: number, plainPassword: string): Promise<b
 
 router.post('/login', async (req: Request, res: Response) => {
   try {
-    const { email, password } = loginSchema.parse(req.body);
+    const { email, password, tenantId } = loginSchema.parse(req.body);
     const { ip_address, user_agent } = extractMeta(req);
-    const user = await get('SELECT * FROM users WHERE email = $1 AND deleted_at IS NULL', [email]);
+    const user = await get('SELECT * FROM users WHERE email = $1 AND tenant_id = $2 AND deleted_at IS NULL', [email, tenantId]);
 
-    if (user && await isAccountLocked(email)) {
+    if (user && await isAccountLocked(email, tenantId)) {
       await logAudit({
         entity_type: 'auth', entity_id: email, action: 'login_locked',
         user_name: email, details: { ip: ip_address }, ip_address, user_agent
@@ -82,7 +83,7 @@ router.post('/login', async (req: Request, res: Response) => {
     }
 
     if (!user || user.active === false || !(await bcrypt.compare(password, user.password_hash))) {
-      await run('INSERT INTO login_attempts (email, ip_address, success) VALUES ($1, $2, FALSE)', [email, ip_address]);
+      await run('INSERT INTO login_attempts (email, ip_address, success, tenant_id) VALUES ($1, $2, FALSE, $3)', [email, ip_address, tenantId]);
       await logAudit({
         entity_type: 'auth', entity_id: email, action: 'login_failed',
         user_name: email, details: { ip: ip_address }, ip_address, user_agent
@@ -90,7 +91,7 @@ router.post('/login', async (req: Request, res: Response) => {
       return res.status(401).json({ error: 'Credenciais inválidas' });
     }
 
-    await run('INSERT INTO login_attempts (email, ip_address, success) VALUES ($1, $2, TRUE)', [email, ip_address]);
+    await run('INSERT INTO login_attempts (email, ip_address, success, tenant_id) VALUES ($1, $2, TRUE, $3)', [email, ip_address, tenantId]);
 
     let permissions: string[] = [];
     if (user.role === 'admin') {
@@ -106,12 +107,13 @@ router.post('/login', async (req: Request, res: Response) => {
     }
 
     const userResponse: UserResponse = {
-      id: user.id, email: user.email, name: user.name, role: user.role, permissions
+      id: user.id, email: user.email, name: user.name, role: user.role,
+      tenant_id: user.tenant_id, permissions
     };
 
     const accessToken = signAccessToken(user, permissions);
     const refreshFamily = crypto.randomBytes(16).toString('hex');
-    const refreshToken = signRefreshToken(user.id, refreshFamily);
+    const refreshToken = signRefreshToken(user.id, user.tenant_id, refreshFamily);
     const refreshHash = crypto.createHash('sha256').update(refreshToken).digest('hex');
     const accessHash = crypto.createHash('sha256').update(accessToken).digest('hex');
 
@@ -127,16 +129,16 @@ router.post('/login', async (req: Request, res: Response) => {
     else if (ua.includes('Android')) os = 'Android';
     else if (ua.includes('iPhone') || ua.includes('iPad')) os = 'iOS';
 
-    await run(
-      `INSERT INTO active_sessions (user_id, token_hash, ip_address, user_agent, browser, os)
-       VALUES ($1, $2, $3, $4, $5, $6) ON CONFLICT DO NOTHING`,
-      [user.id, accessHash, ip_address, user_agent, browser, os]
+await run(
+      `INSERT INTO active_sessions (user_id, token_hash, ip_address, user_agent, browser, os, tenant_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7) ON CONFLICT DO NOTHING`,
+      [user.id, accessHash, ip_address, user_agent, browser, os, user.tenant_id]
     );
 
     const refreshExpiry = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
     await run(
-      'INSERT INTO refresh_tokens (user_id, token_hash, family, expires_at) VALUES ($1, $2, $3, $4)',
-      [user.id, refreshHash, refreshFamily, refreshExpiry]
+      'INSERT INTO refresh_tokens (user_id, tenant_id, token_hash, family, expires_at) VALUES ($1, $2, $3, $4, $5)',
+      [user.id, user.tenant_id, refreshHash, refreshFamily, refreshExpiry]
     );
 
     await logAudit({
@@ -163,7 +165,7 @@ router.post('/refresh', authenticateRefreshToken, async (req: Request, res: Resp
     const oldRefreshToken = req.cookies?.refresh_token || req.body?.refreshToken;
     const oldHash = crypto.createHash('sha256').update(oldRefreshToken).digest('hex');
 
-    const user = await get('SELECT * FROM users WHERE id = $1 AND active = TRUE AND deleted_at IS NULL', [req.user!.id]);
+    const user = await get('SELECT * FROM users WHERE id = $1 AND tenant_id = $2 AND active = TRUE AND deleted_at IS NULL', [req.user!.id, req.user!.tenant_id]);
     if (!user) return res.status(401).json({ error: 'Usuário não encontrado' });
 
     let permissions: string[] = [];
@@ -180,13 +182,13 @@ router.post('/refresh', authenticateRefreshToken, async (req: Request, res: Resp
     }
 
     const newAccessToken = signAccessToken(user, permissions);
-    const newRefreshToken = signRefreshToken(user.id, req.refreshFamily!);
+    const newRefreshToken = signRefreshToken(user.id, user.tenant_id, req.refreshFamily!);
     const newRefreshHash = crypto.createHash('sha256').update(newRefreshToken).digest('hex');
 
     const refreshExpiry = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
     await run(
-      'INSERT INTO refresh_tokens (user_id, token_hash, family, expires_at, replaced_by) VALUES ($1, $2, $3, $4, $5)',
-      [user.id, newRefreshHash, req.refreshFamily!, refreshExpiry, null]
+      'INSERT INTO refresh_tokens (user_id, tenant_id, token_hash, family, expires_at, replaced_by) VALUES ($1, $2, $3, $4, $5, $6)',
+      [user.id, user.tenant_id, newRefreshHash, req.refreshFamily!, refreshExpiry, null]
     );
     await run('UPDATE refresh_tokens SET revoked = TRUE, replaced_by = $1 WHERE token_hash = $2', [newRefreshHash, oldHash]);
 
@@ -242,14 +244,14 @@ router.post('/register', authenticateToken, requirePermission('users.create'), a
     }
     const { ip_address, user_agent } = extractMeta(req);
     const { email, password, name, role } = registerSchema.parse(req.body);
-    const existingUser = await get('SELECT id FROM users WHERE email = $1', [email]);
+    const existingUser = await get('SELECT id FROM users WHERE email = $1 AND tenant_id = $2', [email, req.user!.tenant_id]);
     if (existingUser) {
       return res.status(409).json({ error: 'Email já cadastrado' });
     }
     const passwordHash = await bcrypt.hash(password, 10);
     const result = await run(
-      'INSERT INTO users (email, password_hash, name, role) VALUES ($1, $2, $3, $4) RETURNING id, email, name, role',
-      [email, passwordHash, name, role || 'consulta']
+      'INSERT INTO users (email, password_hash, name, role, tenant_id) VALUES ($1, $2, $3, $4, $5) RETURNING id, email, name, role, tenant_id',
+      [email, passwordHash, name, role || 'consulta', req.user!.tenant_id]
     );
     const registerUserId = result.rows[0].id;
     const registerRole = result.rows[0].role;
@@ -355,8 +357,9 @@ router.get('/users', authenticateToken, requirePermission('users.view'), async (
     if (req.user?.role !== 'admin' && req.user?.role !== 'gestor' && req.user?.role !== 'diretor') {
       return res.status(403).json({ error: 'Permissão insuficiente' });
     }
-    const users = await all(
-      'SELECT id, email, name, role, active, created_at, deleted_at FROM users WHERE deleted_at IS NULL ORDER BY name'
+const users = await all(
+      'SELECT id, email, name, role, active, created_at, deleted_at FROM users WHERE tenant_id = $1 AND deleted_at IS NULL ORDER BY name',
+      [req.user!.tenant_id]
     );
     res.json(users);
   } catch (error) {
@@ -366,10 +369,11 @@ router.get('/users', authenticateToken, requirePermission('users.view'), async (
 });
 
 // Lista compacta de usuários ativos — usada no seletor de responsável da demanda.
-router.get('/users/active', authenticateToken, async (_req: Request, res: Response) => {
+router.get('/users/active', authenticateToken, async (req: Request, res: Response) => {
   try {
-    const users = await all(
-      'SELECT id, name, email FROM users WHERE active = TRUE AND deleted_at IS NULL ORDER BY name ASC'
+const users = await all(
+      'SELECT id, name, email FROM users WHERE tenant_id = $1 AND active = TRUE AND deleted_at IS NULL ORDER BY name ASC',
+      [req.user!.tenant_id]
     );
     res.json(users);
   } catch (error) {
@@ -388,14 +392,14 @@ router.post('/users', authenticateToken, requirePermission('users.create'), asyn
     if (req.user?.role === 'gestor' && role === 'admin') {
       return res.status(403).json({ error: 'Gestores não podem criar usuários administradores' });
     }
-    const existingUser = await get('SELECT id FROM users WHERE email = $1', [email]);
+    const existingUser = await get('SELECT id FROM users WHERE email = $1 AND tenant_id = $2', [email, req.user!.tenant_id]);
     if (existingUser) {
       return res.status(409).json({ error: 'Email já cadastrado' });
     }
     const passwordHash = await bcrypt.hash(password, 10);
     const result = await run(
-      'INSERT INTO users (email, password_hash, name, role) VALUES ($1, $2, $3, $4) RETURNING id, email, name, role, active',
-      [email, passwordHash, name, role || 'consulta']
+      'INSERT INTO users (email, password_hash, name, role, tenant_id) VALUES ($1, $2, $3, $4, $5) RETURNING id, email, name, role, active, tenant_id',
+      [email, passwordHash, name, role || 'consulta', req.user!.tenant_id]
     );
     const newUserId = result.rows[0].id;
     const newRole = result.rows[0].role;
@@ -442,13 +446,14 @@ router.put('/users/:id', authenticateToken, requirePermission('users.edit'), asy
       return res.status(400).json({ error: 'Não é possível alterar a própria conta' });
     }
     const data = updateUserSchema.parse(req.body);
-    const existing = await get('SELECT id, role FROM users WHERE id = $1 AND deleted_at IS NULL', [id]);
+const existing = await get('SELECT id, role FROM users WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL', [id, req.user!.tenant_id]);
     if (!existing) {
       return res.status(404).json({ error: 'Usuário não encontrado' });
     }
     if (existing.role === 'admin' && data.role && data.role !== 'admin') {
       const adminCount = await get<{ count: string }>(
-        "SELECT COUNT(*) as count FROM users WHERE role = 'admin' AND active = TRUE AND deleted_at IS NULL"
+        "SELECT COUNT(*) as count FROM users WHERE role = 'admin' AND active = TRUE AND deleted_at IS NULL AND tenant_id = $1",
+        [req.user!.tenant_id]
       );
       if (parseInt(adminCount?.count || '0') <= 1) {
         return res.status(400).json({ error: 'Deve haver ao menos um administrador ativo' });
@@ -460,8 +465,8 @@ router.put('/users/:id', authenticateToken, requirePermission('users.edit'), asy
     if (data.role) { updates.push(`role = $${idx++}`); values.push(data.role); }
     if (data.active !== undefined) { updates.push(`active = $${idx++}`); values.push(data.active); }
     if (data.name) { updates.push(`name = $${idx++}`); values.push(data.name); }
-    if (data.email) {
-      const emailExists = await get('SELECT id FROM users WHERE email = $1 AND id != $2 AND deleted_at IS NULL', [data.email, id]);
+if (data.email) {
+      const emailExists = await get('SELECT id FROM users WHERE email = $1 AND tenant_id = $2 AND id != $3 AND deleted_at IS NULL', [data.email, req.user!.tenant_id, id]);
       if (emailExists) return res.status(409).json({ error: 'Email já cadastrado' });
       updates.push(`email = $${idx++}`); values.push(data.email);
     }
@@ -499,7 +504,7 @@ router.delete('/users/:id', authenticateToken, requirePermission('users.delete')
     if (id === req.user!.id) {
       return res.status(400).json({ error: 'Não é possível excluir a própria conta' });
     }
-    const existing = await get('SELECT id, role FROM users WHERE id = $1 AND deleted_at IS NULL', [id]);
+const existing = await get('SELECT id, role FROM users WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL', [id, req.user!.tenant_id]);
     if (!existing) return res.status(404).json({ error: 'Usuário não encontrado' });
     if (req.user?.role === 'gestor' && existing.role === 'admin') {
       return res.status(403).json({ error: 'Gestores não podem excluir usuários administradores' });
@@ -528,7 +533,7 @@ router.put('/users/:id/password', authenticateToken, requirePermission('users.ed
       return res.status(400).json({ error: 'Use a troca de senha do próprio perfil' });
     }
     const { newPassword } = z.object({ newPassword: passwordSchema }).parse(req.body);
-    const existing = await get('SELECT id FROM users WHERE id = $1 AND deleted_at IS NULL', [id]);
+const existing = await get('SELECT id FROM users WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL', [id, req.user!.tenant_id]);
     if (!existing) return res.status(404).json({ error: 'Usuário não encontrado' });
     const passwordHash = await bcrypt.hash(newPassword, 10);
     await run('UPDATE users SET password_hash = $1, updated_at = NOW() WHERE id = $2', [passwordHash, id]);

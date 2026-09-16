@@ -79,14 +79,20 @@ router.put('/', authenticateToken, requireRole('admin'), requirePermission('sett
 
 router.get('/export', authenticateToken, requireRole('admin'), async (req: Request, res: Response) => {
   try {
-    const demands = await all('SELECT * FROM demands');
-    const municipalities = await all('SELECT * FROM municipalities');
+    const tenantId = req.user!.tenant_id;
+    const demands = await all('SELECT * FROM demands WHERE tenant_id = $1', [tenantId]);
+    const municipalities = await all('SELECT * FROM municipalities WHERE tenant_id = $1', [tenantId]);
     const settings = await get('SELECT * FROM system_settings WHERE id = 1');
-    const users = await all('SELECT id, email, name, role, active, created_at FROM users');
-    const timeline = await all('SELECT * FROM timeline_events');
-    const attachments = await all('SELECT * FROM attachments');
-    const comments = await all('SELECT * FROM comments');
-    const audit = await all('SELECT * FROM audit_logs');
+    const users = await all('SELECT id, email, name, role, active, created_at FROM users WHERE tenant_id = $1', [tenantId]);
+    const timeline = await all(
+      `SELECT te.* FROM timeline_events te
+       JOIN demands d ON d.id = te.demand_id
+       WHERE d.tenant_id = $1`,
+      [tenantId]
+    );
+    const attachments = await all('SELECT * FROM attachments WHERE tenant_id = $1', [tenantId]);
+    const comments = await all('SELECT * FROM comments WHERE tenant_id = $1', [tenantId]);
+    const audit = await all('SELECT * FROM audit_logs WHERE tenant_id = $1', [tenantId]);
 
     const exportData = {
       version: 'sgd-v2',
@@ -121,33 +127,36 @@ router.post('/import', authenticateToken, requireRole('admin'), async (req: Requ
     }
 
     const backupTables = ['comments', 'audit_logs', 'attachments', 'timeline_events', 'demands', 'municipalities', 'users', 'system_settings'];
+    const TENANT_SCOPED = new Set(['comments', 'audit_logs', 'attachments', 'timeline_events', 'demands', 'municipalities', 'users']);
+    const tenantId = req.user!.tenant_id;
     const preBackup: Record<string, any[]> = {};
     for (const table of backupTables) {
-      preBackup[table] = await all(`SELECT * FROM ${table}`);
+      preBackup[table] = TENANT_SCOPED.has(table)
+        ? await all(`SELECT * FROM ${table} WHERE tenant_id = $1`, [tenantId])
+        : await all(`SELECT * FROM ${table}`);
     }
 
     await transaction(async (client) => {
-      await client.query('DELETE FROM comments');
-      await client.query('DELETE FROM audit_logs');
-      await client.query('DELETE FROM attachments');
-      await client.query('DELETE FROM timeline_events');
-      await client.query('DELETE FROM demand_versions');
-      await client.query('DELETE FROM token_blacklist');
-      await client.query('DELETE FROM demands');
-      await client.query('DELETE FROM municipalities');
-      await client.query('DELETE FROM user_permissions');
-      await client.query('DELETE FROM role_permissions');
-      await client.query('DELETE FROM permissions');
-      await client.query('DELETE FROM users');
-      await client.query('DELETE FROM system_settings');
+      await client.query('UPDATE active_sessions SET active = FALSE WHERE tenant_id = $1', [tenantId]);
+      await client.query('DELETE FROM comments WHERE tenant_id = $1', [tenantId]);
+      await client.query('DELETE FROM audit_logs WHERE tenant_id = $1', [tenantId]);
+      await client.query('DELETE FROM attachments WHERE tenant_id = $1', [tenantId]);
+      await client.query('DELETE FROM timeline_events WHERE demand_id IN (SELECT id FROM demands WHERE tenant_id = $1)', [tenantId]);
+      await client.query('DELETE FROM demand_versions WHERE demand_id IN (SELECT id FROM demands WHERE tenant_id = $1)', [tenantId]);
+      await client.query('DELETE FROM demands WHERE tenant_id = $1', [tenantId]);
+      await client.query('DELETE FROM municipalities WHERE tenant_id = $1', [tenantId]);
+      await client.query('DELETE FROM user_permissions WHERE user_id IN (SELECT id FROM users WHERE tenant_id = $1)', [tenantId]);
+      await client.query('DELETE FROM users WHERE tenant_id = $1', [tenantId]);
 
       for (const table of SAFE_IMPORT_TABLES) {
         if (data[table] && Array.isArray(data[table])) {
+          const scoped = TENANT_SCOPED.has(table);
           for (const row of data[table]) {
             const cols = Object.keys(row).filter(k => {
               try { sanitizeColumnName(k); return true; } catch { return false; }
-            });
+            }).filter(k => !(scoped && k === 'tenant_id'));
             const vals = cols.map(c => row[c]);
+            if (scoped) { cols.push('tenant_id'); vals.push(tenantId); }
             const placeholders = cols.map((_, i) => `$${i + 1}`).join(', ');
             try {
               await client.query(`INSERT INTO ${table} (${cols.join(', ')}) VALUES (${placeholders}) ON CONFLICT DO NOTHING`, vals);

@@ -45,6 +45,7 @@ interface WebhookEventRow {
   event_type: string;
   payload: unknown;
   status: string;
+  tenant_id: number;
 }
 
 /** Sinal interno: outro processamento já finalizou o evento (guarda concorrente). */
@@ -80,6 +81,7 @@ export async function processWebhookEvent(eventId: number, options?: ProcessWebh
     systemCode: event.system_code,
     webhookEventId: eventId,
     source: 'webhook',
+    tenantId: event.tenant_id,
   });
 
   if (result.action === 'synced') {
@@ -118,8 +120,8 @@ async function persistSynced(event: WebhookEventRow, result: SyncResult, ctx: Ru
     }
 
     const demand = await client.query<{ status: string }>(
-      'SELECT status FROM demands WHERE id = $1 AND deleted_at IS NULL',
-      [demandId]
+      'SELECT status FROM demands WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL',
+      [demandId, event.tenant_id]
     );
     if (!demand.rows[0]) {
       throw new Error('demanda não encontrada na persistência');
@@ -170,6 +172,7 @@ async function persistSynced(event: WebhookEventRow, result: SyncResult, ctx: Ru
         entity_id: demandId,
         action: 'integration_sync',
         user_name: systemLabel,
+        tenant_id: event.tenant_id,
         details: {
           system: event.system_code,
           webhook_event_id: event.id,
@@ -182,8 +185,8 @@ async function persistSynced(event: WebhookEventRow, result: SyncResult, ctx: Ru
 
     // 4. Vínculo demanda × sistema (UPSERT — nunca duplica).
     await client.query(
-      `INSERT INTO demand_integrations (demand_id, system_id, external_id, proposal_number, last_sync_at, sync_status, data)
-       VALUES ($1, $2, $3, $4, NOW(), 'synced', $5)
+      `INSERT INTO demand_integrations (demand_id, system_id, tenant_id, external_id, proposal_number, last_sync_at, sync_status, data)
+       VALUES ($1, $2, $3, $4, $5, NOW(), 'synced', $6)
        ON CONFLICT (demand_id, system_id) DO UPDATE SET
          external_id = EXCLUDED.external_id,
          proposal_number = EXCLUDED.proposal_number,
@@ -194,6 +197,7 @@ async function persistSynced(event: WebhookEventRow, result: SyncResult, ctx: Ru
       [
         demandId,
         event.system_id,
+        event.tenant_id,
         result.metadata?.externalId ?? null,
         result.metadata?.proposalNumber ?? null,
         JSON.stringify({
@@ -207,9 +211,9 @@ async function persistSynced(event: WebhookEventRow, result: SyncResult, ctx: Ru
     const durationMs = Date.now() - ctx.startedAt;
     const successMessage = `Sincronização concluída para a demanda ${demandId}`;
     await client.query(
-      `INSERT INTO integration_logs (system_id, system_code, direction, action, demand_id, webhook_event_id, status, message, duration_ms, http_status, response_summary, triggered_by, error_message)
-       VALUES ($1, $2, 'in', 'integration.sync', $3, $4, 'success', $5, $6, NULL, $5, $7, NULL)`,
-      [event.system_id, event.system_code, demandId, event.id, successMessage, durationMs, ctx.triggeredBy]
+      `INSERT INTO integration_logs (system_id, system_code, tenant_id, direction, action, demand_id, webhook_event_id, status, message, duration_ms, http_status, response_summary, triggered_by, error_message)
+       VALUES ($1, $2, $3, 'in', 'integration.sync', $4, $5, 'success', $6, $7, NULL, $6, $8, NULL)`,
+      [event.system_id, event.system_code, event.tenant_id, demandId, event.id, successMessage, durationMs, ctx.triggeredBy]
     );
 
     logger.info('Webhook event processado com sucesso', { eventId: event.id, demandId, changes });
@@ -233,9 +237,9 @@ async function persistUnmatched(event: WebhookEventRow, reason: string, ctx: Run
     const durationMs = Date.now() - ctx.startedAt;
     const message = `Evento sem correspondência no SGD: ${reason}`;
     await client.query(
-      `INSERT INTO integration_logs (system_id, system_code, direction, action, webhook_event_id, status, message, duration_ms, http_status, response_summary, triggered_by, error_message)
-       VALUES ($1, $2, 'in', 'integration.sync', $3, 'warning', $4, $5, NULL, $4, $6, NULL)`,
-      [event.system_id, event.system_code, event.id, message, durationMs, ctx.triggeredBy]
+      `INSERT INTO integration_logs (system_id, system_code, tenant_id, direction, action, webhook_event_id, status, message, duration_ms, http_status, response_summary, triggered_by, error_message)
+       VALUES ($1, $2, $3, 'in', 'integration.sync', $4, 'warning', $5, $6, NULL, $5, $7, NULL)`,
+      [event.system_id, event.system_code, event.tenant_id, event.id, message, durationMs, ctx.triggeredBy]
     );
   });
   logger.warn('Webhook event sem correspondência', { eventId: event.id, reason });
@@ -252,9 +256,9 @@ async function persistFailure(event: WebhookEventRow, reason: string, ctx: RunCo
       const durationMs = Date.now() - ctx.startedAt;
       const message = `Falha na sincronização: ${reason}`;
       await client.query(
-        `INSERT INTO integration_logs (system_id, system_code, direction, action, webhook_event_id, status, message, duration_ms, http_status, response_summary, triggered_by, error_message)
-         VALUES ($1, $2, 'in', 'integration.sync', $3, 'error', $4, $5, NULL, NULL, $6, $7)`,
-        [event.system_id, event.system_code, event.id, message, durationMs, ctx.triggeredBy, reason]
+        `INSERT INTO integration_logs (system_id, system_code, tenant_id, direction, action, webhook_event_id, status, message, duration_ms, http_status, response_summary, triggered_by, error_message)
+         VALUES ($1, $2, $3, 'in', 'integration.sync', $4, 'error', $5, $6, NULL, NULL, $7, $8)`,
+        [event.system_id, event.system_code, event.tenant_id, event.id, message, durationMs, ctx.triggeredBy, reason]
       );
     });
   } catch (error) {

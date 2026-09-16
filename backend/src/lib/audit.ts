@@ -12,6 +12,7 @@ export interface AuditEntry {
   details?: any;
   ip_address?: string;
   user_agent?: string;
+  tenant_id?: number;
 }
 
 function parseUserAgent(ua?: string): { browser: string; os: string } {
@@ -52,14 +53,15 @@ export async function logAudit(entry: AuditEntry, client?: PoolClient): Promise<
     if (entry.ip_address) details._ip = entry.ip_address;
 
     const query = {
-      text: `INSERT INTO audit_logs (entity_type, entity_id, action, user_id, user_name, details, ip_address, user_agent)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+      text: `INSERT INTO audit_logs (entity_type, entity_id, action, user_id, user_name, details, ip_address, user_agent, tenant_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, COALESCE($9, (SELECT tenant_id FROM users WHERE id = $4), 1))`,
       values: [
         entry.entity_type, entry.entity_id, entry.action,
         entry.user_id || null, entry.user_name || null,
         JSON.stringify(details),
         entry.ip_address || null,
-        entry.user_agent || null
+        entry.user_agent || null,
+        entry.tenant_id ?? null
       ],
     };
     if (client) {
@@ -76,8 +78,8 @@ export async function logExport(req: any, user: any, exportType: string, recordC
   try {
     const { ip_address } = extractMeta(req);
     await run(
-      `INSERT INTO export_logs (user_id, user_name, export_type, record_count, filters, ip_address)
-       VALUES ($1, $2, $3, $4, $5, $6)`,
+      `INSERT INTO export_logs (user_id, user_name, export_type, record_count, filters, ip_address, tenant_id)
+       VALUES ($1, $2, $3, $4, $5, $6, (SELECT tenant_id FROM users WHERE id = $1))`,
       [user.id, user.name, exportType, recordCount, filters ? JSON.stringify(filters) : null, ip_address]
     );
     const ids = (demandIds || []).slice(0, 50);

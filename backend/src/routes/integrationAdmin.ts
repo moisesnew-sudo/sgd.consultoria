@@ -31,9 +31,9 @@ function parseIntParam(value: unknown): number | undefined {
 }
 
 /** GET /api/integrations/admin/dashboard */
-router.get('/admin/dashboard', authenticateToken, requirePermission('integrations.view'), async (_req: Request, res: Response) => {
+router.get('/admin/dashboard', authenticateToken, requirePermission('integrations.view'), async (req: Request, res: Response) => {
   try {
-    res.json(await getDashboard());
+    res.json(await getDashboard(req.user!.tenant_id));
   } catch (error) {
     logger.error('Erro ao buscar dashboard de integrações', { error: error instanceof Error ? error.message : error });
     res.status(500).json({ error: 'Erro ao buscar dashboard de integrações' });
@@ -41,9 +41,9 @@ router.get('/admin/dashboard', authenticateToken, requirePermission('integration
 });
 
 /** GET /api/integrations/admin/health */
-router.get('/admin/health', authenticateToken, requirePermission('integrations.view'), async (_req: Request, res: Response) => {
+router.get('/admin/health', authenticateToken, requirePermission('integrations.view'), async (req: Request, res: Response) => {
   try {
-    res.json(await getHealthList());
+    res.json(await getHealthList(req.user!.tenant_id));
   } catch (error) {
     logger.error('Erro ao buscar saúde das integrações', { error: error instanceof Error ? error.message : error });
     res.status(500).json({ error: 'Erro ao buscar saúde das integrações' });
@@ -65,7 +65,7 @@ router.get('/admin/logs', authenticateToken, requirePermission('integrations.vie
       hasError: req.query.error === 'true' || req.query.hasError === 'true',
       search: req.query.search ? String(req.query.search) : undefined,
     };
-    res.json(await getLogs(filters));
+    res.json(await getLogs(req.user!.tenant_id, filters));
   } catch (error) {
     logger.error('Erro ao buscar histórico de execuções', { error: error instanceof Error ? error.message : error });
     res.status(500).json({ error: 'Erro ao buscar histórico de execuções' });
@@ -80,7 +80,7 @@ router.get('/admin/systems/:id', authenticateToken, requirePermission('integrati
       return res.status(400).json({ error: 'ID inválido' });
     }
 
-    const detail = await getSystemDetail(id);
+    const detail = await getSystemDetail(req.user!.tenant_id, id);
     if (!detail) {
       return res.status(404).json({ error: 'Sistema não encontrado' });
     }
@@ -102,9 +102,9 @@ router.get('/admin/adapters', authenticateToken, requirePermission('integrations
 });
 
 /** GET /api/integrations/admin/sync-status */
-router.get('/admin/sync-status', authenticateToken, requirePermission('integrations.view'), async (_req: Request, res: Response) => {
+router.get('/admin/sync-status', authenticateToken, requirePermission('integrations.view'), async (req: Request, res: Response) => {
   try {
-    res.json(await getSyncStatus());
+    res.json(await getSyncStatus(req.user!.tenant_id));
   } catch (error) {
     logger.error('Erro ao buscar status de sincronização', { error: error instanceof Error ? error.message : error });
     res.status(500).json({ error: 'Erro ao buscar status de sincronização' });
@@ -112,9 +112,9 @@ router.get('/admin/sync-status', authenticateToken, requirePermission('integrati
 });
 
 /** GET /api/integrations/admin/overview */
-router.get('/admin/overview', authenticateToken, requirePermission('integrations.view'), async (_req: Request, res: Response) => {
+router.get('/admin/overview', authenticateToken, requirePermission('integrations.view'), async (req: Request, res: Response) => {
   try {
-    res.json(await getOverview());
+    res.json(await getOverview(req.user!.tenant_id));
   } catch (error) {
     logger.error('Erro ao buscar visão operacional de integrações', { error: error instanceof Error ? error.message : error });
     res.status(500).json({ error: 'Erro ao buscar visão operacional de integrações' });
@@ -129,7 +129,7 @@ router.post('/admin/systems/:id/test-connection', authenticateToken, requirePerm
       return res.status(400).json({ error: 'ID inválido' });
     }
 
-    const result = await testConnection(id, req.user, req);
+    const result = await testConnection(req.user!.tenant_id, id, req.user, req);
     res.json(result);
   } catch (error) {
     if (error instanceof Error) {
@@ -154,7 +154,7 @@ router.post('/admin/systems/:id/sync', authenticateToken, requirePermission('int
     }
 
     const payload = req.body?.payload;
-    const result = await runManualSyncWithLock(id, req.user, payload, req);
+    const result = await runManualSyncWithLock(req.user!.tenant_id, id, req.user, payload, req);
     res.json(result);
   } catch (error) {
     if (error instanceof Error) {

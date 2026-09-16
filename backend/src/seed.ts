@@ -56,7 +56,7 @@ export async function runSeed() {
   logger.info('🌱 Verificando dados iniciais...');
 
   const adminPassword = await bcrypt.hash(resolveSeedPassword('SEED_ADMIN_PASSWORD', 'Admin'), 10);
-  const existingAdmin = await get('SELECT id FROM users WHERE email = $1', ['admin@sgd.gov.br']);
+  const existingAdmin = await get('SELECT id FROM users WHERE email = $1 AND tenant_id = 1', ['admin@sgd.gov.br']);
 
   if (!existingAdmin) {
     await run(
@@ -67,7 +67,7 @@ export async function runSeed() {
   }
 
   const viewerPassword = await bcrypt.hash(resolveSeedPassword('SEED_VIEWER_PASSWORD', 'Viewer'), 10);
-  const existingViewer = await get('SELECT id FROM users WHERE email = $1', ['consulta@sgd.gov.br']);
+  const existingViewer = await get('SELECT id FROM users WHERE email = $1 AND tenant_id = 1', ['consulta@sgd.gov.br']);
 
   if (!existingViewer) {
     await run(
@@ -78,7 +78,7 @@ export async function runSeed() {
   }
 
   const gestorPassword = await bcrypt.hash(resolveSeedPassword('SEED_GESTOR_PASSWORD', 'Gestor'), 10);
-  const existingGestor = await get('SELECT id FROM users WHERE email = $1', ['gestor@sgd.gov.br']);
+  const existingGestor = await get('SELECT id FROM users WHERE email = $1 AND tenant_id = 1', ['gestor@sgd.gov.br']);
 
   if (!existingGestor) {
     await run(
@@ -89,7 +89,7 @@ export async function runSeed() {
   }
 
   const analistaPassword = await bcrypt.hash(resolveSeedPassword('SEED_ANALISTA_PASSWORD', 'Analista'), 10);
-  const existingAnalista = await get('SELECT id FROM users WHERE email = $1', ['analista@sgd.gov.br']);
+  const existingAnalista = await get('SELECT id FROM users WHERE email = $1 AND tenant_id = 1', ['analista@sgd.gov.br']);
 
   if (!existingAnalista) {
     await run(
@@ -114,7 +114,7 @@ export async function runSeed() {
 
   for (const m of municipalities) {
     await run(
-      'INSERT INTO municipalities (name, uf, schools_count, population, hdi, region) VALUES ($1, $2, $3, $4, $5, $6) ON CONFLICT (name, uf) DO NOTHING',
+      'INSERT INTO municipalities (tenant_id, name, uf, schools_count, population, hdi, region) VALUES (1, $1, $2, $3, $4, $5, $6) ON CONFLICT (tenant_id, name, uf) DO NOTHING',
       [m.name, m.uf, m.schools_count, m.population, m.hdi, m.region]
     );
   }
@@ -309,7 +309,7 @@ export async function runSeed() {
 
   let organCount = 0;
   for (const name of organNames) {
-    const exists = await get('SELECT id FROM organs WHERE UPPER(name) = $1', [name]);
+    const exists = await get('SELECT id FROM organs WHERE tenant_id = 1 AND UPPER(name) = $1', [name]);
     if (!exists) {
       await run('INSERT INTO organs (name) VALUES ($1)', [name]);
       organCount++;

@@ -44,7 +44,7 @@ router.use(requirePermission('integrations.admin'));
 /* GET / — listar webhooks de saída                                     */
 /* ------------------------------------------------------------------ */
 
-router.get('/', async (_req: Request, res: Response) => {
+router.get('/', async (req: Request, res: Response) => {
   try {
     const rows = await all<{
       id: number;
@@ -57,7 +57,9 @@ router.get('/', async (_req: Request, res: Response) => {
     }>(
       `SELECT id, name, url, events, active, created_at, updated_at
        FROM outbound_webhooks
-       ORDER BY created_at DESC`
+       WHERE tenant_id = $1
+       ORDER BY created_at DESC`,
+      [req.user!.tenant_id]
     );
 
     return jsonOk(res, { webhooks: rows });
@@ -79,8 +81,8 @@ router.get('/deliveries', async (req: Request, res: Response) => {
     };
 
     const { page, limit, offset } = parsePagination(req.query, { limit: 50 });
-    const conditions: string[] = [];
-    const params: unknown[] = [];
+    const conditions: string[] = ['w.tenant_id = $1'];
+    const params: unknown[] = [req.user!.tenant_id];
 
     if (webhook_id) {
       conditions.push(`d.webhook_id = $${params.length + 1}`);
@@ -91,10 +93,11 @@ router.get('/deliveries', async (req: Request, res: Response) => {
       params.push(status);
     }
 
-    const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+    const where = `WHERE ${conditions.join(' AND ')}`;
 
     const countRow = await get<{ total: string }>(
-      `SELECT COUNT(*)::text AS total FROM webhook_deliveries d ${where}`,
+      `SELECT COUNT(*)::text AS total FROM webhook_deliveries d
+       JOIN outbound_webhooks w ON w.id = d.webhook_id ${where}`,
       params
     );
     const total = parseInt(countRow?.total ?? '0', 10);
@@ -138,22 +141,28 @@ router.get('/deliveries', async (req: Request, res: Response) => {
 /* GET /stats — dashboard de webhooks (ANTES de /:id)                  */
 /* ------------------------------------------------------------------ */
 
-router.get('/stats', async (_req: Request, res: Response) => {
+router.get('/stats', async (req: Request, res: Response) => {
   try {
+    const tenantId = req.user!.tenant_id;
     const [totalRow, activeRow, last24hRow, deadLetterRow, failedByWebhook] = await Promise.all([
-      get<{ count: string }>('SELECT COUNT(*)::text AS count FROM outbound_webhooks'),
-      get<{ count: string }>('SELECT COUNT(*)::text AS count FROM outbound_webhooks WHERE active = TRUE'),
+      get<{ count: string }>('SELECT COUNT(*)::text AS count FROM outbound_webhooks WHERE tenant_id = $1', [tenantId]),
+      get<{ count: string }>('SELECT COUNT(*)::text AS count FROM outbound_webhooks WHERE tenant_id = $1 AND active = TRUE', [tenantId]),
       get<{ total: string; success: string; failed: string; dead_letter: string }>(
         `SELECT
            COUNT(*)::text AS total,
            COUNT(*) FILTER (WHERE status = 'success')::text AS success,
            COUNT(*) FILTER (WHERE status = 'failed')::text AS failed,
            COUNT(*) FILTER (WHERE status = 'dead_letter')::text AS dead_letter
-         FROM webhook_deliveries
-         WHERE created_at >= NOW() - INTERVAL '24 hours'`
+         FROM webhook_deliveries d
+         JOIN outbound_webhooks w ON w.id = d.webhook_id
+         WHERE w.tenant_id = $1 AND d.created_at >= NOW() - INTERVAL '24 hours'`,
+        [tenantId]
       ),
       get<{ count: string }>(
-        `SELECT COUNT(*)::text AS count FROM webhook_deliveries WHERE status = 'dead_letter'`
+        `SELECT COUNT(*)::text AS count FROM webhook_deliveries d
+         JOIN outbound_webhooks w ON w.id = d.webhook_id
+         WHERE w.tenant_id = $1 AND d.status = 'dead_letter'`,
+        [tenantId]
       ),
       all<{
         webhook_id: number;
@@ -166,10 +175,11 @@ router.get('/stats', async (_req: Request, res: Response) => {
                 MAX(d.created_at)::text AS last_failed_at
          FROM webhook_deliveries d
          JOIN outbound_webhooks w ON w.id = d.webhook_id
-         WHERE d.status = 'dead_letter'
+         WHERE w.tenant_id = $1 AND d.status = 'dead_letter'
          GROUP BY d.webhook_id, w.name
          ORDER BY COUNT(*) DESC
-         LIMIT 10`
+         LIMIT 10`,
+        [tenantId]
       ),
     ]);
 
@@ -240,10 +250,10 @@ router.post('/', async (req: Request, res: Response) => {
     const secretHash = hashSecret(secret);
 
     const result = await run(
-      `INSERT INTO outbound_webhooks (name, url, secret_hash, events, created_by)
-       VALUES ($1, $2, $3, $4, $5)
+      `INSERT INTO outbound_webhooks (name, url, secret_hash, events, created_by, tenant_id)
+       VALUES ($1, $2, $3, $4, $5, $6)
        RETURNING id, name, url, events, active, created_at, updated_at`,
-      [name, url, secretHash, events, req.user?.id ?? undefined]
+      [name, url, secretHash, events, req.user?.id ?? undefined, req.user!.tenant_id]
     );
 
     const webhook = result.rows[0];
@@ -273,8 +283,8 @@ router.get('/:id', async (req: Request, res: Response) => {
     const { id } = req.params;
     const webhook = await get<{ id: number; name: string; url: string; events: string[]; active: boolean }>(
       `SELECT id, name, url, events, active, created_at, updated_at
-       FROM outbound_webhooks WHERE id = $1`,
-      [id]
+       FROM outbound_webhooks WHERE id = $1 AND tenant_id = $2`,
+      [id, req.user!.tenant_id]
     );
 
     if (!webhook) {
@@ -304,7 +314,7 @@ router.put('/:id', async (req: Request, res: Response) => {
     };
 
     const existing = await get<{ id: number }>(
-      `SELECT id FROM outbound_webhooks WHERE id = $1`, [id]
+      `SELECT id FROM outbound_webhooks WHERE id = $1 AND tenant_id = $2`, [id, req.user!.tenant_id]
     );
     if (!existing) {
       return jsonErr(res, 'Webhook não encontrado', 404);
@@ -349,10 +359,10 @@ router.put('/:id', async (req: Request, res: Response) => {
     }
 
     updates.push(`updated_at = NOW()`);
-    params.push(id);
+    params.push(id, req.user!.tenant_id);
 
     const result = await run(
-      `UPDATE outbound_webhooks SET ${updates.join(', ')} WHERE id = $${idx}
+      `UPDATE outbound_webhooks SET ${updates.join(', ')} WHERE id = $${params.length - 1} AND tenant_id = $${params.length}
        RETURNING id, name, url, events, active, created_at, updated_at`,
       params
     );
@@ -380,13 +390,13 @@ router.delete('/:id', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const existing = await get<{ id: number }>(
-      `SELECT id FROM outbound_webhooks WHERE id = $1`, [id]
+      `SELECT id FROM outbound_webhooks WHERE id = $1 AND tenant_id = $2`, [id, req.user!.tenant_id]
     );
     if (!existing) {
       return jsonErr(res, 'Webhook não encontrado', 404);
     }
 
-    await run(`DELETE FROM outbound_webhooks WHERE id = $1`, [id]);
+    await run(`DELETE FROM outbound_webhooks WHERE id = $1 AND tenant_id = $2`, [id, req.user!.tenant_id]);
 
     await logAudit({
       action: 'delete',
@@ -411,8 +421,8 @@ router.post('/:id/test', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const webhook = await get<{ id: number; name: string; url: string; events: string[]; active: boolean }>(
-      `SELECT id, name, url, events, active FROM outbound_webhooks WHERE id = $1`,
-      [id]
+      `SELECT id, name, url, events, active FROM outbound_webhooks WHERE id = $1 AND tenant_id = $2`,
+      [id, req.user!.tenant_id]
     );
 
     if (!webhook) {
@@ -509,7 +519,19 @@ router.post('/deliveries/:id/retry', async (req: Request, res: Response) => {
       return jsonErr(res, 'ID inválido');
     }
 
-    const result = await retryDelivery(deliveryId);
+    // Guarda IDOR: só é permitido reenviar entregas de webhooks do MESMO tenant
+    // do usuário autenticado.
+    const owned = await get<{ id: number }>(
+      `SELECT d.id FROM webhook_deliveries d
+       JOIN outbound_webhooks w ON w.id = d.webhook_id
+       WHERE d.id = $1 AND w.tenant_id = $2`,
+      [deliveryId, req.user!.tenant_id]
+    );
+    if (!owned) {
+      return jsonErr(res, 'Entrega não encontrada ou não reenviável (status deve ser failed ou dead_letter)', 404);
+    }
+
+    const result = await retryDelivery(deliveryId, req.user!.tenant_id);
     if (!result) {
       return jsonErr(res, 'Entrega não encontrada ou não reenviável (status deve ser failed ou dead_letter)', 404);
     }
@@ -560,8 +582,8 @@ router.get('/deliveries/:id', async (req: Request, res: Response) => {
       `SELECT d.*, w.name AS webhook_name
        FROM webhook_deliveries d
        JOIN outbound_webhooks w ON w.id = d.webhook_id
-       WHERE d.id = $1`,
-      [id]
+       WHERE d.id = $1 AND w.tenant_id = $2`,
+      [id, req.user!.tenant_id]
     );
 
     if (!delivery) {

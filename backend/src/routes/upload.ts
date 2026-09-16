@@ -141,7 +141,7 @@ router.post('/demands/:id/attachments', authenticateToken, requirePermission('de
 
     try {
       const { ip_address, user_agent } = extractMeta(req);
-      const demand = await get('SELECT id, title FROM demands WHERE id = $1 AND deleted_at IS NULL', [req.params.id as string]);
+      const demand = await get('SELECT id, title FROM demands WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL', [req.params.id as string, req.user!.tenant_id]);
       if (!demand) {
         await rollbackUpload();
         return res.status(404).json({ error: 'Demanda não encontrada' });
@@ -156,10 +156,10 @@ router.post('/demands/:id/attachments', authenticateToken, requirePermission('de
 
         const sizeMB = (file.size / (1024 * 1024)).toFixed(1);
         const result = await run(
-          `INSERT INTO attachments (demand_id, name, size, type, file_path, uploaded_by, mime_type, file_size, file_hash)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`,
+          `INSERT INTO attachments (demand_id, name, size, type, file_path, uploaded_by, mime_type, file_size, file_hash, tenant_id)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *`,
           [req.params.id as string, file.originalname, `${sizeMB} MB`, file.mimetype, file.filename,
-           req.user!.id, file.mimetype, file.size, fileHash]
+           req.user!.id, file.mimetype, file.size, fileHash, req.user!.tenant_id]
         );
         insertedIds.push(result.rows[0].id);
         saved.push(result.rows[0]);
@@ -187,7 +187,7 @@ router.post('/demands/:id/attachments', authenticateToken, requirePermission('de
 
 router.get('/attachments/:id', authenticateToken, requirePermission('demands.view'), async (req: Request, res: Response) => {
   try {
-    const attachment = await get('SELECT * FROM attachments WHERE id = $1 AND deleted_at IS NULL', [parseInt(req.params.id as string)]);
+    const attachment = await get('SELECT * FROM attachments WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL', [parseInt(req.params.id as string), req.user!.tenant_id]);
     if (!attachment) return res.status(404).json({ error: 'Anexo não encontrado' });
 
     // ✅ CORREÇÃO: Path traversal validation
@@ -213,7 +213,7 @@ router.get('/attachments/:id', authenticateToken, requirePermission('demands.vie
 router.delete('/attachments/:id', authenticateToken, requirePermission('demands.edit'), async (req: Request, res: Response) => {
   try {
     const { ip_address, user_agent } = extractMeta(req);
-    const attachment = await get('SELECT * FROM attachments WHERE id = $1 AND deleted_at IS NULL', [parseInt(req.params.id as string)]);
+    const attachment = await get('SELECT * FROM attachments WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL', [parseInt(req.params.id as string), req.user!.tenant_id]);
     if (!attachment) return res.status(404).json({ error: 'Anexo não encontrado' });
 
     const filePath = path.join(UPLOAD_DIR, path.basename(attachment.file_path));

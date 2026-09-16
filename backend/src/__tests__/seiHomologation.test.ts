@@ -441,7 +441,7 @@ describe('E3.2 — 16. Scheduler usa o mesmo ciclo para o SEI', () => {
 // ---------------------------------------------------------------------------
 describe('E3.2 — 17. Dashboard exibe SEI automaticamente', () => {
   it('getOverview lista o sistema SEI sem código específico', async () => {
-    const overview = await getOverview();
+    const overview = await getOverview(1);
     const seiRow = overview.systems.find((s) => s.code === 'sei');
     expect(seiRow).toBeDefined();
     expect(seiRow!.healthStatus).toBeDefined();

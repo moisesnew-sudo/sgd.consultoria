@@ -184,6 +184,7 @@ describe('cache operacional', () => {
     await new Promise((r) => setTimeout(r, 50));
 
     publishEvent('demand:updated', {
+      tenantId: 1,
       demandId: 'DEM-1',
       title: 'TESTE',
       changes: ['status'],

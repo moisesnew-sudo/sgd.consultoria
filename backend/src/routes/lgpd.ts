@@ -22,30 +22,39 @@ router.get('/dashboard', authenticateToken, requireRole('admin'), async (req: Re
       userPermissionsCount,
       exportTypes
     ] = await Promise.all([
-      get<{ count: string }>('SELECT COUNT(*) as count FROM users WHERE deleted_at IS NULL'),
-      get<{ count: string }>("SELECT COUNT(*) as count FROM users WHERE active = TRUE AND deleted_at IS NULL"),
-      get<{ count: string }>('SELECT COUNT(*) as count FROM audit_logs'),
-      get<{ count: string }>("SELECT COUNT(*) as count FROM backups WHERE status = 'completed'"),
+      get<{ count: string }>('SELECT COUNT(*) as count FROM users WHERE deleted_at IS NULL AND tenant_id = $1', [req.user!.tenant_id]),
+      get<{ count: string }>("SELECT COUNT(*) as count FROM users WHERE active = TRUE AND deleted_at IS NULL AND tenant_id = $1", [req.user!.tenant_id]),
+      get<{ count: string }>('SELECT COUNT(*) as count FROM audit_logs WHERE tenant_id = $1', [req.user!.tenant_id]),
+      get<{ count: string }>("SELECT COUNT(*) as count FROM backups WHERE status = 'completed' AND tenant_id = $1", [req.user!.tenant_id]),
       get<{ created_at: string; file_size: number }>(
-        "SELECT created_at, file_size FROM backups WHERE status = 'completed' ORDER BY created_at DESC LIMIT 1"
+        "SELECT created_at, file_size FROM backups WHERE status = 'completed' AND tenant_id = $1 ORDER BY created_at DESC LIMIT 1",
+        [req.user!.tenant_id]
       ),
-      get<{ count: string }>('SELECT COUNT(*) as count FROM export_logs'),
+      get<{ count: string }>('SELECT COUNT(*) as count FROM export_logs WHERE tenant_id = $1', [req.user!.tenant_id]),
       get<{ count: string }>(
-        "SELECT COUNT(*) as count FROM active_sessions WHERE active = TRUE AND last_activity > NOW() - INTERVAL '30 minutes'"
+        "SELECT COUNT(*) as count FROM active_sessions WHERE active = TRUE AND last_activity > NOW() - INTERVAL '30 minutes' AND tenant_id = $1",
+        [req.user!.tenant_id]
       ),
       get<{ created_at: string }>(
-        "SELECT created_at FROM audit_logs ORDER BY created_at DESC LIMIT 1"
+        "SELECT created_at FROM audit_logs WHERE tenant_id = $1 ORDER BY created_at DESC LIMIT 1",
+        [req.user!.tenant_id]
       ),
       get<{ oldest: string; newest: string }>(
-        "SELECT MIN(created_at) as oldest, MAX(created_at) as newest FROM audit_logs"
+        "SELECT MIN(created_at) as oldest, MAX(created_at) as newest FROM audit_logs WHERE tenant_id = $1",
+        [req.user!.tenant_id]
       ),
       all<{ role: string; count: string }>(
-        'SELECT role, COUNT(*) as count FROM users WHERE deleted_at IS NULL GROUP BY role ORDER BY count DESC'
+        'SELECT role, COUNT(*) as count FROM users WHERE deleted_at IS NULL AND tenant_id = $1 GROUP BY role ORDER BY count DESC',
+        [req.user!.tenant_id]
       ),
       get<{ count: string }>('SELECT COUNT(*) as count FROM permissions'),
-      get<{ count: string }>('SELECT COUNT(*) as count FROM user_permissions'),
+      get<{ count: string }>(
+        'SELECT COUNT(*) as count FROM user_permissions up JOIN users u ON u.id = up.user_id WHERE u.tenant_id = $1 AND u.deleted_at IS NULL',
+        [req.user!.tenant_id]
+      ),
       all<{ export_type: string; count: string }>(
-        'SELECT export_type, COUNT(*) as count FROM export_logs GROUP BY export_type'
+        'SELECT export_type, COUNT(*) as count FROM export_logs WHERE tenant_id = $1 GROUP BY export_type',
+        [req.user!.tenant_id]
       )
     ]);
 

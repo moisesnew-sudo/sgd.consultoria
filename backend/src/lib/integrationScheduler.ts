@@ -207,7 +207,7 @@ export async function runScheduledSyncCycle(): Promise<SyncSchedulerSummary | nu
 /* ------------------------------------------------------------------ */
 
 async function syncSingleSystem(
-  system: { id: number; code: string; config: Record<string, unknown> | null },
+  system: { id: number; code: string; config: Record<string, unknown> | null; tenant_id: number },
   syncConfig: SystemSyncConfig
 ): Promise<SyncRunResult> {
   const startedAt = Date.now();
@@ -330,7 +330,7 @@ async function syncSingleSystem(
 
     // Processar eventos normalizados
     for (const event of syncResult.events) {
-      const processed = await processSyncEvent(system.id, system.code, event);
+      const processed = await processSyncEvent(system.id, system.code, system.tenant_id, event);
       if (processed === 'synced') result.syncedCount++;
       else if (processed === 'duplicate') result.duplicateCount++;
       else result.unmatchedCount++;
@@ -403,6 +403,7 @@ function applySnapshotOutcome(result: SyncRunResult, snapshot: SnapshotOutcomeLi
 async function processSyncEvent(
   systemId: number,
   systemCode: string,
+  tenantId: number,
   event: NormalizedIntegrationEvent
 ): Promise<ProcessResult> {
   try {
@@ -421,8 +422,8 @@ async function processSyncEvent(
       internalStatus = mapping.internalStatus;
     }
 
-    // Localizar demanda SGD
-    const demand = await findDemandByProposalNumber(event.proposalNumber);
+    // Localizar demanda SGD (sempre dentro da organização do sistema)
+    const demand = await findDemandByProposalNumber(event.proposalNumber, tenantId);
     if (!demand) {
       return 'unmatched';
     }
@@ -440,7 +441,7 @@ async function processSyncEvent(
     }
 
     // Persistir alteração
-    await applySyncChanges(demand.id, systemId, systemCode, event, internalStatus);
+    await applySyncChanges(demand.id, systemId, systemCode, tenantId, event, internalStatus);
 
     return 'synced';
   } catch (error) {
@@ -506,15 +507,16 @@ async function applySyncChanges(
   demandId: string,
   systemId: number,
   systemCode: string,
+  tenantId: number,
   event: NormalizedIntegrationEvent,
   internalStatus: string | null
 ): Promise<void> {
   const systemLabel = systemCode.toUpperCase();
 
   // Buscar status atual da demanda
-  const demand = await get<{ status: string }>(
-    'SELECT status FROM demands WHERE id = $1 AND deleted_at IS NULL',
-    [demandId]
+  const demand = await get<{ status: string; tenant_id: number }>(
+    'SELECT status, tenant_id FROM demands WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL',
+    [demandId, tenantId]
   );
   if (!demand) return;
 
@@ -523,8 +525,8 @@ async function applySyncChanges(
   // Atualizar demanda (somente se status mudou)
   if (internalStatus && internalStatus !== previousStatus) {
     await run(
-      'UPDATE demands SET status = $1, updated_at = NOW() WHERE id = $2',
-      [internalStatus, demandId]
+      'UPDATE demands SET status = $1, updated_at = NOW() WHERE id = $2 AND tenant_id = $3',
+      [internalStatus, demandId, tenantId]
     );
   }
 
@@ -552,9 +554,9 @@ async function applySyncChanges(
   } catch {
     // Fallback: inserir timeline diretamente
     await run(
-      `INSERT INTO timeline_events (demand_id, title, description, user_name, new_status, source, metadata)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-      [demandId, 'Integração Sincronizada (Periódica)', lines.join('\n'), systemLabel, internalStatus, 'integration', JSON.stringify({ system: systemCode, source: 'periodic_sync' })]
+      `INSERT INTO timeline_events (demand_id, tenant_id, title, description, user_name, new_status, source, metadata)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+      [demandId, tenantId, 'Integração Sincronizada (Periódica)', lines.join('\n'), systemLabel, internalStatus, 'integration', JSON.stringify({ system: systemCode, source: 'periodic_sync' })]
     );
   }
 
@@ -566,6 +568,7 @@ async function applySyncChanges(
       entity_id: demandId,
       action: 'integration_sync_periodic',
       user_name: systemLabel,
+      tenant_id: tenantId,
       details: {
         system: systemCode,
         source: 'periodic_sync',
@@ -582,8 +585,8 @@ async function applySyncChanges(
 
   // Vínculo demand_integrations (UPSERT)
   await run(
-    `INSERT INTO demand_integrations (demand_id, system_id, external_id, proposal_number, last_sync_at, sync_status, data)
-     VALUES ($1, $2, $3, $4, NOW(), 'synced', $5)
+    `INSERT INTO demand_integrations (demand_id, system_id, tenant_id, external_id, proposal_number, last_sync_at, sync_status, data)
+     VALUES ($1, $2, $3, $4, $5, NOW(), 'synced', $6)
      ON CONFLICT (demand_id, system_id) DO UPDATE SET
        external_id = EXCLUDED.external_id,
        proposal_number = EXCLUDED.proposal_number,
@@ -594,6 +597,7 @@ async function applySyncChanges(
     [
       demandId,
       systemId,
+      tenantId,
       event.externalId ?? null,
       event.proposalNumber ?? null,
       JSON.stringify({
@@ -607,6 +611,7 @@ async function applySyncChanges(
   // Publicar eventos no Event Bus
   if (internalStatus && internalStatus !== previousStatus) {
     await publishEvent('demand:status_changed', {
+      tenantId,
       demandId,
       title: `Status alterado via ${systemLabel}`,
       from: previousStatus,
@@ -615,6 +620,7 @@ async function applySyncChanges(
   }
 
   await emitIntegrationEvent('integration:synced', {
+    tenantId,
     systemId,
     status: 'success',
     durationMs: 0,
@@ -634,7 +640,7 @@ async function applySyncChanges(
  * - Log em integration_logs usa status 'warning' (não entra em contagens de erro).
  */
 async function recordSyncSkipped(
-  system: { id: number; code: string },
+  system: { id: number; code: string; tenant_id: number },
   result: SyncRunResult
 ): Promise<void> {
   await run(
@@ -649,11 +655,12 @@ async function recordSyncSkipped(
   );
 
   await run(
-    `INSERT INTO integration_logs (system_id, system_code, direction, action, status, message, duration_ms, http_status, triggered_by, error_message)
-     VALUES ($1, $2, 'out', 'integration.sync.periodic', 'warning', $3, $4, $5, 'scheduler', $6)`,
+    `INSERT INTO integration_logs (system_id, system_code, tenant_id, direction, action, status, message, duration_ms, http_status, triggered_by, error_message)
+     VALUES ($1, $2, $3, 'out', 'integration.sync.periodic', 'warning', $4, $5, $6, 'scheduler', $7)`,
     [
       system.id,
       system.code,
+      system.tenant_id,
       `Sync periódica ignorada (polling desabilitado): ${result.error}`,
       result.durationMs,
       result.httpStatus ?? null,
@@ -663,7 +670,7 @@ async function recordSyncSkipped(
 }
 
 async function recordSyncSuccess(
-  system: { id: number; code: string },
+  system: { id: number; code: string; tenant_id: number },
   result: SyncRunResult
 ): Promise<void> {
   await run(
@@ -680,11 +687,12 @@ async function recordSyncSuccess(
   );
 
   await run(
-    `INSERT INTO integration_logs (system_id, system_code, direction, action, status, message, duration_ms, http_status, triggered_by)
-     VALUES ($1, $2, 'out', 'integration.sync.periodic', 'success', $3, $4, 200, 'scheduler')`,
+    `INSERT INTO integration_logs (system_id, system_code, tenant_id, direction, action, status, message, duration_ms, http_status, triggered_by)
+     VALUES ($1, $2, $3, 'out', 'integration.sync.periodic', 'success', $4, $5, 200, 'scheduler')`,
     [
       system.id,
       system.code,
+      system.tenant_id,
       `Sync periódica: ${result.fetchedCount} obtidos, ${result.syncedCount} sincronizados, ${result.duplicateCount} duplicatas`,
       result.durationMs,
     ]
@@ -692,7 +700,7 @@ async function recordSyncSuccess(
 }
 
 async function recordSyncFailure(
-  system: { id: number; code: string },
+  system: { id: number; code: string; tenant_id: number },
   result: SyncRunResult
 ): Promise<void> {
   const errors = (consecutiveErrorsBySystem.get(system.code) ?? 0) + 1;
@@ -714,11 +722,12 @@ async function recordSyncFailure(
   );
 
   await run(
-    `INSERT INTO integration_logs (system_id, system_code, direction, action, status, message, duration_ms, http_status, triggered_by, error_message)
-     VALUES ($1, $2, 'out', 'integration.sync.periodic', 'error', $3, $4, $5, 'scheduler', $6)`,
+    `INSERT INTO integration_logs (system_id, system_code, tenant_id, direction, action, status, message, duration_ms, http_status, triggered_by, error_message)
+     VALUES ($1, $2, $3, 'out', 'integration.sync.periodic', 'error', $4, $5, $6, 'scheduler', $7)`,
     [
       system.id,
       system.code,
+      system.tenant_id,
       `Sync periódica falhou: ${result.error}`,
       result.durationMs,
       httpStatus,
@@ -730,9 +739,9 @@ async function recordSyncFailure(
   await run(
     `UPDATE integration_systems SET error_count_24h = (
        SELECT COUNT(*) FROM integration_logs
-       WHERE system_id = $1 AND status = 'error' AND created_at > NOW() - INTERVAL '24 hours'
+       WHERE system_id = $1 AND tenant_id = $2 AND status = 'error' AND created_at > NOW() - INTERVAL '24 hours'
      ) WHERE id = $1`,
-    [system.id]
+    [system.id, system.tenant_id]
   );
 
   // Alerta para falhas persistentes
@@ -754,7 +763,7 @@ async function recordSyncFailure(
  * - Preserva o diagnóstico via last_error_message + integration_logs.message.
  */
 async function recordConfigurationError(
-  system: { id: number; code: string },
+  system: { id: number; code: string; tenant_id: number },
   result: SyncRunResult
 ): Promise<void> {
   const httpStatus = result.httpStatus ?? null;
@@ -772,11 +781,12 @@ async function recordConfigurationError(
   );
 
   await run(
-    `INSERT INTO integration_logs (system_id, system_code, direction, action, status, message, duration_ms, http_status, triggered_by, error_message)
-     VALUES ($1, $2, 'out', 'integration.sync.periodic', 'warning', $3, $4, $5, 'scheduler', $6)`,
+    `INSERT INTO integration_logs (system_id, system_code, tenant_id, direction, action, status, message, duration_ms, http_status, triggered_by, error_message)
+     VALUES ($1, $2, $3, 'out', 'integration.sync.periodic', 'warning', $4, $5, $6, 'scheduler', $7)`,
     [
       system.id,
       system.code,
+      system.tenant_id,
       message,
       result.durationMs,
       httpStatus,
@@ -796,11 +806,12 @@ interface SystemRow {
   active?: boolean;
   secret_env_key?: string | null;
   config: Record<string, unknown> | null;
+  tenant_id: number;
 }
 
 async function loadActiveSyncSystems(): Promise<SystemRow[]> {
   const rows = await all<SystemRow>(
-    `SELECT id, code, name, active, secret_env_key, config
+    `SELECT id, code, name, active, secret_env_key, config, tenant_id
      FROM integration_systems
      WHERE active = TRUE`
   );

@@ -50,6 +50,9 @@ export const authenticateToken = async (req: Request, res: Response, next: NextF
   }
   try {
     const decoded = jwt.verify(token, JWT_SECRET!) as UserResponse;
+    if (!Number.isInteger(decoded.tenant_id) || decoded.tenant_id < 1) {
+      return res.status(401).json({ error: 'Token sem contexto de organização. Faça login novamente.' });
+    }
     const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
     const blacklisted = await get('SELECT id FROM token_blacklist WHERE token_hash = $1', [tokenHash]);
     if (blacklisted) {
@@ -113,16 +116,16 @@ export const requirePermission = (permissionKey: string) => {
   };
 };
 
-export function signAccessToken(user: { id: number; email: string; name: string; role: string }, permissions?: string[]): string {
+export function signAccessToken(user: { id: number; email: string; name: string; role: string; tenant_id: number }, permissions?: string[]): string {
   return jwt.sign(
-    { id: user.id, email: user.email, name: user.name, role: user.role, ...(permissions ? { permissions } : {}) },
+    { id: user.id, email: user.email, name: user.name, role: user.role, tenant_id: user.tenant_id, ...(permissions ? { permissions } : {}) },
     JWT_SECRET!,
     { expiresIn: ACCESS_TOKEN_EXPIRY }
   );
 }
 
-export function signRefreshToken(userId: number, family: string): string {
-  const payload = { userId, family, type: 'refresh' };
+export function signRefreshToken(userId: number, tenantId: number, family: string): string {
+  const payload = { userId, tenantId, family, type: 'refresh' };
   if (!REFRESH_SECRET) {
     throw new Error('Refresh secret não configurado');
   }
@@ -140,7 +143,7 @@ export const authenticateRefreshToken = async (req: Request, res: Response, next
     if (!REFRESH_SECRET) {
       throw new Error('Refresh secret não configurado');
     }
-    const decoded = jwt.verify(refreshToken, REFRESH_SECRET) as { userId: number; family: string };
+    const decoded = jwt.verify(refreshToken, REFRESH_SECRET) as { userId: number; tenantId: number; family: string };
     const tokenHash = crypto.createHash('sha256').update(refreshToken).digest('hex');
     const stored = await get<{ id: number; revoked: boolean; user_id: number; family: string; replaced_by: string | null }>(
       'SELECT id, revoked, user_id, family, replaced_by FROM refresh_tokens WHERE token_hash = $1',
@@ -155,14 +158,14 @@ export const authenticateRefreshToken = async (req: Request, res: Response, next
       }
       return res.status(401).json({ error: 'Refresh token inválido ou revogado' });
     }
-    const user = await get<{ id: number; email: string; name: string; role: string }>(
-      'SELECT id, email, name, role FROM users WHERE id = $1 AND active = TRUE AND deleted_at IS NULL',
-      [stored.user_id]
+    const user = await get<{ id: number; email: string; name: string; role: string; tenant_id: number }>(
+      'SELECT id, email, name, role, tenant_id FROM users WHERE id = $1 AND tenant_id = $2 AND active = TRUE AND deleted_at IS NULL',
+      [stored.user_id, decoded.tenantId]
     );
     if (!user) {
       return res.status(401).json({ error: 'Usuário não encontrado ou inativo' });
     }
-    req.user = { id: user.id, email: user.email, name: user.name, role: user.role as UserResponse['role'] };
+    req.user = { id: user.id, email: user.email, name: user.name, role: user.role as UserResponse['role'], tenant_id: user.tenant_id };
     req.refreshTokenId = stored.id;
     req.refreshFamily = stored.family;
     next();

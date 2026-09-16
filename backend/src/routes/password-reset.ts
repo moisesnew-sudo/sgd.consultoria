@@ -3,7 +3,7 @@ import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
 import rateLimit from 'express-rate-limit';
 import { z } from 'zod';
-import { get, run } from '../database.js';
+import { get, all, run } from '../database.js';
 import { logAudit, extractMeta } from '../lib/audit.js';
 import { logger } from '../lib/logger.js';
 import { sendPasswordResetEmail } from '../lib/email.js';
@@ -19,7 +19,8 @@ const resetLimiter = rateLimit({
 });
 
 const requestResetSchema = z.object({
-  email: z.string().email('Email inválido')
+  email: z.string().email('Email inválido'),
+  tenantId: z.number().int().optional()
 });
 
 const resetPasswordSchema = z.object({
@@ -35,8 +36,20 @@ const resetPasswordSchema = z.object({
 router.post('/request', async (req: Request, res: Response) => {
   const { ip_address, user_agent } = extractMeta(req);
   try {
-    const { email } = requestResetSchema.parse(req.body);
-    const user = await get<{ id: number; name: string }>('SELECT id, name FROM users WHERE email = $1 AND deleted_at IS NULL', [email]);
+    const { email, tenantId } = requestResetSchema.parse(req.body);
+    const matches = await all<{ id: number; name: string; tenant_id: number }>(
+      'SELECT id, name, tenant_id FROM users WHERE email = $1 AND deleted_at IS NULL',
+      [email]
+    );
+    // Multi-tenant: só gera token quando há exatamente UM usuário com o email
+    // (ou quando tenantId é informado e corresponde). Evita enumeração e
+    // evita heurística insegura de seleção de tenant com emails duplicados.
+    const user =
+      tenantId !== undefined
+        ? matches.find((m) => m.tenant_id === tenantId) ?? null
+        : matches.length === 1
+          ? matches[0]
+          : null;
 
     const response = { message: 'Se o email estiver cadastrado, você receberá um link para redefinir sua senha.' };
 

@@ -162,26 +162,29 @@ export interface OverviewData {
 const ACTIVE_ALERT_STATUSES = ['open', 'acknowledged'];
 
 /** 7. Overview operacional (Fase E3.1): status atual, sincronização, alertas e latência. */
-export async function getOverview(): Promise<OverviewData> {
+export async function getOverview(tenantId: number): Promise<OverviewData> {
   const systems = await all<any>(
     `SELECT id, code, name, active, config, last_sync_at, last_error_at, last_error_message,
             last_http_status, last_response_ms, error_count_24h, consecutive_errors
      FROM integration_systems
-     ORDER BY name ASC`
+     WHERE tenant_id = $1
+     ORDER BY name ASC`,
+    [tenantId]
   );
 
   const activeAlerts = await all<OverviewAlert>(
     `SELECT a.id, a.system_id, s.code AS system_code, s.name AS system_name,
             a.type, a.severity, a.status, a.message, a.created_at
      FROM integration_alerts a
-     JOIN integration_systems s ON s.id = a.system_id
-     WHERE a.status = ANY($1::text[])
+     JOIN integration_systems s ON s.id = a.system_id AND s.tenant_id = $1
+     WHERE a.status = ANY($2::text[])
      ORDER BY a.updated_at DESC`,
-    [ACTIVE_ALERT_STATUSES]
+    [tenantId, ACTIVE_ALERT_STATUSES]
   );
 
   const avgLat = await get<{ avg: string | null }>(
-    `SELECT AVG(last_response_ms)::int AS avg FROM integration_systems WHERE last_response_ms IS NOT NULL`
+    `SELECT AVG(last_response_ms)::int AS avg FROM integration_systems WHERE tenant_id = $1 AND last_response_ms IS NOT NULL`,
+    [tenantId]
   );
 
   const rows: OverviewSystemRow[] = systems.map((r) => {
@@ -256,10 +259,10 @@ export interface TestConnectionResult {
 }
 
 /** 8. Teste de conexão com um sistema externo (Fase E3): valida auth/endpoint/timeout/resposta. */
-export async function testConnection(systemId: number, user: any, req?: any): Promise<TestConnectionResult> {
+export async function testConnection(tenantId: number, systemId: number, user: any, req?: any): Promise<TestConnectionResult> {
   const system = await get<any>(
-    `SELECT id, code, name, active, config FROM integration_systems WHERE id = $1`,
-    [systemId]
+    `SELECT id, code, name, active, config FROM integration_systems WHERE id = $1 AND tenant_id = $2`,
+    [systemId, tenantId]
   );
   if (!system) throw new Error('Sistema não encontrado');
   if (!system.active) throw new Error('Sistema inativo. Ative o sistema antes de testar a conexão.');
@@ -278,7 +281,7 @@ export async function testConnection(systemId: number, user: any, req?: any): Pr
       message: `Nenhum adapter governamental registrado para ${system.code}`,
       errorMessage: `Nenhum adapter governamental registrado para ${system.code}`,
     };
-    await recordTestResult(system, result, user, req);
+    await recordTestResult(tenantId, system, result, user, req);
     return result;
   }
 
@@ -296,7 +299,7 @@ export async function testConnection(systemId: number, user: any, req?: any): Pr
       message,
       errorMessage: message,
     };
-    await recordTestResult(system, result, user, req);
+    await recordTestResult(tenantId, system, result, user, req);
     return result;
   }
 
@@ -339,7 +342,7 @@ export async function testConnection(systemId: number, user: any, req?: any): Pr
         message,
         errorMessage: message,
       };
-      await recordTestResult(system, result, user, req);
+      await recordTestResult(tenantId, system, result, user, req);
       return result;
     }
 
@@ -374,26 +377,26 @@ export async function testConnection(systemId: number, user: any, req?: any): Pr
     };
   }
 
-  await recordTestResult(system, result, user, req);
+  await recordTestResult(tenantId, system, result, user, req);
   return result;
 }
 
-async function recordTestResult(system: any, result: TestConnectionResult, user: any, req?: any): Promise<void> {
+async function recordTestResult(tenantId: number, system: any, result: TestConnectionResult, user: any, req?: any): Promise<void> {
   const ip = req ? extractMeta(req).ip_address : 'unknown';
 
   await run(
-    `INSERT INTO integration_logs (system_id, system_code, direction, action, status, message, duration_ms, http_status, triggered_by, error_message)
-     VALUES ($1, $2, 'out', 'integration.test-connection', $3, $4, $5, $6, 'manual', $7)`,
-    [system.id, system.code, result.status, result.message, result.durationMs, result.httpStatus, result.errorMessage]
+    `INSERT INTO integration_logs (system_id, system_code, direction, action, status, message, duration_ms, http_status, triggered_by, error_message, tenant_id)
+     VALUES ($1, $2, 'out', 'integration.test-connection', $3, $4, $5, $6, 'manual', $7, $8)`,
+    [system.id, system.code, result.status, result.message, result.durationMs, result.httpStatus, result.errorMessage, tenantId]
   );
 
   await run(
     `UPDATE integration_systems SET
        last_http_status = $2, last_response_ms = $3,
-       error_count_24h = (SELECT COUNT(*) FROM integration_logs WHERE system_id = $1 AND status = 'error' AND created_at > NOW() - INTERVAL '24 hours'),
+       error_count_24h = (SELECT COUNT(*) FROM integration_logs WHERE system_id = $1 AND tenant_id = $4 AND status = 'error' AND created_at > NOW() - INTERVAL '24 hours'),
        updated_at = NOW()
-     WHERE id = $1`,
-    [system.id, result.httpStatus, result.durationMs]
+     WHERE id = $1 AND tenant_id = $4`,
+    [system.id, result.httpStatus, result.durationMs, tenantId]
   );
 
   await logAudit(
@@ -425,7 +428,7 @@ export function isSyncLocked(systemId: number): boolean {
   return manualSyncLocks.has(systemId);
 }
 
-export async function runManualSyncWithLock(systemId: number, user: any, payload: unknown, req?: any): Promise<ManualSyncResult> {
+export async function runManualSyncWithLock(tenantId: number, systemId: number, user: any, payload: unknown, req?: any): Promise<ManualSyncResult> {
   if (manualSyncLocks.has(systemId)) {
     return {
       success: false,
@@ -438,7 +441,7 @@ export async function runManualSyncWithLock(systemId: number, user: any, payload
   }
   manualSyncLocks.add(systemId);
   try {
-    return await runManualSync(systemId, user, payload, req);
+    return await runManualSync(tenantId, systemId, user, payload, req);
   } finally {
     manualSyncLocks.delete(systemId);
   }
@@ -456,7 +459,7 @@ function redactConfig(config: unknown): unknown {
 }
 
 /** 1. Dashboard administrativo com o status geral das integrações. */
-export async function getDashboard(): Promise<DashboardData> {
+export async function getDashboard(tenantId: number): Promise<DashboardData> {
   const row = await get<any>(
     `SELECT
        COUNT(*)::int AS total,
@@ -467,8 +470,9 @@ export async function getDashboard(): Promise<DashboardData> {
        COALESCE(SUM(error_count_24h), 0)::int AS failures_24h,
        COUNT(*) FILTER (WHERE consecutive_errors > 0)::int AS critical_count,
        COUNT(*) FILTER (WHERE consecutive_errors = 0 AND (error_count_24h > 0 OR last_response_ms >= $1))::int AS warning_count
-     FROM integration_systems`,
-    [LATENCY_WARNING_MS]
+     FROM integration_systems
+     WHERE tenant_id = $2`,
+    [LATENCY_WARNING_MS, tenantId]
   );
 
   const critical = row?.critical_count ?? 0;
@@ -487,11 +491,13 @@ export async function getDashboard(): Promise<DashboardData> {
 }
 
 /** 2. Saúde individual de cada sistema de integração. */
-export async function getHealthList(): Promise<HealthStatusRow[]> {
+export async function getHealthList(tenantId: number): Promise<HealthStatusRow[]> {
   const rows = await all<any>(
     `SELECT id, name, active, last_sync_at, last_error_at, last_http_status, last_response_ms, error_count_24h, consecutive_errors
      FROM integration_systems
-     ORDER BY name ASC`
+     WHERE tenant_id = $1
+     ORDER BY name ASC`,
+    [tenantId]
   );
 
   return rows.map((r) => ({
@@ -507,14 +513,14 @@ export async function getHealthList(): Promise<HealthStatusRow[]> {
 }
 
 /** 3. Histórico de execuções com paginação, filtros e busca. */
-export async function getLogs(filters: LogFilters = {}): Promise<LogsResult> {
+export async function getLogs(tenantId: number, filters: LogFilters = {}): Promise<LogsResult> {
   const { page, limit, offset } = parsePagination(
     { page: filters.page, limit: filters.limit },
     { limit: 20 },
   );
 
-  const conditions: string[] = [];
-  const params: any[] = [];
+  const conditions: string[] = ['tenant_id = $1'];
+  const params: any[] = [tenantId];
 
   if (filters.systemId) {
     conditions.push(`system_id = $${params.length + 1}`);
@@ -581,23 +587,23 @@ export async function getLogs(filters: LogFilters = {}): Promise<LogsResult> {
 }
 
 /** 5. Detalhes de um sistema (nunca expõe secret_env_key/segredos). */
-export async function getSystemDetail(id: number): Promise<any | null> {
+export async function getSystemDetail(tenantId: number, id: number): Promise<any | null> {
   const row = await get<any>(
     `SELECT id, code, name, description, active, config, created_at, updated_at,
             last_sync_at, last_error_at, last_error_message, last_http_status, last_response_ms, error_count_24h, consecutive_errors
      FROM integration_systems
-     WHERE id = $1`,
-    [id]
+     WHERE id = $1 AND tenant_id = $2`,
+    [id, tenantId]
   );
   if (!row) return null;
 
   const recentLogs = await all<any>(
     `SELECT id, system_code, action, direction, status, duration_ms, http_status, message, response_summary, error_message, triggered_by, created_at
      FROM integration_logs
-     WHERE system_id = $1
+     WHERE system_id = $1 AND tenant_id = $2
      ORDER BY created_at DESC
      LIMIT 20`,
-    [id]
+    [id, tenantId]
   );
 
   return {
@@ -624,12 +630,14 @@ export async function getSystemDetail(id: number): Promise<any | null> {
 }
 
 /** 6. Status de sincronização de todos os sistemas (para dashboard de sync). */
-export async function getSyncStatus(): Promise<SyncStatusData> {
+export async function getSyncStatus(tenantId: number): Promise<SyncStatusData> {
   const rows = await all<any>(
     `SELECT id, code, name, active, config, last_sync_at, last_error_at,
             last_http_status, last_response_ms, error_count_24h, consecutive_errors
      FROM integration_systems
-     ORDER BY name ASC`
+     WHERE tenant_id = $1
+     ORDER BY name ASC`,
+    [tenantId]
   );
 
   const systems: SyncStatusSystem[] = rows.map((r) => {
@@ -690,10 +698,10 @@ export async function getSyncStatus(): Promise<SyncStatusData> {
  * Em todos os casos grava integration_logs com os campos de execução da Fase 3.1,
  * atualiza as colunas de saúde e registra auditoria.
  */
-export async function runManualSync(systemId: number, user: any, payload: unknown, req?: any): Promise<ManualSyncResult> {
+export async function runManualSync(tenantId: number, systemId: number, user: any, payload: unknown, req?: any): Promise<ManualSyncResult> {
   const system = await get<any>(
-    `SELECT id, code, name, description, active, config FROM integration_systems WHERE id = $1`,
-    [systemId]
+    `SELECT id, code, name, description, active, config FROM integration_systems WHERE id = $1 AND tenant_id = $2`,
+    [systemId, tenantId]
   );
   if (!system) throw new Error('Sistema não encontrado');
   if (!system.active) throw new Error('Sistema inativo. Ative o sistema antes de sincronizar.');
@@ -715,10 +723,10 @@ export async function runManualSync(systemId: number, user: any, payload: unknow
     const eventType = (payload as Record<string, any>).event || 'manual.sync';
     const idempotencyKey = `manual:${user.id}:${Date.now()}:${Math.random().toString(36).slice(2, 10)}`;
     const inserted = await run(
-      `INSERT INTO webhook_events (system_id, system_code, event_type, idempotency_key, payload, received_ip, status)
-       VALUES ($1, $2, $3, $4, $5::jsonb, $6, 'pending')
+      `INSERT INTO webhook_events (system_id, system_code, event_type, idempotency_key, payload, received_ip, status, tenant_id)
+       VALUES ($1, $2, $3, $4, $5::jsonb, $6, 'pending', $7)
        RETURNING id`,
-      [system.id, system.code, String(eventType).slice(0, 100), idempotencyKey, JSON.stringify(payload), ip]
+      [system.id, system.code, String(eventType).slice(0, 100), idempotencyKey, JSON.stringify(payload), ip, tenantId]
     );
     const eventId = inserted.rows[0].id as number;
 
@@ -734,8 +742,8 @@ export async function runManualSync(systemId: number, user: any, payload: unknow
     }
 
     await run(
-      `UPDATE integration_logs SET http_status = $1 WHERE webhook_event_id = $2 AND system_id = $3`,
-      [result.httpStatus, eventId, system.id]
+      `UPDATE integration_logs SET http_status = $1 WHERE webhook_event_id = $2 AND system_id = $3 AND tenant_id = $4`,
+      [result.httpStatus, eventId, system.id, tenantId]
     );
   } else {
     // Fail-fast (Fase 2.1): integração governamental com configuração inválida
@@ -755,11 +763,11 @@ export async function runManualSync(systemId: number, user: any, payload: unknow
       };
 
       await run(
-        `INSERT INTO integration_logs (system_id, system_code, direction, action, status, message, duration_ms, http_status, response_summary, triggered_by, error_message)
-         VALUES ($1, $2, 'out', 'integration.sync', 'error', $3, 0, NULL, $3, 'manual', $4)`,
-        [system.id, system.code, message, message]
+        `INSERT INTO integration_logs (system_id, system_code, direction, action, status, message, duration_ms, http_status, response_summary, triggered_by, error_message, tenant_id)
+         VALUES ($1, $2, 'out', 'integration.sync', 'error', $3, 0, NULL, $3, 'manual', $4, $5)`,
+        [system.id, system.code, message, message, tenantId]
       );
-      await updateSystemHealth(system.id, result);
+      await updateSystemHealth(tenantId, system.id, result);
       await logAudit(
         {
           entity_type: 'integration_system',
@@ -810,13 +818,13 @@ export async function runManualSync(systemId: number, user: any, payload: unknow
     result = { success: status === 'success', status, durationMs, httpStatus, message, errorMessage };
 
     await run(
-      `INSERT INTO integration_logs (system_id, system_code, direction, action, status, message, duration_ms, http_status, response_summary, triggered_by, error_message)
-       VALUES ($1, $2, 'out', 'integration.sync', $3, $4, $5, $6, $4, 'manual', $7)`,
-      [system.id, system.code, status, message, durationMs, httpStatus, errorMessage]
+      `INSERT INTO integration_logs (system_id, system_code, direction, action, status, message, duration_ms, http_status, response_summary, triggered_by, error_message, tenant_id)
+       VALUES ($1, $2, 'out', 'integration.sync', $3, $4, $5, $6, $4, 'manual', $7, $8)`,
+      [system.id, system.code, status, message, durationMs, httpStatus, errorMessage, tenantId]
     );
   }
 
-  await updateSystemHealth(system.id, result);
+  await updateSystemHealth(tenantId, system.id, result);
   await logAudit(
     {
       entity_type: 'integration_system',
@@ -840,21 +848,21 @@ export async function runManualSync(systemId: number, user: any, payload: unknow
 }
 
 /** Atualiza as colunas de saúde de integration_systems após uma sincronização. */
-async function updateSystemHealth(systemId: number, result: ManualSyncResult): Promise<void> {
+async function updateSystemHealth(tenantId: number, systemId: number, result: ManualSyncResult): Promise<void> {
   if (result.status === 'success') {
     await run(
       `UPDATE integration_systems SET
          last_sync_at = NOW(), last_http_status = $2, last_response_ms = $3,
          consecutive_errors = 0, last_error_at = NULL, last_error_message = NULL, updated_at = NOW()
-       WHERE id = $1`,
-      [systemId, result.httpStatus, result.durationMs]
+       WHERE id = $1 AND tenant_id = $4`,
+      [systemId, result.httpStatus, result.durationMs, tenantId]
     );
   } else if (result.status === 'warning') {
     await run(
       `UPDATE integration_systems SET
          last_sync_at = NOW(), last_http_status = $2, last_response_ms = $3, updated_at = NOW()
-       WHERE id = $1`,
-      [systemId, result.httpStatus, result.durationMs]
+       WHERE id = $1 AND tenant_id = $4`,
+      [systemId, result.httpStatus, result.durationMs, tenantId]
     );
   } else {
     await run(
@@ -862,15 +870,15 @@ async function updateSystemHealth(systemId: number, result: ManualSyncResult): P
          last_sync_at = NOW(), last_http_status = $2, last_response_ms = $3,
          consecutive_errors = consecutive_errors + 1,
          last_error_at = NOW(), last_error_message = $4, updated_at = NOW()
-       WHERE id = $1`,
-      [systemId, result.httpStatus, result.durationMs, result.errorMessage]
+       WHERE id = $1 AND tenant_id = $5`,
+      [systemId, result.httpStatus, result.durationMs, result.errorMessage, tenantId]
     );
   }
 
   await run(
     `UPDATE integration_systems SET error_count_24h = (
-       SELECT COUNT(*) FROM integration_logs WHERE system_id = $1 AND status = 'error' AND created_at > NOW() - INTERVAL '24 hours'
-     ) WHERE id = $1`,
-    [systemId]
+       SELECT COUNT(*) FROM integration_logs WHERE system_id = $1 AND tenant_id = $2 AND status = 'error' AND created_at > NOW() - INTERVAL '24 hours'
+     ) WHERE id = $1 AND tenant_id = $2`,
+    [systemId, tenantId]
   );
 }

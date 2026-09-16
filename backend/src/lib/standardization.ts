@@ -61,15 +61,17 @@ function addManual(target: StdManual[], value: string, uf: string, reason: strin
   }
 }
 
-export async function buildStandardizationScan(): Promise<StdReport> {
+export async function buildStandardizationScan(tenantId: number): Promise<StdReport> {
   const mRows = await all<MunicipalityRow>(
-    'SELECT id, name, uf FROM municipalities WHERE deleted_at IS NULL'
+    'SELECT id, name, uf FROM municipalities WHERE tenant_id = $1 AND deleted_at IS NULL',
+    [tenantId]
   );
   const demPairs = await all<DemandPairRow>(
     `SELECT DISTINCT municipality, uf FROM demands
-     WHERE deleted_at IS NULL AND municipality IS NOT NULL AND municipality <> ''`
+     WHERE tenant_id = $1 AND deleted_at IS NULL AND municipality IS NOT NULL AND municipality <> ''`,
+    [tenantId]
   );
-  const demTotal = await all<{ id: string }>('SELECT id FROM demands WHERE deleted_at IS NULL');
+  const demTotal = await all<{ id: string }>('SELECT id FROM demands WHERE tenant_id = $1 AND deleted_at IS NULL', [tenantId]);
 
   // Municípios
   const canonicalized: StdChange[] = [];
@@ -137,29 +139,30 @@ export async function buildStandardizationScan(): Promise<StdReport> {
 /** Renomeia um município para a grafia oficial sem violar o UNIQUE(name, uf):
  *  se outra linha (ativa ou soft-deletada) já ocupa o par, descarta esta linha e
  *  garante que a linha oficial fique ativa. */
-async function renameMunicipalitySafely(rowId: number, name: string, uf: string): Promise<void> {
+async function renameMunicipalitySafely(rowId: number, name: string, uf: string, tenantId: number): Promise<void> {
   const clash = await all<{ id: number; deleted_at: Date | null }>(
-    'SELECT id, deleted_at FROM municipalities WHERE id <> $1 AND name = $2 AND uf = $3',
-    [rowId, name, uf]
+    'SELECT id, deleted_at FROM municipalities WHERE tenant_id = $1 AND id <> $2 AND name = $3 AND uf = $4',
+    [tenantId, rowId, name, uf]
   );
   if (clash.length > 0) {
     const softDeleted = clash.find(c => c.deleted_at);
     if (softDeleted) {
-      await run('UPDATE municipalities SET deleted_at = NULL, updated_at = NOW() WHERE id = $1', [softDeleted.id]);
+      await run('UPDATE municipalities SET deleted_at = NULL, updated_at = NOW() WHERE id = $1 AND tenant_id = $2', [softDeleted.id, tenantId]);
     }
-    await run('UPDATE municipalities SET deleted_at = NOW() WHERE id = $1', [rowId]);
+    await run('UPDATE municipalities SET deleted_at = NOW() WHERE id = $1 AND tenant_id = $2', [rowId, tenantId]);
     return;
   }
   await run(
-    'UPDATE municipalities SET name = $1, uf = $2, updated_at = NOW() WHERE id = $3',
-    [name, uf, rowId]
+    'UPDATE municipalities SET name = $1, uf = $2, updated_at = NOW() WHERE id = $3 AND tenant_id = $4',
+    [name, uf, rowId, tenantId]
   );
 }
 
-async function recomputeCounters() {
+async function recomputeCounters(tenantId: number) {
   await run(
     `UPDATE municipalities SET demands_count = 0, total_value = 0, updated_at = NOW()
-     WHERE deleted_at IS NULL`
+     WHERE tenant_id = $1 AND deleted_at IS NULL`,
+    [tenantId]
   );
   await run(
     `UPDATE municipalities m SET
@@ -168,32 +171,35 @@ async function recomputeCounters() {
         updated_at = NOW()
       FROM (
         SELECT municipality, uf, COUNT(*) cnt, COALESCE(SUM(requested_value), 0) val
-        FROM demands WHERE deleted_at IS NULL GROUP BY municipality, uf
+        FROM demands WHERE tenant_id = $1 AND deleted_at IS NULL GROUP BY municipality, uf
       ) d
-      WHERE m.name = d.municipality AND m.uf = d.uf AND m.deleted_at IS NULL`
+      WHERE m.tenant_id = $1 AND m.name = d.municipality AND m.uf = d.uf AND m.deleted_at IS NULL`,
+    [tenantId]
   );
 }
 
-async function canonicalizeDemands() {
+async function canonicalizeDemands(tenantId: number) {
   const pairs = await all<DemandPairRow>(
     `SELECT DISTINCT municipality, uf FROM demands
-     WHERE municipality IS NOT NULL AND municipality <> ''`
+     WHERE tenant_id = $1 AND municipality IS NOT NULL AND municipality <> ''`,
+    [tenantId]
   );
   for (const d of pairs) {
     const official = canonicalMunicipality(d.municipality, d.uf);
     if (!official) continue;
     if (official.nome !== d.municipality || official.uf !== d.uf) {
       await run(
-        `UPDATE demands SET municipality = $1, uf = $2 WHERE municipality = $3 AND uf = $4`,
-        [official.nome, official.uf, d.municipality, d.uf]
+        `UPDATE demands SET municipality = $1, uf = $2 WHERE tenant_id = $3 AND municipality = $4 AND uf = $5`,
+        [official.nome, official.uf, tenantId, d.municipality, d.uf]
       );
     }
   }
 }
 
-export async function applyStandardizationScan(): Promise<StdReport> {
+export async function applyStandardizationScan(tenantId: number): Promise<StdReport> {
   const mRows = await all<MunicipalityRow>(
-    'SELECT id, name, uf FROM municipalities WHERE deleted_at IS NULL'
+    'SELECT id, name, uf FROM municipalities WHERE tenant_id = $1 AND deleted_at IS NULL',
+    [tenantId]
   );
 
   // 1) Mescla duplicatas que resolvem para o mesmo município oficial do IBGE.
@@ -217,48 +223,50 @@ export async function applyStandardizationScan(): Promise<StdReport> {
     for (const r of g) {
       if (r.id === keeper.id) continue;
       await run(
-        `UPDATE demands SET municipality = $1, uf = $2 WHERE municipality = $3 AND uf = $4`,
-        [official.name, official.uf, r.name, r.uf]
+        `UPDATE demands SET municipality = $1, uf = $2 WHERE tenant_id = $3 AND municipality = $4 AND uf = $5`,
+        [official.name, official.uf, tenantId, r.name, r.uf]
       );
-      await run('UPDATE municipalities SET deleted_at = NOW() WHERE id = $1', [r.id]);
+      await run('UPDATE municipalities SET deleted_at = NOW() WHERE id = $1 AND tenant_id = $2', [r.id, tenantId]);
     }
     if (keeper.name !== official.name || keeper.uf !== official.uf) {
-      await renameMunicipalitySafely(keeper.id, official.name, official.uf);
+      await renameMunicipalitySafely(keeper.id, official.name, official.uf, tenantId);
     }
   }
 
   // 2) Canoniza nomes restantes (sem conflito de UNIQUE, pois duplicatas foram mescladas).
   const remaining = await all<MunicipalityRow>(
-    'SELECT id, name, uf FROM municipalities WHERE deleted_at IS NULL'
+    'SELECT id, name, uf FROM municipalities WHERE tenant_id = $1 AND deleted_at IS NULL',
+    [tenantId]
   );
   for (const r of remaining) {
     const official = findOfficialMunicipality(r.name, r.uf);
     if (official && (official.nome !== r.name || official.uf !== r.uf)) {
-      await renameMunicipalitySafely(r.id, official.nome, official.uf);
+      await renameMunicipalitySafely(r.id, official.nome, official.uf, tenantId);
     }
   }
 
   // 3) Canoniza os municípios gravados nas demandas para a grafia oficial.
-  await canonicalizeDemands();
+  await canonicalizeDemands(tenantId);
 
   // 4) Garante uma linha de município oficial para cada cidade citada nas demandas.
   const distinct = await all<DemandPairRow>(
     `SELECT DISTINCT municipality, uf FROM demands
-     WHERE municipality IS NOT NULL AND municipality <> ''`
+     WHERE tenant_id = $1 AND municipality IS NOT NULL AND municipality <> ''`,
+    [tenantId]
   );
   for (const d of distinct) {
     const official = canonicalMunicipality(d.municipality, d.uf);
     if (!official) continue;
     await run(
-      `INSERT INTO municipalities (name, uf, demands_count, total_value, region)
-       VALUES ($1, $2, 0, 0, $3)
-       ON CONFLICT (name, uf) DO UPDATE SET deleted_at = NULL, updated_at = NOW()`,
-      [official.nome, official.uf, regionForUf(official.uf)]
+      `INSERT INTO municipalities (name, uf, demands_count, total_value, region, tenant_id)
+       VALUES ($1, $2, 0, 0, $3, $4)
+       ON CONFLICT (tenant_id, name, uf) DO UPDATE SET deleted_at = NULL, updated_at = NOW()`,
+      [official.nome, official.uf, regionForUf(official.uf), tenantId]
     );
   }
 
   // 5) Recompor métricas a partir das demandas ativas.
-  await recomputeCounters();
+  await recomputeCounters(tenantId);
 
-  return buildStandardizationScan();
+  return buildStandardizationScan(tenantId);
 }

@@ -14,8 +14,9 @@ router.get('/', authenticateToken, requireRole('admin'), async (req: Request, re
         CASE WHEN s.last_activity > NOW() - INTERVAL '30 minutes' THEN 'Ativa' ELSE 'Inativa' END as status
        FROM active_sessions s
        JOIN users u ON u.id = s.user_id
-       WHERE s.active = TRUE
-       ORDER BY s.last_activity DESC`
+       WHERE s.active = TRUE AND s.tenant_id = $1
+       ORDER BY s.last_activity DESC`,
+      [req.user!.tenant_id]
     );
     res.json(sessions);
   } catch (error) {
@@ -28,8 +29,8 @@ router.delete('/:id', authenticateToken, requireRole('admin'), async (req: Reque
   try {
     const { ip_address, user_agent } = extractMeta(req);
     const session = await get<{ user_id: number; token_hash: string }>(
-      'SELECT user_id, token_hash FROM active_sessions WHERE id = $1 AND active = TRUE',
-      [req.params.id]
+      'SELECT user_id, token_hash FROM active_sessions WHERE id = $1 AND active = TRUE AND tenant_id = $2',
+      [req.params.id, req.user!.tenant_id]
     );
     if (!session) return res.status(404).json({ error: 'Sessão não encontrada' });
 

@@ -142,6 +142,11 @@ router.get(
     for (const eventName of SSE_EVENTS) {
       const id = onIntegrationEvent(eventName, (payload) => {
         try {
+          // Isolamento multi-tenant: apenas eventos do mesmo tenant do usuário
+          // conectado são transmitidos. Eventos sem tenantId (inesperados) são
+          // descartados de forma conservadora.
+          const tenantId = (payload as { tenantId?: number } | null)?.tenantId;
+          if (typeof tenantId !== 'number' || tenantId !== req.user!.tenant_id) return;
           res.write(`event: ${eventName}\ndata: ${JSON.stringify(payload)}\n\n`);
           incrementSSEEventsSent();
         } catch {

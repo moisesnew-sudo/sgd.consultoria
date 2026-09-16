@@ -62,12 +62,12 @@ router.post('/:system', authenticateWebhook, async (req: Request, res: Response)
 
     const inserted = await run(
       `INSERT INTO webhook_events
-         (system_id, system_code, event_type, idempotency_key, payload, headers, signature, received_ip, status)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'pending')
+         (system_id, system_code, tenant_id, event_type, idempotency_key, payload, headers, signature, received_ip, status)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'pending')
        ON CONFLICT (idempotency_key) DO NOTHING
        RETURNING id`,
       [
-        system.id, system.code, eventType, safeKey,
+        system.id, system.code, system.tenant_id, eventType, safeKey,
         JSON.stringify(payload),
         JSON.stringify(pickHeaders(req.headers)),
         typeof signature === 'string' ? signature : '',
@@ -78,16 +78,16 @@ router.post('/:system', authenticateWebhook, async (req: Request, res: Response)
     const isDuplicate = !inserted.rows?.[0]?.id;
     const eventId = isDuplicate
       ? await get<{ id: number }>(
-          'SELECT id FROM webhook_events WHERE system_id = $1 AND idempotency_key = $2',
-          [system.id, safeKey]
+          'SELECT id FROM webhook_events WHERE system_id = $1 AND tenant_id = $2 AND idempotency_key = $3',
+          [system.id, system.tenant_id, safeKey]
         ).then(r => r?.id || null)
       : inserted.rows[0].id;
 
     await run(
-      `INSERT INTO integration_logs (system_id, system_code, direction, action, webhook_event_id, status, message)
-       VALUES ($1, $2, 'in', 'webhook.received', $3, $4, $5)`,
+      `INSERT INTO integration_logs (system_id, system_code, tenant_id, direction, action, webhook_event_id, status, message)
+       VALUES ($1, $2, $3, 'in', 'webhook.received', $4, $5, $6)`,
       [
-        system.id, system.code, eventId,
+        system.id, system.code, system.tenant_id, eventId,
         isDuplicate ? 'warning' : 'success',
         isDuplicate
           ? 'Evento duplicado ignorado (idempotency key repetida)'

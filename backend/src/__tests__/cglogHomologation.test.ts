@@ -439,7 +439,7 @@ describe('E3.3 — 16. Scheduler usa o mesmo ciclo para o CGLOG', () => {
 // ---------------------------------------------------------------------------
 describe('E3.3 — 17. Dashboard exibe CGLOG automaticamente', () => {
   it('getOverview lista o sistema CGLOG sem código específico', async () => {
-    const overview = await getOverview();
+    const overview = await getOverview(1);
     const cglogRow = overview.systems.find((s) => s.code === 'cglog');
     expect(cglogRow).toBeDefined();
     expect(cglogRow!.healthStatus).toBeDefined();

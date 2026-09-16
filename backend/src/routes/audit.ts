@@ -10,8 +10,8 @@ const router = Router();
 router.get('/', authenticateToken, requirePermission('audit.view'), async (req: Request, res: Response) => {
   try {
     const { entity_type, entity_id, action, user_id, start_date, end_date, search } = req.query;
-    let sql = 'SELECT * FROM audit_logs WHERE 1=1';
-    const params: any[] = [];
+    let sql = 'SELECT * FROM audit_logs WHERE tenant_id = $1';
+    const params: any[] = [req.user!.tenant_id];
     if (entity_type) { sql += ` AND entity_type = $${params.length + 1}`; params.push(entity_type); }
     if (entity_id) { sql += ` AND entity_id = $${params.length + 1}`; params.push(entity_id); }
     if (action) { sql += ` AND action = $${params.length + 1}`; params.push(action); }
@@ -45,8 +45,8 @@ router.get('/dashboard-stats', authenticateToken, requirePermission('audit.dashb
     const { start_date, end_date } = req.query;
 
     const dp = (() => {
-      const params: any[] = [];
-      let clause = '';
+      const params: any[] = [req.user!.tenant_id];
+      let clause = ' AND tenant_id = $1';
       if (start_date) { clause += ` AND created_at >= $${params.length + 1}`; params.push(start_date); }
       if (end_date) { clause += ` AND created_at <= $${params.length + 1}`; params.push(end_date); }
       return { clause, params } as const;
@@ -55,18 +55,18 @@ router.get('/dashboard-stats', authenticateToken, requirePermission('audit.dashb
     const [totalLogins, failedLogins, activeUsers, activeSessions, pdfExports, excelExports, demandsCreated, demandsUpdated, demandsDeleted, permChanges, userChanges] = await Promise.all([
       get<{ count: string }>("SELECT COUNT(*) as count FROM audit_logs WHERE action = 'login'" + dp.clause, dp.params).then(r => parseInt(r?.count || '0')),
       get<{ count: string }>("SELECT COUNT(*) as count FROM audit_logs WHERE action IN ('login_failed', 'login_locked')" + dp.clause, dp.params).then(r => parseInt(r?.count || '0')),
-      get<{ count: string }>("SELECT COUNT(*) as count FROM users WHERE active = TRUE"),
-      get<{ count: string }>("SELECT COUNT(*) as count FROM active_sessions WHERE active = TRUE AND last_activity > NOW() - INTERVAL '30 minutes'"),
+      get<{ count: string }>("SELECT COUNT(*) as count FROM users WHERE active = TRUE AND tenant_id = $1", [req.user!.tenant_id]),
+      get<{ count: string }>("SELECT COUNT(*) as count FROM active_sessions WHERE active = TRUE AND last_activity > NOW() - INTERVAL '30 minutes' AND tenant_id = $1", [req.user!.tenant_id]),
       (async () => {
-        const p: any[] = ['pdf'];
-        let sql = "SELECT COUNT(*) as count FROM export_logs WHERE export_type = $1";
+        const p: any[] = ['pdf', req.user!.tenant_id];
+        let sql = "SELECT COUNT(*) as count FROM export_logs WHERE export_type = $1 AND tenant_id = $2";
         if (start_date) { sql += ` AND created_at >= $${p.length + 1}`; p.push(start_date); }
         if (end_date) { sql += ` AND created_at <= $${p.length + 1}`; p.push(end_date); }
         const r = await get<{ count: string }>(sql, p); return parseInt(r?.count || '0');
       })(),
       (async () => {
-        const p: any[] = ['excel'];
-        let sql = "SELECT COUNT(*) as count FROM export_logs WHERE export_type = $1";
+        const p: any[] = ['excel', req.user!.tenant_id];
+        let sql = "SELECT COUNT(*) as count FROM export_logs WHERE export_type = $1 AND tenant_id = $2";
         if (start_date) { sql += ` AND created_at >= $${p.length + 1}`; p.push(start_date); }
         if (end_date) { sql += ` AND created_at <= $${p.length + 1}`; p.push(end_date); }
         const r = await get<{ count: string }>(sql, p); return parseInt(r?.count || '0');
@@ -92,9 +92,9 @@ router.get('/dashboard-stats', authenticateToken, requirePermission('audit.dashb
         dp.params
       ),
       (async () => {
-        const p: any[] = [];
+        const p: any[] = [req.user!.tenant_id];
         let sql = 'SELECT DATE(created_at) as day, COUNT(*) as count FROM export_logs';
-        const wheres: string[] = [];
+        const wheres: string[] = ['tenant_id = $1'];
         if (start_date) { wheres.push(`created_at >= $${p.length + 1}`); p.push(start_date); }
         if (end_date) { wheres.push(`created_at <= $${p.length + 1}`); p.push(end_date); }
         if (wheres.length) sql += ' WHERE ' + wheres.join(' AND ');
@@ -143,7 +143,7 @@ router.post('/log-export', authenticateToken, async (req: Request, res: Response
 
 router.get('/stats', authenticateToken, async (req: Request, res: Response) => {
   try {
-    const total = await get<{ count: string }>('SELECT COUNT(*) as count FROM audit_logs');
+    const total = await get<{ count: string }>('SELECT COUNT(*) as count FROM audit_logs WHERE tenant_id = $1', [req.user!.tenant_id]);
     res.json({ total: parseInt(total?.count || '0') });
   } catch (e) {
     logger.error('Audit stats error:', e);

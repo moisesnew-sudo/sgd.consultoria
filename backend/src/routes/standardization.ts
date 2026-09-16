@@ -23,10 +23,10 @@ router.get('/municipalities', authenticateToken, async (req: Request, res: Respo
 router.get('/objects', authenticateToken, async (req: Request, res: Response) => {
   try {
     const q = String(req.query.q || '').trim();
-    const params: any[] = [];
-    let sql = 'SELECT DISTINCT title FROM demands WHERE deleted_at IS NULL';
+    const params: any[] = [req.user!.tenant_id];
+    let sql = 'SELECT DISTINCT title FROM demands WHERE tenant_id = $1 AND deleted_at IS NULL';
     if (q) {
-      sql += ' AND title ILIKE $1';
+      sql += ' AND title ILIKE $2';
       params.push(`%${q}%`);
     }
     sql += ' ORDER BY title ASC LIMIT 15';
@@ -40,9 +40,9 @@ router.get('/objects', authenticateToken, async (req: Request, res: Response) =>
 });
 
 // Relatório de padronização (somente leitura).
-router.post('/scan', authenticateToken, requireRole('admin'), async (_req: Request, res: Response) => {
+router.post('/scan', authenticateToken, requireRole('admin'), async (req: Request, res: Response) => {
   try {
-    const report = await buildStandardizationScan();
+    const report = await buildStandardizationScan(req.user!.tenant_id);
     res.json(report);
   } catch (error) {
     logger.error('Standardization scan error', { error });
@@ -51,9 +51,9 @@ router.post('/scan', authenticateToken, requireRole('admin'), async (_req: Reque
 });
 
 // Aplica a padronização/correção nos dados existentes.
-router.post('/apply', authenticateToken, requireRole('admin'), async (_req: Request, res: Response) => {
+router.post('/apply', authenticateToken, requireRole('admin'), async (req: Request, res: Response) => {
   try {
-    const report = await applyStandardizationScan();
+    const report = await applyStandardizationScan(req.user!.tenant_id);
     res.json(report);
   } catch (error) {
     logger.error('Standardization apply error', { error });

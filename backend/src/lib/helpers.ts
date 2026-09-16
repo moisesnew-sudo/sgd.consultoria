@@ -23,9 +23,10 @@ export async function addTimelineEvent(
 ): Promise<string> {
   const eventId = `ev-${crypto.randomUUID().slice(0, 8)}`;
   const now = new Date().toISOString();
+  // Deriva tenant_id da demanda; a FK em demand_id segue validando a existência.
   const query = {
-    text: `INSERT INTO timeline_events (id, demand_id, title, description, user_name, status_changed_to, event_type, details, created_at)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+    text: `INSERT INTO timeline_events (id, demand_id, tenant_id, title, description, user_name, status_changed_to, event_type, details, created_at)
+     VALUES ($1, $2, (SELECT tenant_id FROM demands WHERE id = $2), $3, $4, $5, $6, $7, $8, $9)`,
     values: [eventId, demandId, title, description, userName, statusChangedTo || null, eventType, details ? JSON.stringify(details) : null, now],
   };
   if (client) {

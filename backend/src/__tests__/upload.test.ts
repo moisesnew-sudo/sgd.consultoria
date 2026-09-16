@@ -67,9 +67,9 @@ async function createDemand(agent: SuperAgentTest, csrfToken: string): Promise<s
 async function createTestUser(email: string, role: string): Promise<void> {
   const hash = await bcrypt.hash(TEST_PASSWORD, 10);
   await run(
-    `INSERT INTO users (email, password_hash, name, role)
-     VALUES ($1, $2, $3, $4)
-     ON CONFLICT (email) DO UPDATE SET password_hash = EXCLUDED.password_hash, role = EXCLUDED.role`,
+    `INSERT INTO users (tenant_id, email, password_hash, name, role)
+     VALUES (1, $1, $2, $3, $4)
+     ON CONFLICT (tenant_id, LOWER(email)) DO UPDATE SET password_hash = EXCLUDED.password_hash, role = EXCLUDED.role`,
     [email, hash, `Upload Test ${role}`, role]
   );
   createdUserEmails.push(email);

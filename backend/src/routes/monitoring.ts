@@ -14,15 +14,18 @@ router.get('/health', authenticateToken, async (req: Request, res: Response) => 
     const dbTime = Date.now() - start;
 
     const [totalDemands, activeUsers, lastBackup, integrations] = await Promise.all([
-      get<{ count: string }>('SELECT COUNT(*) as count FROM demands WHERE deleted_at IS NULL'),
+      get<{ count: string }>('SELECT COUNT(*) as count FROM demands WHERE deleted_at IS NULL AND tenant_id = $1', [req.user!.tenant_id]),
       get<{ count: string }>(
-        "SELECT COUNT(*) as count FROM active_sessions WHERE active = TRUE AND last_activity > NOW() - INTERVAL '30 minutes'"
+        "SELECT COUNT(*) as count FROM active_sessions WHERE active = TRUE AND last_activity > NOW() - INTERVAL '30 minutes' AND tenant_id = $1",
+        [req.user!.tenant_id]
       ),
       get<{ created_at: string }>(
-        "SELECT created_at FROM backups WHERE status = 'completed' ORDER BY created_at DESC LIMIT 1"
+        "SELECT created_at FROM backups WHERE status = 'completed' AND tenant_id = $1 ORDER BY created_at DESC LIMIT 1",
+        [req.user!.tenant_id]
       ),
       get<{ count: string }>(
-        `SELECT COUNT(*) as count FROM audit_logs WHERE entity_type IN ('integration', 'integration_system') AND created_at > NOW() - INTERVAL '24 hours'`
+        `SELECT COUNT(*) as count FROM audit_logs WHERE tenant_id = $1 AND entity_type IN ('integration', 'integration_system') AND created_at > NOW() - INTERVAL '24 hours'`,
+        [req.user!.tenant_id]
       )
     ]);
 
@@ -89,17 +92,22 @@ router.post('/snapshot', authenticateToken, requireRole('admin'), async (req: Re
     const serverMemory = ((totalMem - freeMem) / totalMem) * 100;
     const dbConnectionCount = pool.totalCount ?? 0;
     const activeUsers = await get<{ count: string }>(
-      "SELECT COUNT(*) as count FROM active_sessions WHERE active = TRUE AND last_activity > NOW() - INTERVAL '30 minutes'"
+      "SELECT COUNT(*) as count FROM active_sessions WHERE active = TRUE AND last_activity > NOW() - INTERVAL '30 minutes' AND tenant_id = $1",
+      [req.user!.tenant_id]
     );
-    const totalDemands = await get<{ count: string }>('SELECT COUNT(*) as count FROM demands WHERE deleted_at IS NULL');
+    const totalDemands = await get<{ count: string }>(
+      'SELECT COUNT(*) as count FROM demands WHERE tenant_id = $1 AND deleted_at IS NULL',
+      [req.user!.tenant_id]
+    );
     const lastBackup = await get<{ created_at: string }>(
-      "SELECT created_at FROM backups WHERE status = 'completed' ORDER BY created_at DESC LIMIT 1"
+      "SELECT created_at FROM backups WHERE tenant_id = $1 AND status = 'completed' ORDER BY created_at DESC LIMIT 1",
+      [req.user!.tenant_id]
     );
 
     await run(
-      `INSERT INTO monitoring_logs (server_cpu, server_memory, api_response_time, db_connection_count, active_users, total_demands, last_backup_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-      [serverCpu, Math.round(serverMemory * 10) / 10, apiResponseTime, dbConnectionCount, parseInt(activeUsers?.count || '0'), parseInt(totalDemands?.count || '0'), lastBackup?.created_at || null]
+      `INSERT INTO monitoring_logs (server_cpu, server_memory, api_response_time, db_connection_count, active_users, total_demands, last_backup_at, tenant_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+      [serverCpu, Math.round(serverMemory * 10) / 10, apiResponseTime, dbConnectionCount, parseInt(activeUsers?.count || '0'), parseInt(totalDemands?.count || '0'), lastBackup?.created_at || null, req.user!.tenant_id]
     );
 
     res.json({ message: 'Snapshot recorded' });
@@ -113,8 +121,8 @@ router.get('/history', authenticateToken, requireRole('admin'), async (req: Requ
   try {
     const limit = parseInt(req.query.limit as string) || 168;
     const logs = await all(
-      `SELECT * FROM monitoring_logs ORDER BY recorded_at DESC LIMIT $1`,
-      [limit]
+      `SELECT * FROM monitoring_logs WHERE tenant_id = $1 ORDER BY recorded_at DESC LIMIT $2`,
+      [req.user!.tenant_id, limit]
     );
     res.json(logs);
   } catch (error) {
@@ -129,7 +137,7 @@ router.get('/history', authenticateToken, requireRole('admin'), async (req: Requ
  * Protegido: requer JWT + role admin.
  * NÃO expõe: connection strings, passwords, tokens, secrets.
  */
-router.get('/system-health', authenticateToken, requireRole('admin'), async (_req: Request, res: Response) => {
+router.get('/system-health', authenticateToken, requireRole('admin'), async (req: Request, res: Response) => {
   try {
     const report = getHealthReport();
 
@@ -146,11 +154,12 @@ router.get('/system-health', authenticateToken, requireRole('admin'), async (_re
     }>(
       `SELECT id, system_id, severity, type, message, details, status, created_at, updated_at
        FROM integration_alerts
-       WHERE status IN ('open', 'acknowledged')
+       WHERE status IN ('open', 'acknowledged') AND tenant_id = $1
        ORDER BY
          CASE severity WHEN 'critical' THEN 0 WHEN 'warning' THEN 1 ELSE 2 END,
          created_at DESC
-       LIMIT 50`
+       LIMIT 50`,
+      [req.user!.tenant_id]
     );
 
     const alerts = activeAlerts.map((a) => ({

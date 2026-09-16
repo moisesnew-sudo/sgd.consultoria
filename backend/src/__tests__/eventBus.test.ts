@@ -72,7 +72,7 @@ describe('eventBus — emissão', () => {
     const handler = vi.fn();
     onIntegrationEvent('integration:created', handler);
 
-    const payload: IntegrationCreatedPayload = { systemId: 1, code: 'sei', name: 'SEI' };
+    const payload: IntegrationCreatedPayload = { tenantId: 1, systemId: 1, code: 'sei', name: 'SEI' };
     emitIntegrationEvent('integration:created', payload);
 
     expect(handler).toHaveBeenCalledTimes(1);
@@ -83,7 +83,7 @@ describe('eventBus — emissão', () => {
     const received: IntegrationSyncedPayload[] = [];
     onIntegrationEvent('integration:synced', (p) => received.push(p));
 
-    const payload: IntegrationSyncedPayload = { systemId: 5, status: 'success', durationMs: 1234 };
+    const payload: IntegrationSyncedPayload = { tenantId: 1, systemId: 5, status: 'success', durationMs: 1234 };
     emitIntegrationEvent('integration:synced', payload);
 
     expect(received).toHaveLength(1);
@@ -105,7 +105,7 @@ describe('eventBus — múltiplos listeners', () => {
     onIntegrationEvent('integration:toggled', h2);
     onIntegrationEvent('integration:toggled', h3);
 
-    const payload: IntegrationToggledPayload = { systemId: 2, code: 'transferegov', active: false };
+    const payload: IntegrationToggledPayload = { tenantId: 1, systemId: 2, code: 'transferegov', active: false };
     emitIntegrationEvent('integration:toggled', payload);
 
     expect(h1).toHaveBeenCalledTimes(1);
@@ -124,7 +124,7 @@ describe('eventBus — remoção', () => {
     const id = onIntegrationEvent('integration:log', handler);
 
     offIntegrationEvent(id);
-    emitIntegrationEvent('integration:log', { systemId: 1, level: 'info', message: 'test' });
+    emitIntegrationEvent('integration:log', { tenantId: 1, systemId: 1, level: 'info', message: 'test' });
 
     expect(handler).not.toHaveBeenCalled();
   });
@@ -133,11 +133,11 @@ describe('eventBus — remoção', () => {
     const handler = vi.fn();
     const id = onIntegrationEvent('integration:health', handler);
 
-    emitIntegrationEvent('integration:health', { systemId: 1, health: 'operational', lastSyncAt: null });
+    emitIntegrationEvent('integration:health', { tenantId: 1, systemId: 1, health: 'operational', lastSyncAt: null });
     expect(handler).toHaveBeenCalledTimes(1);
 
     offIntegrationEvent(id);
-    emitIntegrationEvent('integration:health', { systemId: 1, health: 'failure', lastSyncAt: null });
+    emitIntegrationEvent('integration:health', { tenantId: 1, systemId: 1, health: 'failure', lastSyncAt: null });
     expect(handler).toHaveBeenCalledTimes(1);
   });
 });
@@ -154,7 +154,7 @@ describe('eventBus — independência', () => {
     onIntegrationEvent('integration:created', createdHandler);
     onIntegrationEvent('integration:synced', syncedHandler);
 
-    emitIntegrationEvent('integration:created', { systemId: 1, code: 'sei', name: 'SEI' });
+    emitIntegrationEvent('integration:created', { tenantId: 1, systemId: 1, code: 'sei', name: 'SEI' });
 
     expect(createdHandler).toHaveBeenCalledTimes(1);
     expect(syncedHandler).not.toHaveBeenCalled();
@@ -174,7 +174,7 @@ describe('eventBus — resiliência', () => {
     onIntegrationEvent('integration:alert', boomHandler);
     onIntegrationEvent('integration:alert', okHandler);
 
-    const payload: IntegrationAlertPayload = { systemId: 1, alertType: 'stale', status: 'open' };
+    const payload: IntegrationAlertPayload = { tenantId: 1, systemId: 1, alertType: 'stale', status: 'open' };
     emitIntegrationEvent('integration:alert', payload);
 
     expect(boomHandler).toHaveBeenCalledTimes(1);
@@ -189,7 +189,7 @@ describe('eventBus — resiliência', () => {
     onIntegrationEvent('integration:log', () => { throw new Error('fail'); });
 
     expect(() => {
-      emitIntegrationEvent('integration:log', { systemId: 1, level: 'error', message: 'x' });
+      emitIntegrationEvent('integration:log', { tenantId: 1, systemId: 1, level: 'error', message: 'x' });
     }).not.toThrow();
 
     errorSpy.mockRestore();
@@ -212,7 +212,7 @@ describe('eventBus — isolamento de eventos', () => {
     onIntegrationEvent('integration:log', () => results.push('log'));
     onIntegrationEvent('integration:alert', () => results.push('alert'));
 
-    emitIntegrationEvent('integration:updated', { systemId: 1, code: 'sei', changes: ['name'] });
+    emitIntegrationEvent('integration:updated', { tenantId: 1, systemId: 1, code: 'sei', changes: ['name'] });
 
     expect(results).toEqual(['updated']);
   });
@@ -224,14 +224,14 @@ describe('eventBus — isolamento de eventos', () => {
 
 describe('eventBus — tipagem', () => {
   it('10. cada evento aceita somente seu payload tipado', () => {
-    const created: IntegrationCreatedPayload = { systemId: 1, code: 'sei', name: 'SEI' };
-    const updated: IntegrationUpdatedPayload = { systemId: 1, code: 'sei', changes: ['name'] };
-    const toggled: IntegrationToggledPayload = { systemId: 1, code: 'sei', active: true };
-    const synced: IntegrationSyncedPayload = { systemId: 1, status: 'success', durationMs: 100 };
-    const health: IntegrationHealthPayload = { systemId: 1, health: 'operational', lastSyncAt: null };
-    const log: IntegrationLogPayload = { systemId: 1, level: 'info', message: 'ok' };
-    const alert: IntegrationAlertPayload = { systemId: 1, alertType: 'stale', status: 'open' };
-    const heartbeat: IntegrationHeartbeatPayload = { timestamp: new Date().toISOString() };
+    const created: IntegrationCreatedPayload = { tenantId: 1, systemId: 1, code: 'sei', name: 'SEI' };
+    const updated: IntegrationUpdatedPayload = { tenantId: 1, systemId: 1, code: 'sei', changes: ['name'] };
+    const toggled: IntegrationToggledPayload = { tenantId: 1, systemId: 1, code: 'sei', active: true };
+    const synced: IntegrationSyncedPayload = { tenantId: 1, systemId: 1, status: 'success', durationMs: 100 };
+    const health: IntegrationHealthPayload = { tenantId: 1, systemId: 1, health: 'operational', lastSyncAt: null };
+    const log: IntegrationLogPayload = { tenantId: 1, systemId: 1, level: 'info', message: 'ok' };
+    const alert: IntegrationAlertPayload = { tenantId: 1, systemId: 1, alertType: 'stale', status: 'open' };
+    const heartbeat: IntegrationHeartbeatPayload = { tenantId: 1, timestamp: new Date().toISOString() };
 
     const h = vi.fn();
 
@@ -288,14 +288,14 @@ describe('eventBus — segurança', () => {
   ];
 
   const safePayloads: Array<{ event: string; payload: Record<string, unknown> }> = [
-    { event: 'integration:created', payload: { systemId: 1, code: 'sei', name: 'SEI' } },
-    { event: 'integration:updated', payload: { systemId: 1, code: 'sei', changes: ['name'] } },
-    { event: 'integration:toggled', payload: { systemId: 1, code: 'sei', active: true } },
-    { event: 'integration:synced', payload: { systemId: 1, status: 'success', durationMs: 100 } },
-    { event: 'integration:health', payload: { systemId: 1, health: 'operational', lastSyncAt: null } },
-    { event: 'integration:log', payload: { systemId: 1, level: 'info', message: 'ok' } },
-    { event: 'integration:alert', payload: { systemId: 1, alertType: 'stale', status: 'open' } },
-    { event: 'integration:heartbeat', payload: { timestamp: new Date().toISOString() } },
+    { event: 'integration:created', payload: { tenantId: 1, systemId: 1, code: 'sei', name: 'SEI' } },
+    { event: 'integration:updated', payload: { tenantId: 1, systemId: 1, code: 'sei', changes: ['name'] } },
+    { event: 'integration:toggled', payload: { tenantId: 1, systemId: 1, code: 'sei', active: true } },
+    { event: 'integration:synced', payload: { tenantId: 1, systemId: 1, status: 'success', durationMs: 100 } },
+    { event: 'integration:health', payload: { tenantId: 1, systemId: 1, health: 'operational', lastSyncAt: null } },
+    { event: 'integration:log', payload: { tenantId: 1, systemId: 1, level: 'info', message: 'ok' } },
+    { event: 'integration:alert', payload: { tenantId: 1, systemId: 1, alertType: 'stale', status: 'open' } },
+    { event: 'integration:heartbeat', payload: { tenantId: 1, timestamp: new Date().toISOString() } },
   ];
 
   it('11. nenhum payload contém dados sensíveis', () => {

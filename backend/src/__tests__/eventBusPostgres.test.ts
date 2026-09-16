@@ -85,6 +85,7 @@ describe('eventBusPostgres — publishEvent local', () => {
     onIntegrationEvent('demand:created', handler);
 
     await publishEvent('demand:created', {
+      tenantId: 1,
       demandId: 'SGD-2026-ABC12345',
       title: 'Demanda Teste',
       status: 'pendente',
@@ -106,6 +107,7 @@ describe('eventBusPostgres — publishEvent notify', () => {
     registerPostgresNotify(notifyFn);
 
     await publishEvent('demand:created', {
+      tenantId: 1,
       demandId: 'SGD-2026-XYZ99999',
       title: 'Teste',
       status: 'pendente',
@@ -115,6 +117,7 @@ describe('eventBusPostgres — publishEvent notify', () => {
 
     expect(notifyFn).toHaveBeenCalledTimes(1);
     expect(notifyFn).toHaveBeenCalledWith('demand:created', {
+      tenantId: 1,
       demandId: 'SGD-2026-XYZ99999',
       title: 'Teste',
       status: 'pendente',
@@ -355,6 +358,7 @@ describe('eventBusPostgres — registerPostgresNotify', () => {
     registerPostgresNotify(fn);
 
     await publishEvent('integration:heartbeat', {
+      tenantId: 1,
       timestamp: new Date().toISOString(),
     });
 

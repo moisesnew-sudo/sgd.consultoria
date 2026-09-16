@@ -16,13 +16,13 @@ const commentSchema = z.object({
 router.get('/:id/comments', authenticateToken, async (req: Request, res: Response) => {
   try {
     // ✅ CORREÇÃO: Verifica se demanda existe
-    const demand = await get('SELECT id, title FROM demands WHERE id = $1 AND deleted_at IS NULL', [req.params.id as string]);
+    const demand = await get('SELECT id, title FROM demands WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL', [req.params.id as string, req.user!.tenant_id]);
     if (!demand) {
       return res.status(404).json({ error: 'Demanda não encontrada' });
     }
     const comments = await all(
-      'SELECT * FROM comments WHERE demand_id = $1 AND deleted_at IS NULL ORDER BY created_at ASC',
-      [req.params.id as string]
+      'SELECT * FROM comments WHERE demand_id = $1 AND tenant_id = $2 AND deleted_at IS NULL ORDER BY created_at ASC',
+      [req.params.id as string, req.user!.tenant_id]
     );
     res.json(comments);
   } catch (e) {
@@ -37,14 +37,14 @@ router.post('/:id/comments', authenticateToken, requirePermission('demands.edit'
       return res.status(403).json({ error: 'Seu perfil (Consulta) é somente leitura' });
     }
     // ✅ CORREÇÃO: Verifica se demanda existe antes de comentar
-    const demand = await get('SELECT id, title FROM demands WHERE id = $1 AND deleted_at IS NULL', [req.params.id as string]);
+    const demand = await get('SELECT id, title FROM demands WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL', [req.params.id as string, req.user!.tenant_id]);
     if (!demand) {
       return res.status(404).json({ error: 'Demanda não encontrada' });
     }
     const { body } = commentSchema.parse(req.body);
     const result = await run(
-      'INSERT INTO comments (demand_id, user_id, user_name, body, created_at) VALUES ($1, $2, $3, $4, NOW()) RETURNING *',
-      [req.params.id as string, req.user!.id, req.user!.name, body]
+      'INSERT INTO comments (demand_id, user_id, user_name, body, tenant_id, created_at) VALUES ($1, $2, $3, $4, $5, NOW()) RETURNING *',
+      [req.params.id as string, req.user!.id, req.user!.name, body, req.user!.tenant_id]
     );
     const comment = result.rows[0];
     await addTimelineEvent(req.params.id as string, 'Comentário Adicionado',
@@ -53,7 +53,8 @@ router.post('/:id/comments', authenticateToken, requirePermission('demands.edit'
       entity_type: 'demand', entity_id: req.params.id as string, action: 'comment',
       user_id: req.user!.id, user_name: req.user!.name, details: { entity_title: demand.title, body: body.substring(0, 80) }
     });
-    publishEvent('comment:created', {
+publishEvent('comment:created', {
+      tenantId: req.user!.tenant_id,
       demandId: req.params.id as string,
       commentId: comment.id,
       userName: req.user!.name,

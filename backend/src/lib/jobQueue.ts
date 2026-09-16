@@ -148,7 +148,7 @@ export async function enqueueJob(input: EnqueueJobInput): Promise<number> {
   );
   const id = result.rows[0].id as number;
 
-  void logAudit({
+  await logAudit({
     entity_type: 'background_job',
     entity_id: String(id),
     action: 'job:enqueued',
@@ -257,7 +257,7 @@ async function finalizeJob(job: BackgroundJob, status: 'succeeded' | 'failed' | 
 
   const action = status === 'succeeded' ? 'job:succeeded' : status === 'failed' ? 'job:failed' : 'job:retrying';
 
-  void logAudit({
+  await logAudit({
     entity_type: 'background_job',
     entity_id: String(job.id),
     action,

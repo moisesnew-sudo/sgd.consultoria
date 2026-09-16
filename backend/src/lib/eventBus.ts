@@ -22,48 +22,56 @@ import {
 /* ------------------------------------------------------------------ */
 
 export interface IntegrationCreatedPayload {
+  tenantId: number;
   systemId: number;
   code: string;
   name: string;
 }
 
 export interface IntegrationUpdatedPayload {
+  tenantId: number;
   systemId: number;
   code: string;
   changes: string[];
 }
 
 export interface IntegrationToggledPayload {
+  tenantId: number;
   systemId: number;
   code: string;
   active: boolean;
 }
 
 export interface IntegrationSyncedPayload {
+  tenantId: number;
   systemId: number;
   status: 'success' | 'failure' | 'timeout';
   durationMs: number;
 }
 
 export interface IntegrationHealthPayload {
+  tenantId: number;
   systemId: number;
   health: 'operational' | 'attention' | 'failure';
   lastSyncAt: string | null;
 }
 
 export interface IntegrationLogPayload {
+  tenantId: number;
   systemId: number;
   level: 'info' | 'warn' | 'error';
   message: string;
 }
 
 export interface IntegrationAlertPayload {
+  tenantId: number;
   systemId: number;
   alertType: string;
   status: 'open' | 'acknowledged' | 'resolved';
 }
 
 export interface IntegrationHeartbeatPayload {
+  tenantId: number;
   timestamp: string;
 }
 
@@ -72,6 +80,7 @@ export interface IntegrationHeartbeatPayload {
 /* ------------------------------------------------------------------ */
 
 export interface DemandCreatedPayload {
+  tenantId: number;
   demandId: string;
   title: string;
   status: string;
@@ -80,12 +89,14 @@ export interface DemandCreatedPayload {
 }
 
 export interface DemandUpdatedPayload {
+  tenantId: number;
   demandId: string;
   title: string;
   changes: string[];
 }
 
 export interface DemandStatusChangedPayload {
+  tenantId: number;
   demandId: string;
   title: string;
   from: string;
@@ -93,11 +104,13 @@ export interface DemandStatusChangedPayload {
 }
 
 export interface DemandDeletedPayload {
+  tenantId: number;
   demandId: string;
   title: string;
 }
 
 export interface CommentCreatedPayload {
+  tenantId: number;
   demandId: string;
   commentId: number;
   userName: string;

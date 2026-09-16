@@ -176,6 +176,7 @@ export function sanitizePayload(data: unknown): unknown {
  */
 async function recordDelivery(
   webhookId: number,
+  tenantId: number,
   eventType: string,
   url: string,
   headers: Record<string, string>,
@@ -192,11 +193,11 @@ async function recordDelivery(
   const resolvedAt = (status === 'success' || status === 'dead_letter') ? 'NOW()' : 'NULL';
   const result = await run(
     `INSERT INTO webhook_deliveries
-       (webhook_id, event_type, url, request_headers, request_body, response_status, response_body, duration_ms, attempt, max_attempts, status, error, delivery_id)
-     VALUES ($1, $2, $3, $4::jsonb, $5::jsonb, $6, $7, $8, $9, $10, $11, $12, $13)
+       (webhook_id, tenant_id, event_type, url, request_headers, request_body, response_status, response_body, duration_ms, attempt, max_attempts, status, error, delivery_id)
+     VALUES ($1, $2, $3, $4, $5::jsonb, $6::jsonb, $7, $8, $9, $10, $11, $12, $13, $14)
      RETURNING id`,
     [
-      webhookId, eventType, url,
+      webhookId, tenantId, eventType, url,
       JSON.stringify(headers),
       JSON.stringify(body),
       responseStatus ?? null,
@@ -260,10 +261,10 @@ async function handleEvent<K extends IntegrationEventName>(
 ): Promise<void> {
   try {
     const webhooks = await all<OutboundWebhook>(
-      `SELECT id, name, url, secret_hash, events, active
+      `SELECT id, name, url, secret_hash, events, active, tenant_id
        FROM outbound_webhooks
-       WHERE active = TRUE AND $1 = ANY(events)`,
-      [eventType]
+       WHERE active = TRUE AND tenant_id = $1 AND $2 = ANY(events)`,
+      [payload.tenantId, eventType]
     );
 
     if (webhooks.length === 0) return;
@@ -311,7 +312,7 @@ async function deliverWithRetry(
   const secret = process.env[secretEnvKey];
   if (!secret || secret.length < 16) {
     logger.warn('webhookDispatcher: secret not configured', { webhookId: webhook.id, envKey: secretEnvKey });
-    await recordDelivery(webhook.id, eventType, webhook.url, {}, payload, 1, maxAttempts, 'dead_letter', deliveryId, undefined, undefined, undefined, `Secret ${secretEnvKey} não configurado`);
+    await recordDelivery(webhook.id, webhook.tenant_id, eventType, webhook.url, {}, payload, 1, maxAttempts, 'dead_letter', deliveryId, undefined, undefined, undefined, `Secret ${secretEnvKey} não configurado`);
     return;
   }
 
@@ -343,7 +344,7 @@ async function deliverWithRetry(
     lastDurationMs = result.durationMs;
 
     if (result.ok) {
-      await recordDelivery(webhook.id, eventType, webhook.url, headers, body, attempt, maxAttempts, 'success', deliveryId, result.status, result.body, result.durationMs);
+      await recordDelivery(webhook.id, webhook.tenant_id, eventType, webhook.url, headers, body, attempt, maxAttempts, 'success', deliveryId, result.status, result.body, result.durationMs);
       logger.info('webhookDispatcher: delivered', {
         webhookId: webhook.id,
         event: eventType,
@@ -357,7 +358,7 @@ async function deliverWithRetry(
     // Falhou — registra esta tentativa
     const isLastAttempt = attempt === maxAttempts;
     const attemptStatus = isLastAttempt ? 'dead_letter' : 'retrying';
-    await recordDelivery(webhook.id, eventType, webhook.url, headers, body, attempt, maxAttempts, attemptStatus, deliveryId, lastStatus, lastBody, lastDurationMs, lastError);
+    await recordDelivery(webhook.id, webhook.tenant_id, eventType, webhook.url, headers, body, attempt, maxAttempts, attemptStatus, deliveryId, lastStatus, lastBody, lastDurationMs, lastError);
   }
 
   // Todas as tentativas falharam (dead_letter já registrado na última iteração)
@@ -379,17 +380,17 @@ async function deliverWithRetry(
  * Cria uma NOVA row na tabela (não reutiliza a original).
  * Retorna a nova delivery row ou null se inválido.
  */
-export async function retryDelivery(deliveryId: number): Promise<WebhookDelivery | null> {
+export async function retryDelivery(deliveryId: number, tenantId: number): Promise<WebhookDelivery | null> {
   const original = await get<WebhookDelivery>(
-    `SELECT * FROM webhook_deliveries WHERE id = $1`,
-    [deliveryId]
+    `SELECT * FROM webhook_deliveries WHERE id = $1 AND tenant_id = $2`,
+    [deliveryId, tenantId]
   );
   if (!original) return null;
   if (original.status !== 'failed' && original.status !== 'dead_letter') return null;
 
   const webhook = await get<OutboundWebhook>(
-    `SELECT id, name, url, secret_hash, events, active FROM outbound_webhooks WHERE id = $1`,
-    [original.webhook_id]
+    `SELECT id, name, url, secret_hash, events, active, tenant_id FROM outbound_webhooks WHERE id = $1 AND tenant_id = $2`,
+    [original.webhook_id, tenantId]
   );
   if (!webhook || !webhook.active) return null;
 
@@ -408,8 +409,8 @@ export async function retryDelivery(deliveryId: number): Promise<WebhookDelivery
 
   // Retornar a entrega mais recente para este delivery_id
   const latest = await get<WebhookDelivery>(
-    `SELECT * FROM webhook_deliveries WHERE delivery_id = $1 ORDER BY attempt DESC LIMIT 1`,
-    [original.delivery_id ?? String(deliveryId)]
+    `SELECT * FROM webhook_deliveries WHERE delivery_id = $1 AND tenant_id = $2 ORDER BY attempt DESC LIMIT 1`,
+    [original.delivery_id ?? String(deliveryId), tenantId]
   );
   return latest ?? null;
 }

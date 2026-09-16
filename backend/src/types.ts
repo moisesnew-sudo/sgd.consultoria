@@ -14,6 +14,7 @@ export interface User {
   password_hash: string;
   name: string;
   role: UserRole;
+  tenant_id: number;
   active?: boolean;
   created_at: string;
   updated_at: string;
@@ -24,6 +25,7 @@ export interface UserResponse {
   email: string;
   name: string;
   role: UserRole;
+  tenant_id: number;
   permissions?: string[];
 }
 

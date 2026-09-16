@@ -74,13 +74,13 @@ function validateConfig(config: unknown): Record<string, unknown> | null {
   }
 }
 
-export async function getAll(filters: IntegrationSystemFilters = {}, canViewSecrets = true): Promise<{ data: IntegrationSystemResponse[]; total: number }> {
+export async function getAll(tenantId: number, filters: IntegrationSystemFilters = {}, canViewSecrets = true): Promise<{ data: IntegrationSystemResponse[]; total: number }> {
   const page = Math.max(1, filters.page ?? 1);
   const limit = Math.min(100, Math.max(1, filters.limit ?? 20));
   const offset = (page - 1) * limit;
 
-  const conditions: string[] = [];
-  const params: any[] = [];
+  const conditions: string[] = ['tenant_id = $1'];
+  const params: any[] = [tenantId];
 
   if (filters.search) {
     conditions.push(`(code ILIKE $${params.length + 1} OR name ILIKE $${params.length + 1})`);
@@ -116,12 +116,12 @@ export async function getAll(filters: IntegrationSystemFilters = {}, canViewSecr
   };
 }
 
-export async function getById(id: number, canViewSecrets = true): Promise<IntegrationSystemResponse | null> {
+export async function getById(tenantId: number, id: number, canViewSecrets = true): Promise<IntegrationSystemResponse | null> {
   const row = await get<any>(
     `SELECT id, code, name, description, active, config, created_at, updated_at, secret_env_key
      FROM integration_systems
-     WHERE id = $1`,
-    [id]
+     WHERE id = $1 AND tenant_id = $2`,
+    [id, tenantId]
   );
 
   if (!row) return null;
@@ -129,9 +129,11 @@ export async function getById(id: number, canViewSecrets = true): Promise<Integr
   return mapSystem(row, canViewSecrets);
 }
 
-export async function create(data: z.infer<typeof integrationSystemSchema>, user: any): Promise<IntegrationSystemResponse> {
+export async function create(tenantId: number, data: z.infer<typeof integrationSystemSchema>, user: any): Promise<IntegrationSystemResponse> {
   const validated = integrationSystemSchema.parse(data);
 
+  // O UNIQUE de `code` é GLOBAL (shared systems): o segundo tenant que tentar
+  // registrar o mesmo code recebe 409/400 — decisão de produto já documentada.
   const existingCode = await get<{ id: number }>(
     `SELECT id FROM integration_systems WHERE UPPER(code) = UPPER($1)`,
     [validated.code]
@@ -145,10 +147,10 @@ export async function create(data: z.infer<typeof integrationSystemSchema>, user
 
   const result = await transaction(async (client) => {
     const insertResult = await client.query<any>(
-      `INSERT INTO integration_systems (code, name, description, secret_env_key, config)
-       VALUES ($1, $2, $3, $4, $5)
+      `INSERT INTO integration_systems (code, name, description, secret_env_key, config, tenant_id)
+       VALUES ($1, $2, $3, $4, $5, $6)
        RETURNING id, code, name, description, active, config, created_at, updated_at, secret_env_key`,
-      [validated.code, validated.name, validated.description ?? null, validated.secret_env_key, config ? JSON.stringify(config) : null]
+      [validated.code, validated.name, validated.description ?? null, validated.secret_env_key, config ? JSON.stringify(config) : null, tenantId]
     );
 
     const system = insertResult.rows[0];
@@ -169,9 +171,9 @@ export async function create(data: z.infer<typeof integrationSystemSchema>, user
     );
 
     await client.query(
-      `INSERT INTO integration_logs (system_id, system_code, direction, action, status, message)
-       VALUES ($1, $2, 'out', 'integration.system.created', 'success', $3)`,
-      [system.id, system.code, `Sistema ${system.code} criado por ${user.name}`]
+      `INSERT INTO integration_logs (system_id, system_code, direction, action, status, message, tenant_id)
+       VALUES ($1, $2, 'out', 'integration.system.created', 'success', $3, $4)`,
+      [system.id, system.code, `Sistema ${system.code} criado por ${user.name}`, tenantId]
     );
 
     return system;
@@ -180,14 +182,14 @@ export async function create(data: z.infer<typeof integrationSystemSchema>, user
   return mapSystem(result);
 }
 
-export async function update(id: number, data: z.infer<typeof updateIntegrationSystemSchema>, user: any): Promise<IntegrationSystemResponse> {
+export async function update(tenantId: number, id: number, data: z.infer<typeof updateIntegrationSystemSchema>, user: any): Promise<IntegrationSystemResponse> {
   const validated = updateIntegrationSystemSchema.parse(data);
 
   const existing = await get<any>(
     `SELECT id, code, name, description, active, config, created_at, updated_at, secret_env_key
      FROM integration_systems
-     WHERE id = $1`,
-    [id]
+     WHERE id = $1 AND tenant_id = $2`,
+    [id, tenantId]
   );
 
   if (!existing) {
@@ -223,12 +225,12 @@ export async function update(id: number, data: z.infer<typeof updateIntegrationS
     }
 
     updates.push(`updated_at = NOW()`);
-    params.push(id);
+    params.push(id, tenantId);
 
     const updateResult = await client.query<any>(
       `UPDATE integration_systems
        SET ${updates.join(', ')}
-       WHERE id = $${idx}
+       WHERE id = $${params.length - 1} AND tenant_id = $${params.length}
        RETURNING id, code, name, description, active, config, created_at, updated_at, secret_env_key`,
       params
     );
@@ -252,9 +254,9 @@ export async function update(id: number, data: z.infer<typeof updateIntegrationS
     );
 
     await client.query(
-      `INSERT INTO integration_logs (system_id, system_code, direction, action, status, message)
-       VALUES ($1, $2, 'out', 'integration.system.updated', 'success', $3)`,
-      [updated.id, updated.code, `Sistema ${updated.code} atualizado por ${user.name}`]
+      `INSERT INTO integration_logs (system_id, system_code, direction, action, status, message, tenant_id)
+       VALUES ($1, $2, 'out', 'integration.system.updated', 'success', $3, $4)`,
+      [updated.id, updated.code, `Sistema ${updated.code} atualizado por ${user.name}`, tenantId]
     );
 
     return updated;
@@ -263,12 +265,12 @@ export async function update(id: number, data: z.infer<typeof updateIntegrationS
   return mapSystem(result);
 }
 
-export async function setActive(id: number, active: boolean, user: any): Promise<IntegrationSystemResponse> {
+export async function setActive(tenantId: number, id: number, active: boolean, user: any): Promise<IntegrationSystemResponse> {
   const existing = await get<any>(
     `SELECT id, code, name, description, active, config, created_at, updated_at, secret_env_key
      FROM integration_systems
-     WHERE id = $1`,
-    [id]
+     WHERE id = $1 AND tenant_id = $2`,
+    [id, tenantId]
   );
 
   if (!existing) {
@@ -286,9 +288,9 @@ export async function setActive(id: number, active: boolean, user: any): Promise
     const updateResult = await client.query<any>(
       `UPDATE integration_systems
        SET active = $1, updated_at = NOW()
-       WHERE id = $2
+       WHERE id = $2 AND tenant_id = $3
        RETURNING id, code, name, description, active, config, created_at, updated_at, secret_env_key`,
-      [active, id]
+      [active, id, tenantId]
     );
 
     const updated = updateResult.rows[0];
@@ -310,9 +312,9 @@ export async function setActive(id: number, active: boolean, user: any): Promise
     );
 
     await client.query(
-      `INSERT INTO integration_logs (system_id, system_code, direction, action, status, message)
-       VALUES ($1, $2, 'out', $3, 'success', $4)`,
-      [updated.id, updated.code, action, `Sistema ${updated.code} ${message} por ${user.name}`]
+      `INSERT INTO integration_logs (system_id, system_code, direction, action, status, message, tenant_id)
+       VALUES ($1, $2, 'out', $3, 'success', $4, $5)`,
+      [updated.id, updated.code, action, `Sistema ${updated.code} ${message} por ${user.name}`, tenantId]
     );
 
     return updated;

@@ -9,6 +9,7 @@ export interface IntegrationSystem {
   name: string;
   secret_env_key: string;
   active: boolean;
+  tenant_id: number;
 }
 
 declare global {
@@ -39,7 +40,7 @@ export async function authenticateWebhook(req: Request, res: Response, next: Nex
     }
 
     const system = await get<IntegrationSystem>(
-      'SELECT id, code, name, secret_env_key, active FROM integration_systems WHERE code = $1 AND active = TRUE',
+      'SELECT id, code, name, secret_env_key, active, tenant_id FROM integration_systems WHERE code = $1 AND active = TRUE',
       [systemCode]
     );
     if (!system) {
