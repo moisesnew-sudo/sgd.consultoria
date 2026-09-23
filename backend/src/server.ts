@@ -119,6 +119,9 @@ import { closeAllSSEClients } from './routes/sse.js';
 
 const app = express();
 
+// Nao expor fingerprint do framework (vale para todas as rotas, inclusive health pre-middleware).
+app.disable("x-powered-by");
+
 // Trust proxy — required for correct req.ip behind Render/load balancers.
 // Prevents all requests from sharing the same rate limit bucket.
 app.set('trust proxy', 1);
@@ -137,7 +140,7 @@ app.get('/api/health', (_req, res) => {
 });
 
 // Readiness check — checks database connectivity and component state.
-// Returns 203 if ready, 503 if not. No auth required (used by orchestrators).
+// Returns 200 if ready, 503 if not. No auth required (used by orchestrators).
 app.get('/api/health/ready', async (_req, res) => {
   try {
     const start = Date.now();
