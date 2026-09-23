@@ -110,6 +110,7 @@ export async function initDatabase() {
       created_by INTEGER REFERENCES users(id),
       created_at TIMESTAMPTZ DEFAULT NOW(),
       updated_at TIMESTAMPTZ DEFAULT NOW(),
+      tenant_id INTEGER DEFAULT 1,
       UNIQUE(name)
     );
     CREATE UNIQUE INDEX IF NOT EXISTS uq_organs_name_upper ON organs (UPPER(name));
@@ -351,10 +352,8 @@ export async function initDatabase() {
     ALTER TABLE demand_versions ADD COLUMN IF NOT EXISTS tenant_id INTEGER DEFAULT 1;
     ALTER TABLE refresh_tokens ADD COLUMN IF NOT EXISTS tenant_id INTEGER DEFAULT 1;
     ALTER TABLE active_sessions ADD COLUMN IF NOT EXISTS tenant_id INTEGER DEFAULT 1;
-    ALTER TABLE export_logs ADD COLUMN IF NOT EXISTS tenant_id INTEGER DEFAULT 1;
-    ALTER TABLE backups ADD COLUMN IF NOT EXISTS tenant_id INTEGER DEFAULT 1;
-    ALTER TABLE organs ADD COLUMN IF NOT EXISTS tenant_id INTEGER DEFAULT 1;
-    ALTER TABLE monitoring_logs ADD COLUMN IF NOT EXISTS tenant_id INTEGER DEFAULT 1;
+    -- (tenant_id de export_logs/backups/organs/monitoring_logs nasce no CREATE TABLE;
+    --  compatibilidade com bancos legados garantida no bloco JS apos este DDL)
 
     -- A1 (hardening): converge para PRIMARY KEY (tenant_id); ver bloco JS apos este DDL.
     -- Banco novo ja nasce com a PK no CREATE TABLE; legado converge abaixo (sem mascarar NULL/dup).
@@ -390,7 +389,8 @@ export async function initDatabase() {
       backup_type TEXT NOT NULL CHECK(backup_type IN ('daily', 'weekly', 'monthly', 'manual')),
       status TEXT DEFAULT 'completed' CHECK(status IN ('completed', 'failed', 'restoring')),
       created_by INTEGER REFERENCES users(id),
-      created_at TIMESTAMPTZ DEFAULT NOW()
+      created_at TIMESTAMPTZ DEFAULT NOW(),
+      tenant_id INTEGER DEFAULT 1
     );
     CREATE INDEX IF NOT EXISTS idx_backups_type ON backups(backup_type);
     CREATE INDEX IF NOT EXISTS idx_backups_created ON backups(created_at);
@@ -403,7 +403,8 @@ export async function initDatabase() {
       record_count INTEGER DEFAULT 0,
       filters JSONB,
       ip_address TEXT,
-      created_at TIMESTAMPTZ DEFAULT NOW()
+      created_at TIMESTAMPTZ DEFAULT NOW(),
+      tenant_id INTEGER DEFAULT 1
     );
     CREATE INDEX IF NOT EXISTS idx_export_logs_user ON export_logs(user_id);
     CREATE INDEX IF NOT EXISTS idx_export_logs_type ON export_logs(export_type);
@@ -419,7 +420,8 @@ export async function initDatabase() {
       total_demands INTEGER,
       last_backup_at TIMESTAMPTZ,
       integration_status TEXT,
-      recorded_at TIMESTAMPTZ DEFAULT NOW()
+      recorded_at TIMESTAMPTZ DEFAULT NOW(),
+      tenant_id INTEGER DEFAULT 1
     );
     CREATE INDEX IF NOT EXISTS idx_monitoring_logs_recorded ON monitoring_logs(recorded_at);
 
@@ -670,6 +672,14 @@ export async function initDatabase() {
     CREATE INDEX IF NOT EXISTS idx_integration_snapshots_external ON integration_snapshots(external_id);
     CREATE INDEX IF NOT EXISTS idx_integration_snapshots_last_seen ON integration_snapshots(system_id, last_seen_at);
   `);
+
+  // Legado: tabelas criadas antes de tenant_id ganham a coluna aqui, APOS existirem.
+  // No banco novo ela ja nasce no CREATE TABLE acima (ADD COLUMN vira no-op).
+  // Mesmo padrao ja usado neste arquivo para as demais tabelas; sem mascarar erros.
+  await run(`ALTER TABLE organs ADD COLUMN IF NOT EXISTS tenant_id INTEGER DEFAULT 1`);
+  await run(`ALTER TABLE backups ADD COLUMN IF NOT EXISTS tenant_id INTEGER DEFAULT 1`);
+  await run(`ALTER TABLE export_logs ADD COLUMN IF NOT EXISTS tenant_id INTEGER DEFAULT 1`);
+  await run(`ALTER TABLE monitoring_logs ADD COLUMN IF NOT EXISTS tenant_id INTEGER DEFAULT 1`);
 
   // A1 (hardening): converge system_settings para o estado final canonico:
   //   tenant_id INTEGER NOT NULL PRIMARY KEY, sem coluna `id`, sem indices redundantes.
