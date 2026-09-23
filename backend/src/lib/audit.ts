@@ -1,5 +1,5 @@
 import type { PoolClient } from 'pg';
-import { run } from '../database.js';
+import { run, all } from '../database.js';
 import { addTimelineEvent } from './helpers.js';
 import { logger } from './logger.js';
 
@@ -82,10 +82,17 @@ export async function logExport(req: any, user: any, exportType: string, recordC
        VALUES ($1, $2, $3, $4, $5, $6, (SELECT tenant_id FROM users WHERE id = $1))`,
       [user.id, user.name, exportType, recordCount, filters ? JSON.stringify(filters) : null, ip_address]
     );
-    const ids = (demandIds || []).slice(0, 50);
+    const ids = (demandIds || []).filter((x: unknown): x is string => typeof x === 'string').slice(0, 50);
     if (ids.length > 0) {
+      // A2: defesa em profundidade — timeline só é escrita em demandas do próprio tenant.
+      const owned = await all<{ id: string }>(
+        'SELECT id FROM demands WHERE id = ANY($1::text[]) AND tenant_id = $2',
+        [ids, user.tenant_id]
+      );
+      const ownedSet = new Set(owned.map(r => r.id));
       const typeLabel = exportType === 'pdf' ? 'PDF' : exportType === 'excel' ? 'Excel' : 'CSV';
       for (const id of ids) {
+        if (!ownedSet.has(id)) continue;
         await addTimelineEvent(id, 'Exportação Registrada',
           `Dados exportados em ${typeLabel} por ${user.name} (${recordCount} registro(s))`,
           user.name, undefined, 'export', { export_type: exportType, record_count: recordCount });

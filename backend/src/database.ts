@@ -185,7 +185,7 @@ export async function initDatabase() {
     CREATE INDEX IF NOT EXISTS idx_audit_created ON audit_logs(created_at);
 
     CREATE TABLE IF NOT EXISTS system_settings (
-      id INTEGER PRIMARY KEY DEFAULT 1,
+      tenant_id INTEGER PRIMARY KEY DEFAULT 1,
       sla_days_baixa INTEGER DEFAULT 45,
       sla_days_media INTEGER DEFAULT 30,
       sla_days_alta INTEGER DEFAULT 15,
@@ -355,6 +355,14 @@ export async function initDatabase() {
     ALTER TABLE backups ADD COLUMN IF NOT EXISTS tenant_id INTEGER DEFAULT 1;
     ALTER TABLE organs ADD COLUMN IF NOT EXISTS tenant_id INTEGER DEFAULT 1;
     ALTER TABLE monitoring_logs ADD COLUMN IF NOT EXISTS tenant_id INTEGER DEFAULT 1;
+
+    -- A1 (hardening): converge para PRIMARY KEY (tenant_id); ver bloco JS apos este DDL.
+    -- Banco novo ja nasce com a PK no CREATE TABLE; legado converge abaixo (sem mascarar NULL/dup).
+    ALTER TABLE system_settings ADD COLUMN IF NOT EXISTS tenant_id INTEGER DEFAULT 1;
+    -- (removido: backfill mascarava NULL; NULL agora aborta com erro explicito no bloco JS abaixo)
+    -- (removido: drop da PK legada agora ocorre no bloco JS abaixo, APOS validacao explicita)
+    -- (removido: redundante com PRIMARY KEY (tenant_id); convergencia garantida no bloco JS abaixo)
+    -- (removido: redundante com PRIMARY KEY (tenant_id); convergencia garantida no bloco JS abaixo)
 
     -- E-mail é uma identidade dentro da organização, não global.
     ALTER TABLE users DROP CONSTRAINT IF EXISTS users_email_key;
@@ -662,6 +670,68 @@ export async function initDatabase() {
     CREATE INDEX IF NOT EXISTS idx_integration_snapshots_external ON integration_snapshots(external_id);
     CREATE INDEX IF NOT EXISTS idx_integration_snapshots_last_seen ON integration_snapshots(system_id, last_seen_at);
   `);
+
+  // A1 (hardening): converge system_settings para o estado final canonico:
+  //   tenant_id INTEGER NOT NULL PRIMARY KEY, sem coluna `id`, sem indices redundantes.
+  // Idempotente nos 4 estados (novo, legado com `id`, parcialmente migrado, ja migrado).
+  // NULL ou duplicidade aborta o boot com erro explicito — nunca mascara inconsistência.
+  // DROP aqui e nao-destrutivo para dados (remove apenas constraint/coluna legada/indice).
+  await run(`ALTER TABLE system_settings ADD COLUMN IF NOT EXISTS tenant_id INTEGER DEFAULT 1`);
+  const sysNulls = await get<{ count: string }>(
+    `SELECT COUNT(*) AS count FROM system_settings WHERE tenant_id IS NULL`
+  );
+  if (parseInt(sysNulls?.count || '0', 10) > 0) {
+    throw new Error(
+      'Migration system_settings: existem linhas com tenant_id NULL. ' +
+      'Resolva manualmente qual tenant e dono de cada linha antes de iniciar o servidor.'
+    );
+  }
+  const sysDups = await all<{ tenant_id: number; c: string }>(
+    `SELECT tenant_id, COUNT(*) AS c FROM system_settings GROUP BY tenant_id HAVING COUNT(*) > 1`
+  );
+  if (sysDups.length > 0) {
+    throw new Error(
+      'Migration system_settings: tenant_id duplicado (' +
+      sysDups.map((r) => `${r.tenant_id}x${r.c}`).join(', ') +
+      '). Resolva manualmente para uma linha por tenant antes de iniciar o servidor.'
+    );
+  }
+  const sysCols = await all<{ column_name: string }>(
+    `SELECT column_name FROM information_schema.columns WHERE table_name = 'system_settings'`
+  );
+  if (sysCols.some((c) => c.column_name === 'id')) {
+    const sysPkCols = await all<{ attname: string }>(
+      `SELECT a.attname FROM pg_constraint c
+        JOIN pg_attribute a ON a.attrelid = c.conrelid AND a.attnum = ANY (c.conkey)
+        WHERE c.conrelid = 'system_settings'::regclass AND c.contype = 'p'`
+    );
+    if (sysPkCols.length > 0 && !sysPkCols.some((r) => r.attname === 'id')) {
+      throw new Error(
+        'Migration system_settings: estado ambiguo (coluna `id` presente com PRIMARY KEY fora de `id`). ' +
+        'Resolva manualmente antes de iniciar o servidor.'
+      );
+    }
+    await run(`ALTER TABLE system_settings DROP CONSTRAINT IF EXISTS system_settings_pkey`);
+    await run(`ALTER TABLE system_settings DROP COLUMN IF EXISTS id`);
+  }
+  await run(`ALTER TABLE system_settings ALTER COLUMN tenant_id SET NOT NULL`);
+  await run(`
+    DO $$ BEGIN
+      IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint
+        WHERE conrelid = 'system_settings'::regclass AND contype = 'p'
+      ) THEN
+        BEGIN
+          ALTER TABLE system_settings ADD CONSTRAINT system_settings_pkey PRIMARY KEY (tenant_id);
+        EXCEPTION WHEN duplicate_object THEN NULL;
+        END;
+      END IF;
+    END $$;
+  `);
+  // Com PRIMARY KEY (tenant_id), indices avulsos sobre a mesma coluna sao redundantes
+  // (a PK ja indexa). DROP de indice nao destroi dados; limpa resíduos da migração anterior.
+  await run(`DROP INDEX IF EXISTS uq_system_settings_tenant`);
+  await run(`DROP INDEX IF EXISTS idx_system_settings_tenant`);
 
   // D3.2 — Migration: adicionar colunas e estados para gestão avançada de entregas.
   // Idempotente: verifica existence antes de alterar.

@@ -284,10 +284,10 @@ export async function runSeed() {
     }
   }
 
-  const existingSettings = await get('SELECT id FROM system_settings WHERE id = 1');
+  const existingSettings = await get('SELECT tenant_id FROM system_settings WHERE tenant_id = 1');
   if (!existingSettings) {
     await run(
-      'INSERT INTO system_settings (id, sla_days_baixa, sla_days_media, sla_days_alta, sla_days_urgente, auto_triage, email_notifications, budget_cap) VALUES (1, 45, 30, 15, 5, TRUE, TRUE, 15000000) ON CONFLICT (id) DO NOTHING'
+      'INSERT INTO system_settings (tenant_id, sla_days_baixa, sla_days_media, sla_days_alta, sla_days_urgente, auto_triage, email_notifications, budget_cap) VALUES (1, 45, 30, 15, 5, TRUE, TRUE, 15000000) ON CONFLICT (tenant_id) DO NOTHING'
     );
     logger.info('✅ Configurações padrão criadas');
   }

@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { get, all } from '../database.js';
 import { authenticateToken, requirePermission } from '../middleware/auth.js';
-import { extractMeta, logExport } from '../lib/audit.js';
+import { extractMeta, logAudit, logExport } from '../lib/audit.js';
 import { parsePagination, buildPaginationMeta } from '../lib/pagination.js';
 import { logger } from '../lib/logger.js';
 
@@ -133,7 +133,25 @@ router.post('/log-export', authenticateToken, async (req: Request, res: Response
     if (!['pdf', 'excel', 'csv'].includes(export_type)) {
       return res.status(400).json({ error: 'Tipo de exportação inválido' });
     }
-    await logExport(req, req.user!, export_type, record_count || 0, filters, Array.isArray(demand_ids) ? demand_ids : undefined);
+    const tenantId = req.user!.tenant_id;
+    const demandIds = Array.isArray(demand_ids) ? demand_ids.filter((x: unknown): x is string => typeof x === 'string') : [];
+    if (demandIds.length > 0) {
+      const owned = await all<{ id: string }>(
+        'SELECT id FROM demands WHERE id = ANY($1::text[]) AND tenant_id = $2',
+        [demandIds.slice(0, 50), tenantId]
+      );
+      const ownedSet = new Set(owned.map(r => r.id));
+      const crossTenant = demandIds.slice(0, 50).some(id => !ownedSet.has(id));
+      if (crossTenant) {
+        await logAudit({
+          entity_type: 'settings', entity_id: 'log-export', action: 'log_export_denied',
+          user_id: req.user!.id, user_name: req.user!.name,
+          details: { reason: 'demand_ids de outra organização' }, ip_address
+        });
+        return res.status(403).json({ error: 'Não autorizado: uma ou mais demandas pertencem a outra organização' });
+      }
+    }
+    await logExport(req, req.user!, export_type, record_count || 0, filters, demandIds.length > 0 ? demandIds : undefined);
     res.json({ message: 'Exportação registrada' });
   } catch (error) {
     logger.error('Log export error:', error);

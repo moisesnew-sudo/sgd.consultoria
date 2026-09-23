@@ -38,14 +38,17 @@ const importSchema = z.object({
   })
 });
 
-const SAFE_IMPORT_TABLES = ['permissions', 'users', 'system_settings', 'municipalities', 'demands', 'timeline_events', 'attachments', 'comments', 'user_permissions', 'role_permissions', 'audit_logs'];
+// C1: estruturas globais de RBAC NUNCA são importáveis via backup de tenant.
+const GLOBAL_RBAC_KEYS = ['permissions', 'user_permissions', 'role_permissions'];
+const SAFE_IMPORT_TABLES = ['users', 'system_settings', 'municipalities', 'demands', 'timeline_events', 'attachments', 'comments', 'audit_logs'];
 
 router.get('/', authenticateToken, async (req: Request, res: Response) => {
   try {
-    let settings = await get('SELECT * FROM system_settings WHERE id = 1');
+    const tenantId = req.user!.tenant_id;
+    let settings = await get('SELECT * FROM system_settings WHERE tenant_id = $1', [tenantId]);
     if (!settings) {
-      await run(`INSERT INTO system_settings (id) VALUES (1) ON CONFLICT (id) DO NOTHING`);
-      settings = await get('SELECT * FROM system_settings WHERE id = 1');
+      await run(`INSERT INTO system_settings (tenant_id) VALUES ($1) ON CONFLICT (tenant_id) DO NOTHING`, [tenantId]);
+      settings = await get('SELECT * FROM system_settings WHERE tenant_id = $1', [tenantId]);
     }
     res.json(settings);
   } catch (error) {
@@ -57,15 +60,16 @@ router.get('/', authenticateToken, async (req: Request, res: Response) => {
 router.put('/', authenticateToken, requireRole('admin'), requirePermission('settings.edit'), async (req: Request, res: Response) => {
   try {
     const { ip_address, user_agent } = extractMeta(req);
+    const tenantId = req.user!.tenant_id;
     const data = settingsSchema.parse(req.body);
-    await run(`INSERT INTO system_settings (id) VALUES (1) ON CONFLICT (id) DO NOTHING`);
-    const result = buildUpdateQuery('system_settings', data, 'id', 1);
+    await run(`INSERT INTO system_settings (tenant_id) VALUES ($1) ON CONFLICT (tenant_id) DO NOTHING`, [tenantId]);
+    const result = buildUpdateQuery('system_settings', data, 'tenant_id', tenantId);
     if (result) {
       await run(result.sql, result.values);
     }
-    const updated = await get('SELECT * FROM system_settings WHERE id = 1');
+    const updated = await get('SELECT * FROM system_settings WHERE tenant_id = $1', [tenantId]);
     await logAudit({
-      entity_type: 'settings', entity_id: '1', action: 'update',
+      entity_type: 'settings', entity_id: String(tenantId), action: 'update',
       user_id: req.user!.id, user_name: req.user!.name,
       details: { changed: Object.keys(data) }, ip_address, user_agent
     });
@@ -82,7 +86,7 @@ router.get('/export', authenticateToken, requireRole('admin'), async (req: Reque
     const tenantId = req.user!.tenant_id;
     const demands = await all('SELECT * FROM demands WHERE tenant_id = $1', [tenantId]);
     const municipalities = await all('SELECT * FROM municipalities WHERE tenant_id = $1', [tenantId]);
-    const settings = await get('SELECT * FROM system_settings WHERE id = 1');
+    const settings = await get('SELECT * FROM system_settings WHERE tenant_id = $1', [tenantId]);
     const users = await all('SELECT id, email, name, role, active, created_at FROM users WHERE tenant_id = $1', [tenantId]);
     const timeline = await all(
       `SELECT te.* FROM timeline_events te
@@ -113,6 +117,15 @@ router.post('/import', authenticateToken, requireRole('admin'), async (req: Requ
   try {
     const { data } = req.body;
 
+    // C1: rejeita estruturas globais de RBAC ANTES de qualquer parse/transação.
+    const g = req.body?.data;
+    if (g && typeof g === 'object') {
+      const blocked = GLOBAL_RBAC_KEYS.filter(k => Array.isArray(g[k]) && g[k].length > 0);
+      if (blocked.length > 0) {
+        return res.status(403).json({ error: `Importação de estruturas globais de RBAC não permitida: ${blocked.join(', ')}` });
+      }
+    }
+
     const parsed = importSchema.safeParse(req.body);
     if (!parsed.success) {
       return res.status(400).json({ error: 'Formato de backup inválido', details: parsed.error.errors });
@@ -127,13 +140,11 @@ router.post('/import', authenticateToken, requireRole('admin'), async (req: Requ
     }
 
     const backupTables = ['comments', 'audit_logs', 'attachments', 'timeline_events', 'demands', 'municipalities', 'users', 'system_settings'];
-    const TENANT_SCOPED = new Set(['comments', 'audit_logs', 'attachments', 'timeline_events', 'demands', 'municipalities', 'users']);
+    const TENANT_SCOPED = new Set(['comments', 'audit_logs', 'attachments', 'timeline_events', 'demands', 'municipalities', 'users', 'system_settings']);
     const tenantId = req.user!.tenant_id;
     const preBackup: Record<string, any[]> = {};
     for (const table of backupTables) {
-      preBackup[table] = TENANT_SCOPED.has(table)
-        ? await all(`SELECT * FROM ${table} WHERE tenant_id = $1`, [tenantId])
-        : await all(`SELECT * FROM ${table}`);
+      preBackup[table] = await all(`SELECT * FROM ${table} WHERE tenant_id = $1`, [tenantId]);
     }
 
     await transaction(async (client) => {
@@ -147,6 +158,7 @@ router.post('/import', authenticateToken, requireRole('admin'), async (req: Requ
       await client.query('DELETE FROM municipalities WHERE tenant_id = $1', [tenantId]);
       await client.query('DELETE FROM user_permissions WHERE user_id IN (SELECT id FROM users WHERE tenant_id = $1)', [tenantId]);
       await client.query('DELETE FROM users WHERE tenant_id = $1', [tenantId]);
+      await client.query('DELETE FROM system_settings WHERE tenant_id = $1', [tenantId]);
 
       for (const table of SAFE_IMPORT_TABLES) {
         if (data[table] && Array.isArray(data[table])) {
@@ -162,6 +174,23 @@ router.post('/import', authenticateToken, requireRole('admin'), async (req: Requ
               await client.query(`INSERT INTO ${table} (${cols.join(', ')}) VALUES (${placeholders}) ON CONFLICT DO NOTHING`, vals);
             } catch { }
           }
+        }
+      }
+
+      // Backup legítimo v2 exporta `settings` como OBJETO único do tenant.
+      // Backups legados podem conter `id` (PK antiga removida): ignorado abaixo, nunca inserido.
+      if (data.settings && typeof data.settings === 'object' && !Array.isArray(data.settings)) {
+        const row = data.settings;
+        const cols = Object.keys(row).filter(k => {
+          try { sanitizeColumnName(k); return true; } catch { return false; }
+        }).filter(k => k.toLowerCase() !== 'tenant_id' && k.toLowerCase() !== 'id');
+        if (cols.length > 0) {
+          const vals = cols.map(c => row[c]);
+          const placeholders = cols.map((_, i) => `$${i + 1}`).join(', ');
+          await client.query(
+            `INSERT INTO system_settings (${cols.join(', ')}, tenant_id) VALUES (${placeholders}, $${cols.length + 1}) ON CONFLICT (tenant_id) DO UPDATE SET ${cols.map(c => `${c} = EXCLUDED.${c}`).join(', ')}`,
+            [...vals, tenantId]
+          );
         }
       }
     });
