@@ -813,6 +813,40 @@ export async function initDatabase() {
     ON CONFLICT (organization_id, capability) DO NOTHING
   `);
 
+  // ETAPA 5 (AUXAMO): provisiona a organizacao AUXAMO como tenant permanente.
+  // id=2 fixo; primary_domain NULL (nenhum dominio real definido — o resolver
+  // por Host intencionalmente NAO a alcanca ainda). Idempotente e nao
+  // destrutivo: ON CONFLICT DO NOTHING nunca sobrescreve linha existente
+  // (dados deliberadamente alterados por operador sao preservados).
+  // Nao cria usuarios, integracoes, demandas, municipios, orgaos ou secrets.
+  await run(`
+    INSERT INTO organizations (id, name, slug, status)
+    VALUES (2, 'AUXAMO', 'auxamo', 'active')
+    ON CONFLICT (id) DO NOTHING
+  `);
+  // Capability gov explicitamente FALSE (fail closed; nunca depende do default).
+  await run(`
+    INSERT INTO organization_capabilities (organization_id, capability, enabled)
+    VALUES (2, 'government_integrations', FALSE)
+    ON CONFLICT (organization_id, capability) DO NOTHING
+  `);
+  // Settings neutras do tenant (mesmos defaults operacionais; nenhuma identidade
+  // SGD — as colunas atuais sao apenas numericas/booleanas, sem branding).
+  await run(`
+    INSERT INTO system_settings
+      (tenant_id, sla_days_baixa, sla_days_media, sla_days_alta, sla_days_urgente,
+       auto_triage, email_notifications, budget_cap)
+    VALUES (2, 45, 30, 15, 5, TRUE, TRUE, 15000000)
+    ON CONFLICT (tenant_id) DO NOTHING
+  `);
+  // Realigna a sequence apos o id explicito (proximo INSERT automatico > 2).
+  await run(`
+    SELECT setval(
+      pg_get_serial_sequence('organizations', 'id'),
+      COALESCE((SELECT MAX(id) FROM organizations), 1)
+    )
+  `);
+
   // ETAPA 4.1 (secure-default): converge bases inicializadas com o DEFAULT TRUE
   // legado para o default seguro, SEM reescrever valores armazenados:
   //   - NULL (sem valor efetivo; leitura ja tratava como desabilitado) -> FALSE;
