@@ -185,6 +185,26 @@ export async function initDatabase() {
     CREATE INDEX IF NOT EXISTS idx_audit_entity ON audit_logs(entity_type, entity_id);
     CREATE INDEX IF NOT EXISTS idx_audit_created ON audit_logs(created_at);
 
+    -- ETAPA 2 (AUXAMO): entidade oficial da IDENTIDADE DO TENANT.
+    -- tenant_id nas demais tabelas referencia organizations(id) conceitualmente;
+    -- FKs fisicas sao adicionadas somente quando comprovadamente seguras (ver bloco JS abaixo).
+    -- slug: lowercase, [a-z0-9-], sem hifen nas bordas, 1..63 chars (seguro para URL/dominio futuro).
+    -- primary_domain: NULL permitido; quando preenchido, unico case-insensitive
+    -- (indice parcial abaixo — permite multiplos NULLs).
+    -- Identidade (slug/domain) mora AQUI, nunca em system_settings. Sem secrets nesta tabela.
+    CREATE TABLE IF NOT EXISTS organizations (
+      id SERIAL PRIMARY KEY,
+      name TEXT NOT NULL,
+      slug TEXT NOT NULL UNIQUE,
+      primary_domain TEXT,
+      status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'inactive')),
+      created_at TIMESTAMPTZ DEFAULT NOW(),
+      updated_at TIMESTAMPTZ DEFAULT NOW(),
+      CHECK (slug ~ '^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$')
+    );
+    CREATE UNIQUE INDEX IF NOT EXISTS uq_organizations_domain_lower
+      ON organizations (LOWER(primary_domain)) WHERE primary_domain IS NOT NULL;
+
     CREATE TABLE IF NOT EXISTS system_settings (
       tenant_id INTEGER PRIMARY KEY DEFAULT 1,
       sla_days_baixa INTEGER DEFAULT 45,
@@ -430,7 +450,10 @@ export async function initDatabase() {
     -- a variável de ambiente (ex.: TRANSFEREGOV_WEBHOOK_SECRET, SEI_WEBHOOK_SECRET, CGLOG_WEBHOOK_SECRET).
     CREATE TABLE IF NOT EXISTS integration_systems (
       id SERIAL PRIMARY KEY,
-      code TEXT UNIQUE NOT NULL,
+      -- ETAPA 2 (AUXAMO): code e unico DENTRO do tenant, nao global.
+      -- (unicidade composta criada no indice uq_integration_systems_tenant_code abaixo;
+      --  bancos legados convergem no bloco JS apos este DDL).
+      code TEXT NOT NULL,
       name TEXT NOT NULL,
       secret_env_key TEXT NOT NULL,
       active BOOLEAN DEFAULT TRUE,
@@ -439,6 +462,8 @@ export async function initDatabase() {
       updated_at TIMESTAMPTZ DEFAULT NOW(),
       tenant_id INTEGER DEFAULT 1
     );
+    CREATE UNIQUE INDEX IF NOT EXISTS uq_integration_systems_tenant_code
+      ON integration_systems (tenant_id, code);
 
     CREATE TABLE IF NOT EXISTS webhook_events (
       id SERIAL PRIMARY KEY,
@@ -742,6 +767,63 @@ export async function initDatabase() {
   // (a PK ja indexa). DROP de indice nao destroi dados; limpa resíduos da migração anterior.
   await run(`DROP INDEX IF EXISTS uq_system_settings_tenant`);
   await run(`DROP INDEX IF EXISTS idx_system_settings_tenant`);
+
+  // ETAPA 2 (AUXAMO) — Fundacao multi-tenant: organizations + unicidade por tenant.
+  // Idempotente em banco novo e legado; nao destrutivo; sem ON DELETE CASCADE em nada.
+  // 1) Garante a organizacao legada (tenant_id = 1, SGD). NUNCA cria tenant 2 aqui.
+  //    ON CONFLICT (id) DO NOTHING: nao toca em registro operacional existente.
+  await run(`
+    INSERT INTO organizations (id, name, slug, status)
+    VALUES (1, 'SGD Consultoria', 'sgd', 'active')
+    ON CONFLICT (id) DO NOTHING
+  `);
+  // INSERT com id explicito nao avanca a sequence: realinha para MAX(id) para que
+  // futuros INSERTs sem id nunca colidam com a org 1.
+  await run(`
+    SELECT setval(
+      pg_get_serial_sequence('organizations', 'id'),
+      COALESCE((SELECT MAX(id) FROM organizations), 1)
+    )
+  `);
+
+  // 2) Converge integration_systems.code de UNIQUE global para UNIQUE (tenant_id, code).
+  //    Banco novo ja nasce com o indice composto (DDL acima); legado converge aqui.
+  await run(`ALTER TABLE integration_systems ADD COLUMN IF NOT EXISTS tenant_id INTEGER DEFAULT 1`);
+  const isysNulls = await get<{ count: string }>(
+    `SELECT COUNT(*) AS count FROM integration_systems WHERE tenant_id IS NULL`
+  );
+  if (parseInt(isysNulls?.count || '0', 10) > 0) {
+    throw new Error(
+      'Migration integration_systems: existem linhas com tenant_id NULL. ' +
+      'Resolva manualmente qual tenant e dono de cada linha antes de iniciar o servidor.'
+    );
+  }
+  // Remove a unicidade GLOBAL legada (nome auto-gerado pelo UNIQUE inline: tabela_coluna_key).
+  // DROP de constraint nao destroi dados; sem ele, dois tenants nunca poderiam reusar o mesmo code.
+  await run(`ALTER TABLE integration_systems DROP CONSTRAINT IF EXISTS integration_systems_code_key`);
+  await run(`
+    CREATE UNIQUE INDEX IF NOT EXISTS uq_integration_systems_tenant_code
+      ON integration_systems (tenant_id, code)
+  `);
+
+  // 3) FOREIGN KEYS tenant_id -> organizations(id): DELIBERADAMENTE NAO ADICIONADAS nesta etapa.
+  //    Motivo: nenhum tenant alem do id=1 possui linha em organizations por desenho
+  //    (a suite de testes insere fixtures com tenant_id=2 sem org correspondente, e bancos
+  //    legados podem conter tenant_ids arbitrarios). Uma FK enforced quebraria o startup
+  //    desses bancos e a suite. Classificacao completa:
+  //      A (FK segura hoje): nenhuma comprovada — pendente de provisionamento de orgs.
+  //      B (risco de dados legados/teste): todas as tabelas com tenant_id
+  //         (users, demands, municipalities, timeline_events, comments, attachments,
+  //          audit_logs, demand_versions, refresh_tokens, active_sessions, login_attempts,
+  //          system_settings, organs, backups, export_logs, monitoring_logs,
+  //          integration_systems, webhook_events, integration_logs, demand_integrations,
+  //          integration_status_mapping, integration_alerts, outbound_webhooks,
+  //          webhook_deliveries, background_jobs, integration_snapshots).
+  //      C (globais, nunca recebem tenant_id): permissions, role_permissions,
+  //         user_permissions (via user FK), password_history, token_blacklist,
+  //         password_reset_tokens.
+  //    Quando orgs forem provisionadas (ETAPA 3+), adicionar com ON DELETE RESTRICT
+  //    (nunca CASCADE — organizacao nao pode ser apagada levando dados operacionais).
 
   // D3.2 — Migration: adicionar colunas e estados para gestão avançada de entregas.
   // Idempotente: verifica existence antes de alterar.
