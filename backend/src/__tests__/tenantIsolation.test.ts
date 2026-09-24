@@ -150,6 +150,22 @@ describe('Isolamento entre tenants', () => {
       [tenantTwoAdminId]
     );
     tenantTwoSessionId = session!.id;
+
+    // ETAPA 4: organization 2 (fixture transitoria) com government_integrations
+    // habilitada, para que os cenarios de isolamento das rotas de integracao
+    // continuem exercitando 200 + isolamento (o gate de capability negaria
+    // tenant sem capability com 403). Removida em afterAll.
+    await run(
+      `INSERT INTO organizations (id, name, slug, status)
+       VALUES (2, 'Tenant Dois (fixture de teste)', 'tenant-two-test', 'active')
+       ON CONFLICT (id) DO NOTHING`
+    );
+    await run(`SELECT setval(pg_get_serial_sequence('organizations', 'id'), GREATEST((SELECT MAX(id) FROM organizations), 2))`);
+    await run(
+      `INSERT INTO organization_capabilities (organization_id, capability, enabled)
+       VALUES (2, 'government_integrations', TRUE)
+       ON CONFLICT (organization_id, capability) DO NOTHING`
+    );
   });
 
   afterAll(async () => {
@@ -163,6 +179,9 @@ describe('Isolamento entre tenants', () => {
     await run('DELETE FROM demands WHERE id = ANY($1::text[])', [[tenantOneId, tenantTwoId]]);
     await run('UPDATE users SET active = FALSE, deleted_at = NOW() WHERE email = ANY($1::text[])', [[tenantTwoAdmin, tenantTwoUser, tenantTwoCreateUser]]);
     await run('DELETE FROM active_sessions WHERE user_id = $1', [tenantTwoAdminId]);
+    // ETAPA 4: remove fixture de capability/org 2 (capability antes, por RESTRICT).
+    await run(`DELETE FROM organization_capabilities WHERE organization_id = 2`);
+    await run(`DELETE FROM organizations WHERE id = 2 AND slug = 'tenant-two-test'`);
   });
 
   it('1. demanda de outro tenant não aparece nem em listagens nem em detalhes', async () => {

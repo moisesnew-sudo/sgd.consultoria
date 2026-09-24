@@ -1,6 +1,8 @@
 import { Router, Request, Response } from 'express';
 import { authenticateToken, requirePermission } from '../middleware/auth.js';
 import { csrfProtection } from '../middleware/csrf.js';
+import { requireCapability } from '../middleware/requireCapability.js';
+import { GOVERNMENT_INTEGRATIONS } from '../lib/organizationCapabilities.js';
 import {
   getDashboard,
   getHealthList,
@@ -31,7 +33,7 @@ function parseIntParam(value: unknown): number | undefined {
 }
 
 /** GET /api/integrations/admin/dashboard */
-router.get('/admin/dashboard', authenticateToken, requirePermission('integrations.view'), async (req: Request, res: Response) => {
+router.get('/admin/dashboard', authenticateToken, requireCapability(GOVERNMENT_INTEGRATIONS), requirePermission('integrations.view'), async (req: Request, res: Response) => {
   try {
     res.json(await getDashboard(req.user!.tenant_id));
   } catch (error) {
@@ -41,7 +43,7 @@ router.get('/admin/dashboard', authenticateToken, requirePermission('integration
 });
 
 /** GET /api/integrations/admin/health */
-router.get('/admin/health', authenticateToken, requirePermission('integrations.view'), async (req: Request, res: Response) => {
+router.get('/admin/health', authenticateToken, requireCapability(GOVERNMENT_INTEGRATIONS), requirePermission('integrations.view'), async (req: Request, res: Response) => {
   try {
     res.json(await getHealthList(req.user!.tenant_id));
   } catch (error) {
@@ -51,7 +53,7 @@ router.get('/admin/health', authenticateToken, requirePermission('integrations.v
 });
 
 /** GET /api/integrations/admin/logs */
-router.get('/admin/logs', authenticateToken, requirePermission('integrations.view'), async (req: Request, res: Response) => {
+router.get('/admin/logs', authenticateToken, requireCapability(GOVERNMENT_INTEGRATIONS), requirePermission('integrations.view'), async (req: Request, res: Response) => {
   try {
     const filters = {
       page: parseIntParam(req.query.page),
@@ -73,7 +75,7 @@ router.get('/admin/logs', authenticateToken, requirePermission('integrations.vie
 });
 
 /** GET /api/integrations/admin/systems/:id */
-router.get('/admin/systems/:id', authenticateToken, requirePermission('integrations.view'), async (req: Request, res: Response) => {
+router.get('/admin/systems/:id', authenticateToken, requireCapability(GOVERNMENT_INTEGRATIONS), requirePermission('integrations.view'), async (req: Request, res: Response) => {
   try {
     const id = parseIntParam(req.params.id);
     if (id === undefined || Number.isNaN(id)) {
@@ -92,7 +94,7 @@ router.get('/admin/systems/:id', authenticateToken, requirePermission('integrati
 });
 
 /** GET /api/integrations/admin/adapters */
-router.get('/admin/adapters', authenticateToken, requirePermission('integrations.view'), async (_req: Request, res: Response) => {
+router.get('/admin/adapters', authenticateToken, requireCapability(GOVERNMENT_INTEGRATIONS), requirePermission('integrations.view'), async (_req: Request, res: Response) => {
   try {
     res.json({ data: listAdapters() });
   } catch (error) {
@@ -102,7 +104,7 @@ router.get('/admin/adapters', authenticateToken, requirePermission('integrations
 });
 
 /** GET /api/integrations/admin/sync-status */
-router.get('/admin/sync-status', authenticateToken, requirePermission('integrations.view'), async (req: Request, res: Response) => {
+router.get('/admin/sync-status', authenticateToken, requireCapability(GOVERNMENT_INTEGRATIONS), requirePermission('integrations.view'), async (req: Request, res: Response) => {
   try {
     res.json(await getSyncStatus(req.user!.tenant_id));
   } catch (error) {
@@ -112,7 +114,7 @@ router.get('/admin/sync-status', authenticateToken, requirePermission('integrati
 });
 
 /** GET /api/integrations/admin/overview */
-router.get('/admin/overview', authenticateToken, requirePermission('integrations.view'), async (req: Request, res: Response) => {
+router.get('/admin/overview', authenticateToken, requireCapability(GOVERNMENT_INTEGRATIONS), requirePermission('integrations.view'), async (req: Request, res: Response) => {
   try {
     res.json(await getOverview(req.user!.tenant_id));
   } catch (error) {
@@ -122,7 +124,7 @@ router.get('/admin/overview', authenticateToken, requirePermission('integrations
 });
 
 /** POST /api/integrations/admin/systems/:id/test-connection */
-router.post('/admin/systems/:id/test-connection', authenticateToken, requirePermission('integrations.sync'), csrfProtection, async (req: Request, res: Response) => {
+router.post('/admin/systems/:id/test-connection', authenticateToken, requireCapability(GOVERNMENT_INTEGRATIONS), requirePermission('integrations.sync'), csrfProtection, async (req: Request, res: Response) => {
   try {
     const id = parseIntParam(req.params.id);
     if (id === undefined || Number.isNaN(id)) {
@@ -146,7 +148,7 @@ router.post('/admin/systems/:id/test-connection', authenticateToken, requirePerm
 });
 
 /** POST /api/integrations/admin/systems/:id/sync */
-router.post('/admin/systems/:id/sync', authenticateToken, requirePermission('integrations.sync'), csrfProtection, async (req: Request, res: Response) => {
+router.post('/admin/systems/:id/sync', authenticateToken, requireCapability(GOVERNMENT_INTEGRATIONS), requirePermission('integrations.sync'), csrfProtection, async (req: Request, res: Response) => {
   try {
     const id = parseIntParam(req.params.id);
     if (id === undefined || Number.isNaN(id)) {

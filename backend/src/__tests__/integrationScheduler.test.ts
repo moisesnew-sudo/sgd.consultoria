@@ -47,6 +47,16 @@ vi.mock('../lib/eventBus.js', () => ({
   emitIntegrationEvent: vi.fn(),
 }));
 
+// ETAPA 4: o scheduler consulta hasOrganizationCapability (camada real, coberta
+// contra banco de verdade em capabilities.test.ts). Aqui os sistemas sao doubles
+// sem tenant, logo a capability e mockada habilitada para preservar o foco destes
+// testes (mecanica do scheduler: fail-fast, contagens, dispatch). Nenhuma
+// assertion de seguranca foi alterada.
+vi.mock('../lib/organizationCapabilities.js', () => ({
+  hasOrganizationCapability: vi.fn().mockResolvedValue(true),
+  GOVERNMENT_INTEGRATIONS: 'government_integrations',
+}));
+
 vi.mock('../lib/logger.js', () => ({
   logger: {
     info: vi.fn(),

@@ -205,6 +205,22 @@ export async function initDatabase() {
     CREATE UNIQUE INDEX IF NOT EXISTS uq_organizations_domain_lower
       ON organizations (LOWER(primary_domain)) WHERE primary_domain IS NOT NULL;
 
+    -- ETAPA 4 (AUXAMO): capabilities por organizacao (feature flags por tenant).
+    -- NUNCA dezenas de colunas booleanas em organizations: novos recursos sao
+    -- novas linhas aqui, sem migration. Fail closed: ausencia de linha = desabilitado.
+    -- FK enforced com ON DELETE RESTRICT (organizacao com capabilities nao pode ser
+    -- apagada levando-as; e seguro porque linhas so existem para orgs existentes).
+    CREATE TABLE IF NOT EXISTS organization_capabilities (
+      organization_id INTEGER NOT NULL REFERENCES organizations(id) ON DELETE RESTRICT,
+      capability TEXT NOT NULL,
+      -- ETAPA 4.1 (secure-default): fail closed no proprio schema. Capability
+      -- criada sem enabled explicito nasce DESABILITADA. Nunca DEFAULT TRUE.
+      enabled BOOLEAN NOT NULL DEFAULT FALSE,
+      created_at TIMESTAMPTZ DEFAULT NOW(),
+      updated_at TIMESTAMPTZ DEFAULT NOW(),
+      PRIMARY KEY (organization_id, capability)
+    );
+
     CREATE TABLE IF NOT EXISTS system_settings (
       tenant_id INTEGER PRIMARY KEY DEFAULT 1,
       sla_days_baixa INTEGER DEFAULT 45,
@@ -785,6 +801,27 @@ export async function initDatabase() {
       COALESCE((SELECT MAX(id) FROM organizations), 1)
     )
   `);
+
+  // ETAPA 4 (AUXAMO): capability inicial da organizacao legada (SGD).
+  // Preserva o comportamento atual: Transferegov/SEI/CGLOG, schedulers, webhooks
+  // e monitoramento de integracoes continuam ativos para o tenant 1.
+  // ON CONFLICT DO NOTHING (nunca reabilita se um operador desativar) + idempotente.
+  // NUNCA cria capabilities para outro tenant aqui.
+  await run(`
+    INSERT INTO organization_capabilities (organization_id, capability, enabled)
+    VALUES (1, 'government_integrations', TRUE)
+    ON CONFLICT (organization_id, capability) DO NOTHING
+  `);
+
+  // ETAPA 4.1 (secure-default): converge bases inicializadas com o DEFAULT TRUE
+  // legado para o default seguro, SEM reescrever valores armazenados:
+  //   - NULL (sem valor efetivo; leitura ja tratava como desabilitado) -> FALSE;
+  //   - TRUE existente permanece TRUE; FALSE existente permanece FALSE;
+  //   - apenas o DEFAULT futuro muda para FALSE + NOT NULL passa a ser exigido.
+  // Idempotente: reexecutar nao altera nada.
+  await run(`UPDATE organization_capabilities SET enabled = FALSE WHERE enabled IS NULL`);
+  await run(`ALTER TABLE organization_capabilities ALTER COLUMN enabled SET DEFAULT FALSE`);
+  await run(`ALTER TABLE organization_capabilities ALTER COLUMN enabled SET NOT NULL`);
 
   // 2) Converge integration_systems.code de UNIQUE global para UNIQUE (tenant_id, code).
   //    Banco novo ja nasce com o indice composto (DDL acima); legado converge aqui.

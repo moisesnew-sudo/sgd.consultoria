@@ -4,6 +4,10 @@ import { get, run } from '../database.js';
 import { authenticateWebhook } from '../middleware/webhookAuth.js';
 import { logger } from '../lib/logger.js';
 import { processWebhookEvent } from '../lib/integrationProcessor.js';
+import {
+  GOVERNMENT_INTEGRATIONS,
+  hasOrganizationCapability,
+} from '../lib/organizationCapabilities.js';
 
 const router = Router();
 
@@ -45,6 +49,13 @@ function parsePayload(rawBody: Buffer, contentType: string): { payload: any; eve
 router.post('/:system', authenticateWebhook, async (req: Request, res: Response) => {
   try {
     const system = req.integrationSystem!;
+    // ETAPA 4: fail closed — tenant sem government_integrations não recebe
+    // processamento de webhooks governamentais (sem persistência, 403 genérico).
+    // Não resolve o roteamento global por code (dívida conhecida p/ etapa futura).
+    const govEnabled = await hasOrganizationCapability(system.tenant_id, GOVERNMENT_INTEGRATIONS);
+    if (!govEnabled) {
+      return res.status(403).json({ error: 'Integração não disponível para esta organização.' });
+    }
     const rawBody: Buffer = Buffer.isBuffer(req.body) ? req.body : Buffer.alloc(0);
     const contentType = String(req.headers['content-type'] || '').toLowerCase();
     const { payload, eventType } = parsePayload(rawBody, contentType);
