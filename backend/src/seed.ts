@@ -328,7 +328,7 @@ export async function runSeed() {
   ];
   for (const s of INTEGRATION_SYSTEMS) {
     await run(
-      'INSERT INTO integration_systems (code, name, secret_env_key) VALUES ($1, $2, $3) ON CONFLICT (code) DO NOTHING',
+      'INSERT INTO integration_systems (code, name, secret_env_key) VALUES ($1, $2, $3) ON CONFLICT (tenant_id, code) DO NOTHING',
       [s.code, s.name, s.secret_env_key]
     );
   }

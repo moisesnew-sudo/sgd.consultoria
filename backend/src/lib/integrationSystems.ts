@@ -132,11 +132,12 @@ export async function getById(tenantId: number, id: number, canViewSecrets = tru
 export async function create(tenantId: number, data: z.infer<typeof integrationSystemSchema>, user: any): Promise<IntegrationSystemResponse> {
   const validated = integrationSystemSchema.parse(data);
 
-  // O UNIQUE de `code` é GLOBAL (shared systems): o segundo tenant que tentar
-  // registrar o mesmo code recebe 409/400 — decisão de produto já documentada.
+  // ETAPA 2 (AUXAMO): o UNIQUE de `code` e POR TENANT (UNIQUE tenant_id, code).
+  // O segundo tenant pode registrar o mesmo code; o mesmo tenant continua recebendo 409/400.
+  // Comparacao case-insensitive por seguranca (o schema zod ja forca lowercase na criacao).
   const existingCode = await get<{ id: number }>(
-    `SELECT id FROM integration_systems WHERE UPPER(code) = UPPER($1)`,
-    [validated.code]
+    `SELECT id FROM integration_systems WHERE tenant_id = $1 AND UPPER(code) = UPPER($2)`,
+    [tenantId, validated.code]
   );
 
   if (existingCode) {

@@ -22,6 +22,7 @@ import { getMappedStatus } from './statusMapping.js';
 import { publishEvent, emitIntegrationEvent } from './eventBus.js';
 import { CONFIGURATION_ERROR_CODE, validateIntegrationConfiguration } from './integrationConfig.js';
 import { logger } from './logger.js';
+import { hasOrganizationCapability, GOVERNMENT_INTEGRATIONS } from './organizationCapabilities.js';
 import { createHash } from 'crypto';
 import type { AdapterConfig, SyncPullResult, NormalizedIntegrationEvent } from '../integrations/types.js';
 
@@ -160,6 +161,17 @@ export async function runScheduledSyncCycle(): Promise<SyncSchedulerSummary | nu
     for (const system of systems) {
       const config = parseSystemSyncConfig(system.config);
       if (!config.enabled) continue;
+
+      // ETAPA 4: fail closed por capability — tenant sem government_integrations
+      // NÃO gera tráfego externo: skip silencioso (debug), sem HTTP, sem logs
+      // de sync, fora das contagens do summary.
+      if (!(await hasOrganizationCapability(system.tenant_id, GOVERNMENT_INTEGRATIONS))) {
+        logger.debug('Integration sync skipped: tenant sem government_integrations', {
+          system: system.code,
+          tenant_id: system.tenant_id,
+        });
+        continue;
+      }
 
       const lastSync = lastSyncBySystem.get(system.code) ?? 0;
       const intervalMs = config.intervalMinutes * 60_000;

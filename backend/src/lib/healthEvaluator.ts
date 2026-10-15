@@ -95,7 +95,7 @@ export async function ensureHealthMonitorSystem(): Promise<number> {
   const result = await run(
     `INSERT INTO integration_systems (code, name, secret_env_key, active, config)
      VALUES ($1, 'SGD Health Monitor', 'HEALTH_MONITOR_SECRET_KEY', true, '{"type":"health_monitor"}'::jsonb)
-     ON CONFLICT (code) DO UPDATE SET name = EXCLUDED.name
+      ON CONFLICT (tenant_id, code) DO UPDATE SET name = EXCLUDED.name
      RETURNING id`,
     [HEALTH_MONITOR_CODE]
   );
