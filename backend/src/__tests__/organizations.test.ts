@@ -11,7 +11,8 @@ import {
 
 // Fundacao multi-tenant (ETAPA 2 AUXAMO): entidade organizations + unicidade
 // por tenant em integration_systems. Fixtures usam stamp unico e sao removidas
-// em afterAll; nenhum tenant real e criado (org 2/AUXAMO continua inexistente).
+// em afterAll; nenhum tenant real e criado aqui (org 2/AUXAMO e permanente
+// via bootstrap desde a ETAPA 5 e nao e tocada por este arquivo).
 const stamp = Date.now();
 const STAMP_CODE = `aux2-${stamp}`;
 const STAMP_SLUG_A = `aux2-${stamp}`;

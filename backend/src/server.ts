@@ -133,14 +133,76 @@ let server: Server | null = null;
 let shuttingDown = false;
 const SHUTDOWN_TIMEOUT_MS = parseInt(process.env.SHUTDOWN_TIMEOUT_MS || '15000', 10);
 
-// Health check (liveness) — registered BEFORE all middleware.
-// No auth, no CSRF, no rate limit. Always returns 200 if the process is alive.
+// Security middleware
+const servingFrontend = process.env.NODE_ENV === 'production' && process.env.SERVE_FRONTEND === 'true';
+const cspDirectives = servingFrontend
+  ? {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'"],
+      styleSrc: ["'self'"],
+      imgSrc: ["'self'", 'data:'],
+      connectSrc: ["'self'"],
+      frameAncestors: ["'none'"],
+      formAction: ["'self'"],
+      baseUri: ["'none'"],
+    }
+  : {
+      defaultSrc: ["'none'"],
+      scriptSrc: ["'none'"],
+      styleSrc: ["'none'"],
+      imgSrc: ["'none'"],
+      connectSrc: ["'none'"],
+      frameAncestors: ["'none'"],
+      formAction: ["'none'"],
+      baseUri: ["'none'"],
+    };
+
+app.use(helmet({
+  contentSecurityPolicy: { directives: cspDirectives, reportOnly: false },
+  hsts: { maxAge: 31536000, includeSubDomains: true, preload: true },
+  frameguard: { action: 'deny' },
+  noSniff: true,
+  xssFilter: true,
+  referrerPolicy: { policy: 'strict-origin-when-cross-origin' }
+}));
+
+// Compression — skip for SSE endpoints (text/event-stream must not be buffered)
+app.use(compression({
+  filter: (req, res) => {
+    if (req.path === '/events/integrations') return false;
+    return compression.filter(req, res);
+  },
+}));
+
+const frontendOrigin = process.env.FRONTEND_URL || 'http://localhost:3000';
+const frontendWithWww = frontendOrigin.includes('://www.')
+  ? frontendOrigin
+  : frontendOrigin.replace('://', '://www.');
+const allowedOrigins = [frontendOrigin, frontendWithWww];
+
+if (process.env.NODE_ENV === 'production' && !process.env.FRONTEND_URL?.startsWith('https://')) {
+    logger.error('❌ FRONTEND_URL deve usar HTTPS em produção');
+  process.exit(1);
+}
+
+app.use(cors({
+  origin: (origin, callback) => {
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error('Origem não permitida pelo CORS'));
+    }
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-CSRF-Token'],
+  exposedHeaders: ['X-Request-Id']
+}));
+
 app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString(), version: '2.0.0' });
 });
 
-// Readiness check — checks database connectivity and component state.
-// Returns 200 if ready, 503 if not. No auth required (used by orchestrators).
 app.get('/api/health/ready', async (_req, res) => {
   try {
     const start = Date.now();
@@ -170,64 +232,6 @@ app.get('/api/health/ready', async (_req, res) => {
   }
 });
 
-// Security middleware
-// ✅ CORREÇÃO: CSP sem 'unsafe-eval' em produção
-const cspDirectives = {
-  defaultSrc: ["'self'"],
-  scriptSrc: process.env.NODE_ENV === 'production'
-    ? ["'self'", 'https://*.googletagmanager.com']
-    : ["'self'", "'unsafe-inline'", "'unsafe-eval'", 'https://*.googletagmanager.com'],
-  styleSrc: ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
-  fontSrc: ["'self'", 'https://fonts.gstatic.com', 'data:'],
-  imgSrc: ["'self'", 'data:', 'https://*.amazonaws.com', 'https://*.gov.br'],
-  connectSrc: ["'self'"],
-  frameAncestors: ["'none'"],
-  formAction: ["'self'"],
-  baseUri: ["'self'"]
-};
-
-app.use(helmet({
-  contentSecurityPolicy: { directives: cspDirectives, reportOnly: false },
-  hsts: { maxAge: 31536000, includeSubDomains: true, preload: true },
-  frameguard: { action: 'deny' },
-  noSniff: true,
-  xssFilter: true,
-  referrerPolicy: { policy: 'strict-origin-when-cross-origin' }
-}));
-
-// Compression — skip for SSE endpoints (text/event-stream must not be buffered)
-app.use(compression({
-  filter: (req, res) => {
-    if (req.path === '/events/integrations') return false;
-    return compression.filter(req, res);
-  },
-}));
-
-// ✅ CORREÇÃO: CORS com validação estrita de origens
-const allowedOrigins = (process.env.CORS_ORIGIN || 'http://localhost:3000')
-  .split(',')
-  .map(s => s.trim())
-  .filter(s => s.length > 0 && s !== '*');
-
-if (process.env.NODE_ENV === 'production' && allowedOrigins.length === 0) {
-    logger.error('❌ CORS_ORIGIN não configurado corretamente em produção');
-  process.exit(1);
-}
-
-app.use(cors({
-  origin: (origin, callback) => {
-    if (!origin || allowedOrigins.includes(origin)) {
-      callback(null, true);
-    } else {
-      callback(new Error('Origem não permitida pelo CORS'));
-    }
-  },
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-CSRF-Token'],
-  exposedHeaders: ['X-Request-Id']
-}));
-
 // ✅ CORREÇÃO: Origin/Referer validation mais robusta
 app.use('/api/auth', (req, res, next) => {
   if (process.env.NODE_ENV === 'production' && req.method !== 'GET') {
@@ -250,22 +254,12 @@ app.use('/api/auth', (req, res, next) => {
   next();
 });
 
-// Per-endpoint rate limiters
-const authLimiter = rateLimit({
+const criticalAuthLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 20,
-  message: { error: 'Muitas tentativas de login. Tente novamente mais tarde.' },
+  max: 5,
+  message: { error: 'Muitas tentativas. Tente novamente mais tarde.' },
   standardHeaders: true,
   legacyHeaders: false
-});
-
-const passwordResetLimiter = rateLimit({
-  windowMs: 60 * 60 * 1000,
-  max: 3,
-  message: { error: 'Muitas tentativas de redefinição de senha. Tente novamente mais tarde.' },
-  standardHeaders: true,
-  legacyHeaders: false,
-  keyGenerator: (req) => req.body?.email || req.ip || 'unknown'
 });
 
 const apiLimiter = rateLimit({
@@ -292,9 +286,9 @@ const webhookLimiter = rateLimit({
   legacyHeaders: false
 });
 
-app.use('/api/auth/login', authLimiter);
-app.use('/api/password-reset/request', express.json({ limit: '10mb' }));
-app.use('/api/password-reset/request', passwordResetLimiter);
+app.use('/api/auth', criticalAuthLimiter);
+app.use('/api/password-reset', criticalAuthLimiter);
+app.use('/api/password-reset/request', express.json({ limit: '100kb' }));
 app.use('/api/', apiLimiter);
 
 // Cookies
