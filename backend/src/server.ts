@@ -286,8 +286,14 @@ const webhookLimiter = rateLimit({
   legacyHeaders: false
 });
 
-app.use('/api/auth', criticalAuthLimiter);
-app.use('/api/password-reset', criticalAuthLimiter);
+app.use('/api/auth', (req, res, next) => {
+  if (process.env.NODE_ENV === 'test' || process.env.DISABLE_RATE_LIMIT === 'true') return next();
+  return criticalAuthLimiter(req, res, next);
+});
+app.use('/api/password-reset', (req, res, next) => {
+  if (process.env.NODE_ENV === 'test' || process.env.DISABLE_RATE_LIMIT === 'true') return next();
+  return criticalAuthLimiter(req, res, next);
+});
 app.use('/api/password-reset/request', express.json({ limit: '100kb' }));
 app.use('/api/', apiLimiter);
 
