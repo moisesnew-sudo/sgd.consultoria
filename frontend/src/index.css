@@ -395,3 +395,17 @@ textarea:focus-visible {
 .animate-alert-out {
   animation: alert-out 0.2s ease-in both;
 }
+
+/* Login-only accessibility override: surfaces remain opaque over photography. */
+.login-high-contrast .bg-white\/20 {
+  background-color: rgba(0, 24, 15, 0.94) !important;
+  border-color: rgba(255, 255, 255, 0.82) !important;
+}
+.login-high-contrast .bg-white\/15 {
+  background-color: rgba(0, 24, 15, 0.92) !important;
+  border-color: rgba(255, 255, 255, 0.82) !important;
+}
+.login-high-contrast .text-white\/75,
+.login-high-contrast .text-white\/85 {
+  color: #ffffff !important;
+}
